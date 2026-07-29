@@ -24,6 +24,7 @@ export class Grid {
 
     this.readout = document.createElement("div");
     this.readout.className = "grid-readout";
+    this.readout.style.color = this.dimensionColor;
     this.readout.hidden = true;
     container.appendChild(this.readout);
 
@@ -54,6 +55,7 @@ export class Grid {
 
   setDimensionColor(color) {
     this.dimensionColor = color;
+    this.readout.style.color = color;
     this.draw();
   }
 
