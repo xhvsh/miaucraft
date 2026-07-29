@@ -3,6 +3,7 @@ const MIN_LABEL_GAP_PX = 70;
 const MIN_SCALE = 0.02;
 const MAX_SCALE = 12;
 const PIN_HIT_RADIUS = 20;
+const PIN_ICON_HEIGHT = 24;
 
 function pickSpacing(scale) {
   for (const s of NICE_SPACINGS) {
@@ -230,7 +231,7 @@ export class Grid {
     for (let i = this.waypoints.length - 1; i >= 0; i--) {
       const wp = this.waypoints[i];
       const p = this.worldToScreen(wp.x, wp.z);
-      const d = Math.hypot(p.x - sx, p.y - sy);
+      const d = Math.hypot(p.x - sx, p.y - PIN_ICON_HEIGHT / 2 - sy);
       if (d <= PIN_HIT_RADIUS) return wp;
     }
     return null;
@@ -306,7 +307,7 @@ export class Grid {
       ctx.shadowBlur = 16;
       ctx.font = "900 24px 'Font Awesome 6 Free'";
       ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
+      ctx.textBaseline = "bottom";
       ctx.strokeStyle = "rgba(10, 10, 15, 0.9)";
       ctx.lineWidth = 2;
       ctx.strokeText("\uf3c5", p.x, p.y);
