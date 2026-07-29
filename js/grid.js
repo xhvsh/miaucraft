@@ -48,6 +48,7 @@ export class Grid {
     this._resize();
     new ResizeObserver(() => this._resize()).observe(container);
     this._raf = requestAnimationFrame(() => this.draw());
+    document.fonts?.ready.then(() => this.draw());
   }
 
   setDimensionColor(color) {
@@ -299,28 +300,17 @@ export class Grid {
       if (p.x < -20 || p.x > w + 20 || p.y < -20 || p.y > h + 20) continue;
 
       const color = wp.color || this.dimensionColor;
-      const radius = 10;
-
       ctx.save();
-      ctx.translate(p.x, p.y);
       ctx.fillStyle = color;
       ctx.shadowColor = color;
       ctx.shadowBlur = 16;
-      ctx.beginPath();
-      ctx.moveTo(0, 14);
-      ctx.bezierCurveTo(-7, 7, -10, 2, -10, -3);
-      ctx.arc(0, -3, radius, Math.PI, 0);
-      ctx.bezierCurveTo(10, 2, 7, 7, 0, 14);
-      ctx.closePath();
-      ctx.fill();
-      ctx.shadowBlur = 0;
+      ctx.font = "900 24px 'Font Awesome 6 Free'";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
       ctx.strokeStyle = "rgba(10, 10, 15, 0.9)";
       ctx.lineWidth = 2;
-      ctx.stroke();
-      ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
-      ctx.beginPath();
-      ctx.arc(0, -3, 3, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.strokeText("\uf3c5", p.x, p.y);
+      ctx.fillText("\uf3c5", p.x, p.y);
       ctx.restore();
 
       if (showLabels) {

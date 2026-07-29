@@ -11,6 +11,7 @@
     href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap"
     rel="stylesheet"
   />
+  <script src="https://kit.fontawesome.com/384138011e.js" crossorigin="anonymous"></script>
   <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
@@ -37,9 +38,9 @@
         <p class="map-hint">Right-click the map to add a waypoint &middot; Left-click a marker for details</p>
 
         <div class="grid-controls">
-          <button class="icon-btn" id="zoomInBtn" type="button" title="Zoom in">+</button>
-          <button class="icon-btn" id="zoomOutBtn" type="button" title="Zoom out">&minus;</button>
-          <button class="icon-btn icon-btn--wide" id="recenterBtn" type="button" title="Back to origin">0,0</button>
+          <button class="icon-btn" id="zoomInBtn" type="button" title="Zoom in" aria-label="Zoom in"><i class="fa-solid fa-plus" aria-hidden="true"></i></button>
+          <button class="icon-btn" id="zoomOutBtn" type="button" title="Zoom out" aria-label="Zoom out"><i class="fa-solid fa-minus" aria-hidden="true"></i></button>
+          <button class="icon-btn icon-btn--wide" id="recenterBtn" type="button" title="Back to origin" aria-label="Back to origin"><i class="fa-solid fa-crosshairs" aria-hidden="true"></i></button>
         </div>
 
         <div class="pin-tooltip" id="pinTooltip" hidden></div>
@@ -107,7 +108,10 @@
         </label>
         <label>
           Password
-          <input type="password" id="loginPassword" autocomplete="current-password" required />
+          <span class="password-field">
+            <input type="password" id="loginPassword" autocomplete="current-password" required />
+            <button class="password-toggle" type="button" data-password-toggle="loginPassword" aria-label="Show password" aria-pressed="false"><i class="fa-solid fa-eye" aria-hidden="true"></i></button>
+          </span>
         </label>
         <button class="btn btn-primary" type="submit">Sign in</button>
         <span class="form-msg" id="loginMsg"></span>
@@ -120,11 +124,17 @@
         </label>
         <label>
           Password
-          <input type="password" id="registerPassword" autocomplete="new-password" required />
+          <span class="password-field">
+            <input type="password" id="registerPassword" autocomplete="new-password" required />
+            <button class="password-toggle" type="button" data-password-toggle="registerPassword" aria-label="Show password" aria-pressed="false"><i class="fa-solid fa-eye" aria-hidden="true"></i></button>
+          </span>
         </label>
         <label>
           Repeat password
-          <input type="password" id="registerPasswordRepeat" autocomplete="new-password" required />
+          <span class="password-field">
+            <input type="password" id="registerPasswordRepeat" autocomplete="new-password" required />
+            <button class="password-toggle" type="button" data-password-toggle="registerPasswordRepeat" aria-label="Show password" aria-pressed="false"><i class="fa-solid fa-eye" aria-hidden="true"></i></button>
+          </span>
         </label>
         <label>
           Access code

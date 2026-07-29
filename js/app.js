@@ -43,6 +43,7 @@ const waypointModal = $("#waypointModal");
 let currentDim = "overworld";
 let currentWaypoints = [];
 let openTooltipWaypoint = null;
+let tooltipPointerStartedInside = false;
 const grid = new Grid($("#gridContainer"), { dimensionColor: DIM_COLORS.overworld });
 
 grid.onEmptyRightClick = (x, z) => {
@@ -211,6 +212,7 @@ function buildWaypointCard(wp) {
   swatch.className = "waypoint-swatch";
   swatch.style.background = wp.color;
   swatch.style.color = wp.color;
+  swatch.innerHTML = '<i class="fa-solid fa-location-dot" aria-hidden="true"></i>';
   const name = document.createElement("span");
   name.className = "waypoint-name";
   name.textContent = wp.name;
@@ -383,10 +385,20 @@ function hideTooltip() {
   openTooltipWaypoint = null;
 }
 
+document.addEventListener("pointerdown", (e) => {
+  tooltipPointerStartedInside = pinTooltip.contains(e.target);
+});
+
 document.addEventListener("click", (e) => {
-  if (!pinTooltip.hidden && !pinTooltip.contains(e.target) && !e.target.closest(".grid-canvas, .waypoint-card")) {
+  if (
+    !pinTooltip.hidden &&
+    !tooltipPointerStartedInside &&
+    !pinTooltip.contains(e.target) &&
+    !e.target.closest(".grid-canvas, .waypoint-card")
+  ) {
     hideTooltip();
   }
+  tooltipPointerStartedInside = false;
 });
 
 // ---------------------------------------------------------------------------
@@ -409,13 +421,31 @@ function closeAuthModal() {
   authModal.hidden = true;
   $("#loginForm").reset();
   $("#registerForm").reset();
+  authModal.querySelectorAll("[data-password-toggle]").forEach((button) => {
+    const input = document.getElementById(button.dataset.passwordToggle);
+    input.type = "password";
+    button.innerHTML = '<i class="fa-solid fa-eye" aria-hidden="true"></i>';
+    button.setAttribute("aria-label", "Show password");
+    button.setAttribute("aria-pressed", "false");
+  });
   $("#loginMsg").textContent = "";
   $("#registerMsg").textContent = "";
 }
 
-authModal.addEventListener("click", (e) => {
-  if (e.target === authModal) closeAuthModal();
-});
+function closeOnBackdropClick(backdrop, close) {
+  let pointerStartedOnBackdrop = false;
+
+  backdrop.addEventListener("pointerdown", (e) => {
+    pointerStartedOnBackdrop = e.target === backdrop;
+  });
+
+  backdrop.addEventListener("click", (e) => {
+    if (pointerStartedOnBackdrop && e.target === backdrop) close();
+    pointerStartedOnBackdrop = false;
+  });
+}
+
+closeOnBackdropClick(authModal, closeAuthModal);
 
 waypointSearchEl.addEventListener("input", renderSidebar);
 
@@ -434,6 +464,19 @@ function setAuthTab(tab) {
 
 authModal.querySelectorAll(".modal-tab").forEach((btn) => {
   btn.addEventListener("click", () => setAuthTab(btn.dataset.authtab));
+});
+
+authModal.querySelectorAll("[data-password-toggle]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const input = document.getElementById(button.dataset.passwordToggle);
+    const showing = input.type === "text";
+    input.type = showing ? "password" : "text";
+    button.innerHTML = showing
+      ? '<i class="fa-solid fa-eye" aria-hidden="true"></i>'
+      : '<i class="fa-solid fa-eye-slash" aria-hidden="true"></i>';
+    button.setAttribute("aria-label", showing ? "Show password" : "Hide password");
+    button.setAttribute("aria-pressed", String(!showing));
+  });
 });
 
 $("#loginForm").addEventListener("submit", async (e) => {
@@ -504,9 +547,7 @@ function closeWaypointForm() {
 }
 
 $("#waypointModalClose").addEventListener("click", closeWaypointForm);
-waypointModal.addEventListener("click", (e) => {
-  if (e.target === waypointModal) closeWaypointForm();
-});
+closeOnBackdropClick(waypointModal, closeWaypointForm);
 
 function updateNetherPreview() {
   const preview = $("#netherPreview");
