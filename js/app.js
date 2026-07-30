@@ -212,7 +212,9 @@ function buildWaypointCard(wp) {
   swatch.className = "waypoint-swatch";
   swatch.style.background = wp.color;
   swatch.style.color = wp.color;
-  swatch.innerHTML = '<i class="fa-solid fa-location-dot" aria-hidden="true"></i>';
+  swatch.innerHTML = wp.name.toLowerCase().includes("spawn")
+    ? '<i class="fa-solid fa-house" aria-hidden="true"></i>'
+    : '<i class="fa-solid fa-location-dot" aria-hidden="true"></i>';
   const name = document.createElement("span");
   name.className = "waypoint-name";
   name.textContent = wp.name;

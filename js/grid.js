@@ -34,6 +34,7 @@ export class Grid {
     this.scale = 0.5; // screen px per block
 
     this.waypoints = [];
+    this.hoveredWaypoint = null;
 
     this._dragging = false;
     this._dragMoved = false;
@@ -153,11 +154,18 @@ export class Grid {
         const sx = e.clientX - rect.left;
         const sy = e.clientY - rect.top;
         const w = this.screenToWorld(sx, sy);
+        const hoveredWaypoint = this._hitTestPin(sx, sy);
+        if (hoveredWaypoint !== this.hoveredWaypoint) {
+          this.hoveredWaypoint = hoveredWaypoint;
+          this.draw();
+        }
         this.readout.hidden = false;
         this.readout.textContent = `x ${Math.round(w.x)}, z ${Math.round(w.z)}`;
-        this.readout.style.left = `${Math.min(sx + 16, rect.width - 140)}px`;
-        this.readout.style.top = `${Math.min(sy + 16, rect.height - 30)}px`;
       } else {
+        if (this.hoveredWaypoint) {
+          this.hoveredWaypoint = null;
+          this.draw();
+        }
         this.readout.hidden = true;
       }
     });
@@ -168,6 +176,10 @@ export class Grid {
     });
 
     c.addEventListener("mouseleave", () => {
+      if (this.hoveredWaypoint) {
+        this.hoveredWaypoint = null;
+        this.draw();
+      }
       this.readout.hidden = true;
     });
 
@@ -297,12 +309,12 @@ export class Grid {
     }
 
     // waypoint pins
-    const showLabels = spacing <= 250;
     for (const wp of this.waypoints) {
       const p = this.worldToScreen(wp.x, wp.z);
       if (p.x < -20 || p.x > w + 20 || p.y < -20 || p.y > h + 20) continue;
 
       const color = wp.color || this.dimensionColor;
+      const icon = wp.name.toLowerCase().includes("spawn") ? "\uf015" : "\uf3c5";
       ctx.save();
       ctx.fillStyle = color;
       ctx.shadowColor = color;
@@ -312,15 +324,30 @@ export class Grid {
       ctx.textBaseline = "bottom";
       ctx.strokeStyle = "rgba(10, 10, 15, 0.9)";
       ctx.lineWidth = 2;
-      ctx.strokeText("\uf3c5", p.x, p.y);
-      ctx.fillText("\uf3c5", p.x, p.y);
+      ctx.strokeText(icon, p.x, p.y);
+      ctx.fillText(icon, p.x, p.y);
       ctx.restore();
 
-      if (showLabels) {
-        ctx.fillStyle = "rgba(232, 230, 240, 0.9)";
-        ctx.font = "12px 'Inter', system-ui, sans-serif";
-        ctx.fillText(wp.name, p.x + 14, p.y + 4);
-      }
+    }
+
+    if (this.hoveredWaypoint) {
+      const p = this.worldToScreen(this.hoveredWaypoint.x, this.hoveredWaypoint.z);
+      const labelY = p.y + 8;
+      ctx.save();
+      ctx.font = "12px 'Inter', system-ui, sans-serif";
+      const labelWidth = ctx.measureText(this.hoveredWaypoint.name).width;
+      const paddingX = 7;
+      const paddingY = 4;
+      const labelX = p.x - labelWidth / 2 - paddingX;
+      ctx.fillStyle = "rgba(10, 10, 15, 0.88)";
+      ctx.beginPath();
+      ctx.roundRect(labelX, labelY, labelWidth + paddingX * 2, 20, 4);
+      ctx.fill();
+      ctx.fillStyle = "rgba(232, 230, 240, 0.9)";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "top";
+      ctx.fillText(this.hoveredWaypoint.name, labelX + paddingX, labelY + paddingY);
+      ctx.restore();
     }
   }
 }
