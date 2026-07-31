@@ -7,6 +7,10 @@ import {
   deleteWaypoint,
   getServerInfo,
   setServerInfo,
+  listCategories,
+  createCategory,
+  updateCategory,
+  deleteCategory,
 } from "./waypoints.js";
 
 const DIM_COLORS = {
@@ -30,11 +34,20 @@ const sidebarTitle = $("#sidebarTitle");
 const waypointCountEl = $("#waypointCount");
 const waypointListEl = $("#waypointList");
 const waypointSearchEl = $("#waypointSearch");
+const categoryFilterRowEl = $("#categoryFilterRow");
 const serverPanel = $("#serverPanel");
 const pinTooltip = $("#pinTooltip");
 
 const authModal = $("#authModal");
 const waypointModal = $("#waypointModal");
+
+const categoriesBtn = $("#categoriesBtn");
+const categoriesPanel = $("#categoriesPanel");
+const categoriesListEl = $("#categoriesList");
+
+const sidebarToggleBtn = $("#sidebarToggleBtn");
+const sidebarCloseBtn = $("#sidebarCloseBtn");
+const sidebarScrim = $("#sidebarScrim");
 
 // ---------------------------------------------------------------------------
 // State
@@ -44,6 +57,9 @@ let currentDim = "overworld";
 let currentWaypoints = [];
 let openTooltipWaypoint = null;
 let tooltipPointerStartedInside = false;
+let categories = [];
+let categoryFilter = null; // null = all, "__none__" = uncategorized, or a category id
+let editingCategory = null;
 const grid = new Grid($("#gridContainer"), { dimensionColor: DIM_COLORS.overworld });
 
 grid.onEmptyRightClick = (x, z) => {
@@ -75,6 +91,8 @@ Auth.onAuthChange((state) => {
   if (!state.session && currentDim === "server") {
     switchDimension("overworld");
   }
+  categoriesBtn.hidden = !Auth.can("manageCategories");
+  if (!Auth.can("manageCategories")) closeCategoriesPanel();
   loadCurrentView();
 });
 
@@ -116,6 +134,227 @@ function renderAuthArea() {
 }
 
 // ---------------------------------------------------------------------------
+// Categories
+// ---------------------------------------------------------------------------
+
+async function loadCategories() {
+  try {
+    categories = await listCategories();
+  } catch (err) {
+    console.error(err);
+    categories = [];
+  }
+  renderCategoryFilterRow();
+  renderCategoriesList();
+  populateCategorySelect();
+  renderSidebar();
+}
+
+function categoryById(id) {
+  return categories.find((c) => c.id === id) || null;
+}
+
+function renderCategoryFilterRow() {
+  categoryFilterRowEl.innerHTML = "";
+  if (categories.length === 0) {
+    categoryFilterRowEl.hidden = true;
+    return;
+  }
+  categoryFilterRowEl.hidden = false;
+
+  const allChip = document.createElement("button");
+  allChip.type = "button";
+  allChip.className = "category-chip";
+  allChip.textContent = "All";
+  allChip.dataset.active = String(categoryFilter === null);
+  allChip.addEventListener("click", () => {
+    categoryFilter = null;
+    renderCategoryFilterRow();
+    renderSidebar();
+  });
+  categoryFilterRowEl.appendChild(allChip);
+
+  for (const cat of categories) {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "category-chip";
+    chip.style.setProperty("--chip-color", cat.color);
+    chip.dataset.active = String(categoryFilter === cat.id);
+    chip.textContent = cat.name;
+    chip.addEventListener("click", () => {
+      categoryFilter = categoryFilter === cat.id ? null : cat.id;
+      renderCategoryFilterRow();
+      renderSidebar();
+    });
+    categoryFilterRowEl.appendChild(chip);
+  }
+
+  const noneChip = document.createElement("button");
+  noneChip.type = "button";
+  noneChip.className = "category-chip category-chip--none";
+  noneChip.textContent = "Uncategorized";
+  noneChip.dataset.active = String(categoryFilter === "__none__");
+  noneChip.addEventListener("click", () => {
+    categoryFilter = categoryFilter === "__none__" ? null : "__none__";
+    renderCategoryFilterRow();
+    renderSidebar();
+  });
+  categoryFilterRowEl.appendChild(noneChip);
+}
+
+function buildCategoryBadge(categoryId) {
+  const cat = categoryById(categoryId);
+  if (!cat) return null;
+  const badge = document.createElement("span");
+  badge.className = "category-badge";
+  badge.style.setProperty("--badge-color", cat.color);
+  badge.textContent = cat.name;
+  return badge;
+}
+
+function populateCategorySelect() {
+  const select = $("#wpCategory");
+  const previousValue = select.value;
+  select.innerHTML = '<option value="">No category</option>';
+  for (const cat of categories) {
+    const option = document.createElement("option");
+    option.value = cat.id;
+    option.textContent = cat.name;
+    select.appendChild(option);
+  }
+  if (categories.some((c) => c.id === previousValue)) {
+    select.value = previousValue;
+  }
+}
+
+function renderCategoriesList() {
+  categoriesListEl.innerHTML = "";
+  if (categories.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state category-empty";
+    empty.textContent = "No categories yet. Add one below.";
+    categoriesListEl.appendChild(empty);
+    return;
+  }
+
+  for (const cat of categories) {
+    const item = document.createElement("div");
+    item.className = "category-item";
+
+    const swatch = document.createElement("span");
+    swatch.className = "category-swatch";
+    swatch.style.background = cat.color;
+
+    const name = document.createElement("span");
+    name.className = "category-item-name";
+    name.textContent = cat.name;
+
+    const actions = document.createElement("div");
+    actions.className = "category-item-actions";
+    const editBtn = document.createElement("button");
+    editBtn.type = "button";
+    editBtn.className = "icon-btn category-item-btn";
+    editBtn.title = "Edit category";
+    editBtn.setAttribute("aria-label", "Edit category");
+    editBtn.innerHTML = '<i class="fa-solid fa-pen" aria-hidden="true"></i>';
+    editBtn.addEventListener("click", () => startEditCategory(cat));
+
+    const deleteBtn = document.createElement("button");
+    deleteBtn.type = "button";
+    deleteBtn.className = "icon-btn category-item-btn category-item-btn--danger";
+    deleteBtn.title = "Delete category";
+    deleteBtn.setAttribute("aria-label", "Delete category");
+    deleteBtn.innerHTML = '<i class="fa-solid fa-trash" aria-hidden="true"></i>';
+    deleteBtn.addEventListener("click", () => handleDeleteCategory(cat));
+
+    actions.append(editBtn, deleteBtn);
+    item.append(swatch, name, actions);
+    categoriesListEl.appendChild(item);
+  }
+}
+
+function startEditCategory(cat) {
+  editingCategory = cat;
+  $("#catId").value = cat.id;
+  $("#catName").value = cat.name;
+  $("#catColor").value = cat.color;
+  $("#catSubmitBtn").textContent = "Save changes";
+  $("#catCancelEditBtn").hidden = false;
+  $("#categoryMsg").textContent = "";
+  $("#catName").focus();
+}
+
+function resetCategoryForm() {
+  editingCategory = null;
+  $("#categoryForm").reset();
+  $("#catId").value = "";
+  $("#catColor").value = "#a78bfa";
+  $("#catSubmitBtn").textContent = "Add category";
+  $("#catCancelEditBtn").hidden = true;
+  $("#categoryMsg").textContent = "";
+}
+
+async function handleDeleteCategory(cat) {
+  if (!confirm(`Delete category "${cat.name}"? Waypoints using it will become uncategorized.`)) return;
+  try {
+    await deleteCategory(cat.id);
+    if (editingCategory && editingCategory.id === cat.id) resetCategoryForm();
+    if (categoryFilter === cat.id) categoryFilter = null;
+    await loadCategories();
+    await loadWaypointsForDim(currentDim);
+  } catch (err) {
+    $("#categoryMsg").textContent = err.message || "Could not delete category.";
+  }
+}
+
+$("#categoryForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const msg = $("#categoryMsg");
+  msg.textContent = "";
+  const name = $("#catName").value.trim();
+  const color = $("#catColor").value;
+  if (!name) return;
+  try {
+    if (editingCategory) {
+      await updateCategory(editingCategory.id, { name, color });
+    } else {
+      await createCategory({ name, color });
+    }
+    resetCategoryForm();
+    await loadCategories();
+    await loadWaypointsForDim(currentDim);
+  } catch (err) {
+    msg.textContent = err.message || "Could not save category.";
+  }
+});
+
+$("#catCancelEditBtn").addEventListener("click", resetCategoryForm);
+
+function openCategoriesPanel() {
+  categoriesPanel.hidden = false;
+  categoriesBtn.setAttribute("aria-expanded", "true");
+}
+
+function closeCategoriesPanel() {
+  categoriesPanel.hidden = true;
+  categoriesBtn.setAttribute("aria-expanded", "false");
+  resetCategoryForm();
+}
+
+categoriesBtn.addEventListener("click", () => {
+  if (categoriesPanel.hidden) openCategoriesPanel();
+  else closeCategoriesPanel();
+});
+
+$("#categoriesPanelClose").addEventListener("click", closeCategoriesPanel);
+
+document.addEventListener("click", (e) => {
+  if (categoriesPanel.hidden) return;
+  if (categoriesPanel.contains(e.target) || categoriesBtn.contains(e.target)) return;
+  closeCategoriesPanel();
+});
+
+// ---------------------------------------------------------------------------
 // Dimension tabs
 // ---------------------------------------------------------------------------
 
@@ -132,11 +371,13 @@ function switchDimension(dim) {
   }
 
   hideTooltip();
+  closeSidebarDrawer();
 
   if (dim === "server") {
     gridPanel.hidden = true;
     sidebarEl.hidden = true;
     serverPanel.hidden = false;
+    sidebarToggleBtn.hidden = true;
     loadServerPanel();
     return;
   }
@@ -144,6 +385,7 @@ function switchDimension(dim) {
   gridPanel.hidden = false;
   sidebarEl.hidden = false;
   serverPanel.hidden = true;
+  sidebarToggleBtn.hidden = false;
   grid.setDimensionColor(DIM_COLORS[dim]);
   sidebarTitle.textContent = DIM_LABELS[dim];
   loadWaypointsForDim(dim);
@@ -174,21 +416,29 @@ async function loadWaypointsForDim(dim) {
 
 function renderSidebar() {
   const query = waypointSearchEl.value.trim().toLowerCase();
-  const visibleWaypoints = currentWaypoints.filter((wp) =>
-    [wp.name, wp.description, wp.created_by_username, wp.x, wp.y, wp.z]
-      .filter((value) => value !== null && value !== undefined)
-      .join(" ")
-      .toLowerCase()
-      .includes(query),
+  const matchesCategory = (wp) => {
+    if (categoryFilter === null) return true;
+    if (categoryFilter === "__none__") return !wp.category_id;
+    return wp.category_id === categoryFilter;
+  };
+  const visibleWaypoints = currentWaypoints.filter(
+    (wp) =>
+      matchesCategory(wp) &&
+      [wp.name, wp.description, wp.created_by_username, wp.x, wp.y, wp.z]
+        .filter((value) => value !== null && value !== undefined)
+        .join(" ")
+        .toLowerCase()
+        .includes(query),
   );
-  waypointCountEl.textContent = query ? `${visibleWaypoints.length}/${currentWaypoints.length}` : String(currentWaypoints.length);
+  const isFiltered = Boolean(query) || categoryFilter !== null;
+  waypointCountEl.textContent = isFiltered ? `${visibleWaypoints.length}/${currentWaypoints.length}` : String(currentWaypoints.length);
   waypointListEl.innerHTML = "";
 
   if (visibleWaypoints.length === 0) {
     const empty = document.createElement("div");
     empty.className = "empty-state";
-    empty.textContent = query
-      ? "No waypoints match this search."
+    empty.textContent = isFiltered
+      ? "No waypoints match this search or filter."
       : Auth.can("addWaypoint")
       ? "No waypoints yet. Right-click the grid to add one."
       : "No waypoints here yet.";
@@ -219,6 +469,8 @@ function buildWaypointCard(wp) {
   name.className = "waypoint-name";
   name.textContent = wp.name;
   top.append(swatch, name);
+  const badge = buildCategoryBadge(wp.category_id);
+  if (badge) top.appendChild(badge);
   card.appendChild(top);
 
   if (wp.description) {
@@ -256,6 +508,7 @@ function buildWaypointCard(wp) {
     event.stopPropagation();
     grid.jumpTo(wp.x, wp.z);
     showTooltip(wp);
+    if (mobileMediaQuery.matches) closeSidebarDrawer();
   });
   actions.appendChild(jumpBtn);
 
@@ -305,6 +558,8 @@ function showTooltip(wp) {
   const h = document.createElement("h4");
   h.textContent = wp.name;
   pinTooltip.appendChild(h);
+  const badge = buildCategoryBadge(wp.category_id);
+  if (badge) pinTooltip.appendChild(badge);
   if (wp.description) {
     const desc = document.createElement("p");
     desc.className = "pin-description";
@@ -401,6 +656,36 @@ document.addEventListener("click", (e) => {
     hideTooltip();
   }
   tooltipPointerStartedInside = false;
+});
+
+// ---------------------------------------------------------------------------
+// Mobile sidebar drawer
+// ---------------------------------------------------------------------------
+
+function openSidebarDrawer() {
+  sidebarEl.classList.add("sidebar--open");
+  sidebarScrim.hidden = false;
+  sidebarToggleBtn.setAttribute("aria-expanded", "true");
+}
+
+function closeSidebarDrawer() {
+  sidebarEl.classList.remove("sidebar--open");
+  sidebarScrim.hidden = true;
+  sidebarToggleBtn.setAttribute("aria-expanded", "false");
+}
+
+function toggleSidebarDrawer() {
+  if (sidebarEl.classList.contains("sidebar--open")) closeSidebarDrawer();
+  else openSidebarDrawer();
+}
+
+sidebarToggleBtn.addEventListener("click", toggleSidebarDrawer);
+sidebarCloseBtn.addEventListener("click", closeSidebarDrawer);
+sidebarScrim.addEventListener("click", closeSidebarDrawer);
+
+const mobileMediaQuery = window.matchMedia("(max-width: 760px)");
+mobileMediaQuery.addEventListener("change", (e) => {
+  if (!e.matches) closeSidebarDrawer();
 });
 
 // ---------------------------------------------------------------------------
@@ -535,6 +820,8 @@ function openWaypointForm(seed) {
   $("#wpX").value = seed.x ?? 0;
   $("#wpY").value = seed.y ?? "";
   $("#wpZ").value = seed.z ?? 0;
+  populateCategorySelect();
+  $("#wpCategory").value = seed.category_id ?? "";
   $("#wpColor").value = seed.color ?? "#a78bfa";
   updateColorValue();
   $("#wpDeleteBtn").hidden = !editingWaypoint || !Auth.canEditWaypoint(editingWaypoint);
@@ -589,12 +876,14 @@ $("#waypointForm").addEventListener("submit", async (e) => {
   msg.textContent = "";
 
   const yRaw = $("#wpY").value;
+  const categoryRaw = $("#wpCategory").value;
   const payload = {
     name: $("#wpName").value.trim(),
     description: $("#wpDescription").value.trim() || null,
     x: Math.round(Number($("#wpX").value)),
     y: yRaw === "" ? null : Math.round(Number(yRaw)),
     z: Math.round(Number($("#wpZ").value)),
+    category_id: categoryRaw === "" ? null : categoryRaw,
     color: $("#wpColor").value,
   };
 
@@ -692,4 +981,5 @@ function escapeHtml(str) {
 
 renderAuthArea();
 switchDimension("overworld");
+loadCategories();
 Auth.init();

@@ -47,6 +47,7 @@ export function can(action) {
       return r === "owner" || r === "user";
     case "editServerInfo":
     case "editAnyWaypoint":
+    case "manageCategories":
       return r === "owner";
     default:
       return false;

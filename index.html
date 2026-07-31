@@ -26,6 +26,15 @@
         <button class="dim-tab dim-tab--server" data-dim="server" hidden>Server</button>
       </nav>
 
+      <button class="btn btn-ghost categories-btn" id="categoriesBtn" type="button" hidden aria-haspopup="true" aria-expanded="false">
+        <i class="fa-solid fa-tags" aria-hidden="true"></i>
+        <span class="categories-btn-label">Categories</span>
+      </button>
+
+      <button class="icon-btn sidebar-toggle-btn" id="sidebarToggleBtn" type="button" title="Toggle waypoint list" aria-label="Toggle waypoint list" aria-expanded="false">
+        <i class="fa-solid fa-list" aria-hidden="true"></i>
+      </button>
+
       <div class="auth-area" id="authArea">
         <span class="auth-status">guest</span>
         <button class="btn btn-ghost" id="signInBtn" type="button">Sign in</button>
@@ -46,14 +55,18 @@
         <div class="pin-tooltip" id="pinTooltip" hidden></div>
       </section>
 
-      <aside class="sidebar">
+      <div class="sidebar-scrim" id="sidebarScrim" hidden></div>
+
+      <aside class="sidebar" id="sidebar">
         <div class="sidebar-header">
           <h2 id="sidebarTitle">Overworld</h2>
           <span class="waypoint-count" id="waypointCount">0</span>
+          <button class="modal-close sidebar-close-btn" id="sidebarCloseBtn" type="button" aria-label="Close waypoint list">&times;</button>
         </div>
         <div class="waypoint-search-wrap">
           <input type="search" id="waypointSearch" placeholder="Search waypoints" aria-label="Search waypoints" />
         </div>
+        <div class="category-filter-row" id="categoryFilterRow"></div>
         <div class="waypoint-list" id="waypointList"></div>
       </aside>
 
@@ -180,6 +193,12 @@
         </div>
         <div class="nether-preview" id="netherPreview" hidden></div>
         <label>
+          Category
+          <select id="wpCategory">
+            <option value="">No category</option>
+          </select>
+        </label>
+        <label>
           Color
           <span class="color-picker">
             <input type="color" id="wpColor" value="#a78bfa" aria-label="Waypoint color" />
@@ -193,6 +212,29 @@
         <span class="form-msg" id="waypointMsg"></span>
       </form>
     </div>
+  </div>
+
+  <!-- Categories panel (owner only) -->
+  <div class="categories-panel" id="categoriesPanel" hidden>
+    <div class="categories-panel-header">
+      <h3>Categories</h3>
+      <button class="modal-close" id="categoriesPanelClose" type="button" aria-label="Close categories panel">&times;</button>
+    </div>
+    <div class="categories-list" id="categoriesList"></div>
+    <form class="category-form" id="categoryForm">
+      <input type="hidden" id="catId" />
+      <div class="category-form-row">
+        <span class="color-picker category-color-picker">
+          <input type="color" id="catColor" value="#a78bfa" aria-label="Category color" />
+        </span>
+        <input type="text" id="catName" placeholder="Category name" maxlength="40" required />
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-primary" type="submit" id="catSubmitBtn">Add category</button>
+        <button class="btn btn-ghost" id="catCancelEditBtn" type="button" hidden>Cancel</button>
+      </div>
+      <span class="form-msg" id="categoryMsg"></span>
+    </form>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
