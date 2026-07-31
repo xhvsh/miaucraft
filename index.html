@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Miaucraft — waypoints</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Miaucraft</title>
   <meta name="color-scheme" content="dark" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -17,34 +17,50 @@
 <body>
   <div id="app">
     <header class="topbar">
-      <div class="brand">MIAUCRAFT</div>
+      <div class="topbar-row topbar-row--top">
+        <div class="brand">MIAUCRAFT</div>
 
-      <nav class="dim-tabs" id="dimTabs">
-        <button class="dim-tab" data-dim="overworld" data-active="true">Overworld</button>
-        <button class="dim-tab" data-dim="nether">Nether</button>
-        <button class="dim-tab" data-dim="end">End</button>
-        <button class="dim-tab dim-tab--server" data-dim="server" hidden>Server</button>
-      </nav>
+        <nav class="dim-tabs" id="dimTabs">
+          <button class="dim-tab" data-dim="overworld" data-active="true">Overworld</button>
+          <button class="dim-tab" data-dim="nether">Nether</button>
+          <button class="dim-tab" data-dim="end">End</button>
+          <button class="dim-tab dim-tab--categories" data-dim="categories" hidden>
+            <i class="fa-solid fa-tags" aria-hidden="true"></i>
+            <span class="dim-tab-label">Categories</span>
+          </button>
+          <button class="dim-tab dim-tab--server" data-dim="server" hidden>
+            <i class="fa-solid fa-server" aria-hidden="true"></i>
+            <span class="dim-tab-label">Server</span>
+          </button>
+        </nav>
 
-      <button class="btn btn-ghost categories-btn" id="categoriesBtn" type="button" hidden aria-haspopup="true" aria-expanded="false">
-        <i class="fa-solid fa-tags" aria-hidden="true"></i>
-        <span class="categories-btn-label">Categories</span>
-      </button>
+        <div class="auth-area" id="authArea">
+          <span class="auth-status">guest</span>
+          <button class="btn btn-ghost" id="signInBtn" type="button">Sign in</button>
+        </div>
+      </div>
 
-      <button class="icon-btn sidebar-toggle-btn" id="sidebarToggleBtn" type="button" title="Toggle waypoint list" aria-label="Toggle waypoint list" aria-expanded="false">
-        <i class="fa-solid fa-list" aria-hidden="true"></i>
-      </button>
+      <div class="topbar-row topbar-row--bottom">
+        <div class="dim-select-wrap" id="dimSelectWrap" data-dim="overworld">
+          <select class="dim-select" id="dimSelect" aria-label="Dimension">
+            <option value="overworld">Overworld</option>
+            <option value="nether">Nether</option>
+            <option value="end">End</option>
+            <option value="categories" id="dimSelectCategories" hidden>Categories</option>
+            <option value="server" id="dimSelectServer" hidden>Server</option>
+          </select>
+          <i class="fa-solid fa-chevron-down dim-select-chevron" aria-hidden="true"></i>
+        </div>
 
-      <div class="auth-area" id="authArea">
-        <span class="auth-status">guest</span>
-        <button class="btn btn-ghost" id="signInBtn" type="button">Sign in</button>
+        <button class="icon-btn sidebar-toggle-btn" id="sidebarToggleBtn" type="button" title="Toggle waypoint list" aria-label="Toggle waypoint list" aria-expanded="false">
+          <i class="fa-solid fa-list" aria-hidden="true"></i>
+        </button>
       </div>
     </header>
 
     <main class="workspace">
       <section class="grid-panel" id="gridPanel">
         <div class="grid-container" id="gridContainer"></div>
-        <p class="map-hint">Right-click the map to add a waypoint &middot; Left-click a marker for details</p>
 
         <div class="grid-controls">
           <button class="icon-btn" id="zoomInBtn" type="button" title="Zoom in" aria-label="Zoom in"><i class="fa-solid fa-plus" aria-hidden="true"></i></button>
@@ -75,12 +91,12 @@
           <h2>Server</h2>
           <div class="server-field">
             <span class="server-field-label">Hostname</span>
-            <span class="server-field-value" id="serverHostname">—</span>
+            <span class="server-field-value" id="serverHostname">Not set</span>
             <button class="server-copy" type="button" data-copy-source="serverHostname" hidden>Copy</button>
           </div>
           <div class="server-field">
             <span class="server-field-label">Numeric IP</span>
-            <span class="server-field-value" id="serverIp">—</span>
+            <span class="server-field-value" id="serverIp">Not set</span>
             <button class="server-copy" type="button" data-copy-source="serverIp" hidden>Copy</button>
           </div>
           <div class="server-edit" id="serverEdit" hidden>
@@ -96,6 +112,34 @@
             <button class="btn btn-primary" id="serverSaveBtn" type="button">Save</button>
             <span class="form-msg" id="serverSaveMsg"></span>
           </div>
+        </div>
+      </section>
+
+      <section class="categories-tab-panel" id="categoriesTabPanel" hidden>
+        <div class="categories-tab-card">
+          <h2>Categories</h2>
+          <div class="categories-list" id="categoriesList"></div>
+          <form class="category-form" id="categoryForm">
+            <input type="hidden" id="catId" />
+            <div class="category-form-row">
+              <span class="category-icon-preview" id="catIconPreview">
+                <i class="fa-solid fa-hashtag" id="catIconPreviewGlyph" aria-hidden="true"></i>
+              </span>
+              <span class="color-picker category-color-picker">
+                <input type="color" id="catColor" value="#a78bfa" aria-label="Category color" />
+              </span>
+              <input type="text" id="catName" placeholder="Category name" maxlength="40" required />
+            </div>
+            <label class="category-icon-field">
+              Icon <span class="optional">Font Awesome class, e.g. "fa-solid fa-hashtag" or "fa-brands fa-fort-awesome"</span>
+              <input type="text" id="catIcon" placeholder="fa-solid fa-hashtag" maxlength="60" autocomplete="off" />
+            </label>
+            <div class="modal-actions">
+              <button class="btn btn-primary" type="submit" id="catSubmitBtn">Add category</button>
+              <button class="btn btn-ghost" id="catCancelEditBtn" type="button" hidden>Cancel</button>
+            </div>
+            <span class="form-msg" id="categoryMsg"></span>
+          </form>
         </div>
       </section>
     </main>
@@ -192,11 +236,21 @@
           </label>
         </div>
         <div class="nether-preview" id="netherPreview" hidden></div>
-        <label>
+        <label class="category-picker-field">
           Category
-          <select id="wpCategory">
-            <option value="">No category</option>
-          </select>
+          <div class="category-picker" id="categoryPicker">
+            <input type="hidden" id="wpCategory" value="" />
+            <button type="button" class="category-picker-trigger" id="categoryPickerTrigger" aria-haspopup="listbox" aria-expanded="false">
+              <span class="category-picker-content" id="categoryPickerTriggerContent">
+                <span class="category-picker-icon category-picker-icon--none">
+                  <i class="fa-solid fa-ban" aria-hidden="true"></i>
+                </span>
+                <span class="category-picker-label">No category</span>
+              </span>
+              <i class="fa-solid fa-chevron-down category-picker-chevron" aria-hidden="true"></i>
+            </button>
+            <div class="category-picker-menu" id="categoryPickerMenu" role="listbox" hidden></div>
+          </div>
         </label>
         <label>
           Color
@@ -214,27 +268,15 @@
     </div>
   </div>
 
-  <!-- Categories panel (owner only) -->
-  <div class="categories-panel" id="categoriesPanel" hidden>
-    <div class="categories-panel-header">
-      <h3>Categories</h3>
-      <button class="modal-close" id="categoriesPanelClose" type="button" aria-label="Close categories panel">&times;</button>
-    </div>
-    <div class="categories-list" id="categoriesList"></div>
-    <form class="category-form" id="categoryForm">
-      <input type="hidden" id="catId" />
-      <div class="category-form-row">
-        <span class="color-picker category-color-picker">
-          <input type="color" id="catColor" value="#a78bfa" aria-label="Category color" />
-        </span>
-        <input type="text" id="catName" placeholder="Category name" maxlength="40" required />
-      </div>
+  <div class="modal-backdrop" id="confirmModal" hidden>
+    <div class="modal confirm-modal-card">
+      <h3 class="modal-title" id="confirmModalTitle">Are you sure?</h3>
+      <p class="confirm-modal-message" id="confirmModalMessage"></p>
       <div class="modal-actions">
-        <button class="btn btn-primary" type="submit" id="catSubmitBtn">Add category</button>
-        <button class="btn btn-ghost" id="catCancelEditBtn" type="button" hidden>Cancel</button>
+        <button class="btn btn-ghost" id="confirmModalCancelBtn" type="button">Cancel</button>
+        <button class="btn btn-danger" id="confirmModalConfirmBtn" type="button">Confirm</button>
       </div>
-      <span class="form-msg" id="categoryMsg"></span>
-    </form>
+    </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>

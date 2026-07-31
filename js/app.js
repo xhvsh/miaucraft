@@ -26,7 +26,70 @@ const DIM_LABELS = { overworld: "Overworld", nether: "Nether", end: "End" };
 
 const $ = (sel) => document.querySelector(sel);
 
+// Custom confirm/alert dialog, replacing native confirm()/alert() popups.
+function showConfirmDialog({
+  title = "Are you sure?",
+  message = "",
+  confirmLabel = "Confirm",
+  danger = true,
+  alertOnly = false,
+} = {}) {
+  return new Promise((resolve) => {
+    const modal = $("#confirmModal");
+    const confirmBtn = $("#confirmModalConfirmBtn");
+    const cancelBtn = $("#confirmModalCancelBtn");
+
+    $("#confirmModalTitle").textContent = title;
+    $("#confirmModalMessage").textContent = message;
+    confirmBtn.textContent = alertOnly ? "OK" : confirmLabel;
+    confirmBtn.className = `btn ${danger && !alertOnly ? "btn-danger" : "btn-primary"}`;
+    cancelBtn.hidden = alertOnly;
+
+    modal.hidden = false;
+
+    function cleanup(result) {
+      modal.hidden = true;
+      confirmBtn.removeEventListener("click", onConfirm);
+      cancelBtn.removeEventListener("click", onCancel);
+      document.removeEventListener("keydown", onKeydown);
+      modal.removeEventListener("mousedown", onBackdrop);
+      resolve(result);
+    }
+    function onConfirm() {
+      cleanup(true);
+    }
+    function onCancel() {
+      cleanup(false);
+    }
+    function onKeydown(e) {
+      if (e.key === "Escape") cleanup(false);
+      else if (e.key === "Enter" && alertOnly) cleanup(true);
+    }
+    function onBackdrop(e) {
+      if (e.target === modal) cleanup(false);
+    }
+
+    confirmBtn.addEventListener("click", onConfirm);
+    cancelBtn.addEventListener("click", onCancel);
+    document.addEventListener("keydown", onKeydown);
+    modal.addEventListener("mousedown", onBackdrop);
+    confirmBtn.focus();
+  });
+}
+
+function confirmAction(message, opts = {}) {
+  return showConfirmDialog({ message, ...opts });
+}
+
+function notifyError(message, opts = {}) {
+  return showConfirmDialog({ title: "Something went wrong", message, alertOnly: true, ...opts });
+}
+
 const dimTabs = $("#dimTabs");
+const dimSelect = $("#dimSelect");
+const dimSelectWrap = $("#dimSelectWrap");
+const dimSelectCategoriesOption = $("#dimSelectCategories");
+const dimSelectServerOption = $("#dimSelectServer");
 const authArea = $("#authArea");
 const gridPanel = $("#gridPanel");
 const sidebarEl = document.querySelector(".sidebar");
@@ -41,8 +104,8 @@ const pinTooltip = $("#pinTooltip");
 const authModal = $("#authModal");
 const waypointModal = $("#waypointModal");
 
-const categoriesBtn = $("#categoriesBtn");
-const categoriesPanel = $("#categoriesPanel");
+const categoriesTab = dimTabs.querySelector('[data-dim="categories"]');
+const categoriesTabPanel = $("#categoriesTabPanel");
 const categoriesListEl = $("#categoriesList");
 
 const sidebarToggleBtn = $("#sidebarToggleBtn");
@@ -76,6 +139,13 @@ grid.onPinClick = (wp) => {
 };
 
 grid.onEmptyClick = hideTooltip;
+grid.onEmptyTap = (x, z) => {
+  hideTooltip();
+  if (currentDim === "server") return;
+  if (Auth.can("addWaypoint")) {
+    openWaypointForm({ dimension: currentDim, x, z });
+  }
+};
 grid.onViewChange = () => {
   if (openTooltipWaypoint && !pinTooltip.hidden) positionTooltip(openTooltipWaypoint);
 };
@@ -91,8 +161,12 @@ Auth.onAuthChange((state) => {
   if (!state.session && currentDim === "server") {
     switchDimension("overworld");
   }
-  categoriesBtn.hidden = !Auth.can("manageCategories");
-  if (!Auth.can("manageCategories")) closeCategoriesPanel();
+  categoriesTab.hidden = !Auth.can("manageCategories");
+  if (!Auth.can("manageCategories") && currentDim === "categories") {
+    switchDimension("overworld");
+  }
+  dimSelectServerOption.hidden = !state.session;
+  dimSelectCategoriesOption.hidden = !Auth.can("manageCategories");
   loadCurrentView();
 });
 
@@ -104,17 +178,19 @@ function renderAuthArea() {
     identity.className = "auth-identity";
     const avatar = document.createElement("img");
     avatar.className = "auth-avatar";
-    avatar.src = `https://skinmc.net/api/v1/face/username/${encodeURIComponent(state.profile.username)}/200`;
+    avatar.src = `https://mc-heads.net/avatar/${encodeURIComponent(state.profile.username)}/200`;
     avatar.alt = "";
     avatar.width = 28;
     avatar.height = 28;
     avatar.addEventListener("error", () => avatar.remove());
     const status = document.createElement("span");
     status.className = "auth-status";
-    status.innerHTML = `${escapeHtml(state.profile.username)} · <span class="role-badge">${state.profile.role}</span>`;
+    status.innerHTML = `<span class="auth-username">${escapeHtml(state.profile.username)}</span> · <span class="role-badge">${state.profile.role}</span>`;
     const logoutBtn = document.createElement("button");
     logoutBtn.className = "btn btn-signout";
-    logoutBtn.textContent = "Sign out";
+    logoutBtn.type = "button";
+    logoutBtn.title = "Sign out";
+    logoutBtn.innerHTML = `<i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i><span class="btn-signout-label">Sign out</span>`;
     logoutBtn.addEventListener("click", async () => {
       await Auth.logout();
     });
@@ -136,6 +212,44 @@ function renderAuthArea() {
 // ---------------------------------------------------------------------------
 // Categories
 // ---------------------------------------------------------------------------
+
+const DEFAULT_CATEGORY_ICON_CLASS = "fa-solid fa-hashtag";
+
+// The icon field now accepts a full Font Awesome class string, e.g.
+// "fa-solid fa-hashtag" or "fa-brands fa-fort-awesome". Users can type it
+// with or without the "fa-" prefixes and with or without the style token;
+// missing pieces get filled in sensibly.
+function sanitizeIconClass(raw) {
+  const tokens = (raw || "")
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((t) => t.replace(/[^a-z0-9-]/g, ""))
+    .filter(Boolean)
+    .map((t) => (t.startsWith("fa-") ? t : `fa-${t}`));
+
+  if (tokens.length === 0) return DEFAULT_CATEGORY_ICON_CLASS;
+  if (tokens.length === 1) return `fa-solid ${tokens[0]}`;
+  return tokens.join(" ");
+}
+
+// Categories saved before this field accepted full class strings only have
+// a bare icon name stored (e.g. "wheat-awn"). Resolve either format to a
+// ready-to-use class string.
+function categoryIconClass(rawIcon) {
+  const value = (rawIcon || "").trim();
+  if (!value) return DEFAULT_CATEGORY_ICON_CLASS;
+  if (value.includes("fa-")) return sanitizeIconClass(value);
+  return `fa-solid fa-${value.toLowerCase().replace(/[^a-z0-9-]/g, "")}`;
+}
+
+function updateCategoryIconPreview() {
+  const iconClass = sanitizeIconClass($("#catIcon").value);
+  const color = $("#catColor").value;
+  $("#catIconPreviewGlyph").className = iconClass;
+  $("#catIconPreview").style.setProperty("--preview-color", color);
+}
 
 async function loadCategories() {
   try {
@@ -165,7 +279,7 @@ function renderCategoryFilterRow() {
   const allChip = document.createElement("button");
   allChip.type = "button";
   allChip.className = "category-chip";
-  allChip.textContent = "All";
+  allChip.innerHTML = '<i class="fa-solid fa-layer-group" aria-hidden="true"></i><span>All</span>';
   allChip.dataset.active = String(categoryFilter === null);
   allChip.addEventListener("click", () => {
     categoryFilter = null;
@@ -180,7 +294,12 @@ function renderCategoryFilterRow() {
     chip.className = "category-chip";
     chip.style.setProperty("--chip-color", cat.color);
     chip.dataset.active = String(categoryFilter === cat.id);
-    chip.textContent = cat.name;
+    const icon = document.createElement("i");
+    icon.className = categoryIconClass(cat.icon);
+    icon.setAttribute("aria-hidden", "true");
+    const label = document.createElement("span");
+    label.textContent = cat.name;
+    chip.append(icon, label);
     chip.addEventListener("click", () => {
       categoryFilter = categoryFilter === cat.id ? null : cat.id;
       renderCategoryFilterRow();
@@ -192,7 +311,7 @@ function renderCategoryFilterRow() {
   const noneChip = document.createElement("button");
   noneChip.type = "button";
   noneChip.className = "category-chip category-chip--none";
-  noneChip.textContent = "Uncategorized";
+  noneChip.innerHTML = '<i class="fa-solid fa-ban" aria-hidden="true"></i><span>Uncategorized</span>';
   noneChip.dataset.active = String(categoryFilter === "__none__");
   noneChip.addEventListener("click", () => {
     categoryFilter = categoryFilter === "__none__" ? null : "__none__";
@@ -208,23 +327,105 @@ function buildCategoryBadge(categoryId) {
   const badge = document.createElement("span");
   badge.className = "category-badge";
   badge.style.setProperty("--badge-color", cat.color);
-  badge.textContent = cat.name;
+  const icon = document.createElement("i");
+  icon.className = categoryIconClass(cat.icon);
+  icon.setAttribute("aria-hidden", "true");
+  const label = document.createElement("span");
+  label.textContent = cat.name;
+  badge.append(icon, label);
   return badge;
 }
 
+const categoryPicker = $("#categoryPicker");
+const categoryPickerTrigger = $("#categoryPickerTrigger");
+const categoryPickerContent = $("#categoryPickerTriggerContent");
+const categoryPickerMenu = $("#categoryPickerMenu");
+const wpCategoryInput = $("#wpCategory");
+
+function categoryPickerOptionContent(name, iconClass, color, isNone) {
+  const iconSpan = document.createElement("span");
+  iconSpan.className = isNone ? "category-picker-icon category-picker-icon--none" : "category-picker-icon";
+  if (!isNone) iconSpan.style.setProperty("--picker-color", color);
+  const i = document.createElement("i");
+  i.className = isNone ? "fa-solid fa-ban" : iconClass;
+  i.setAttribute("aria-hidden", "true");
+  iconSpan.appendChild(i);
+  const label = document.createElement("span");
+  label.className = "category-picker-label";
+  label.textContent = name;
+  return [iconSpan, label];
+}
+
+function setCategoryPickerValue(id, name, icon, color) {
+  wpCategoryInput.value = id;
+  categoryPickerContent.innerHTML = "";
+  categoryPickerContent.append(...categoryPickerOptionContent(name, icon, color, !id));
+  for (const opt of categoryPickerMenu.querySelectorAll(".category-picker-option")) {
+    opt.setAttribute("aria-selected", String(opt.dataset.value === id));
+  }
+}
+
+function closeCategoryPickerMenu() {
+  categoryPickerMenu.hidden = true;
+  categoryPickerTrigger.setAttribute("aria-expanded", "false");
+}
+
+function openCategoryPickerMenu() {
+  categoryPickerMenu.hidden = false;
+  categoryPickerTrigger.setAttribute("aria-expanded", "true");
+}
+
+categoryPickerTrigger.addEventListener("click", () => {
+  if (categoryPickerMenu.hidden) openCategoryPickerMenu();
+  else closeCategoryPickerMenu();
+});
+
+document.addEventListener("click", (e) => {
+  if (categoryPickerMenu.hidden) return;
+  if (categoryPicker.contains(e.target)) return;
+  closeCategoryPickerMenu();
+});
+
+categoryPickerTrigger.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeCategoryPickerMenu();
+});
+
 function populateCategorySelect() {
-  const select = $("#wpCategory");
-  const previousValue = select.value;
-  select.innerHTML = '<option value="">No category</option>';
+  const previousValue = wpCategoryInput.value;
+  categoryPickerMenu.innerHTML = "";
+
+  const buildOption = (id, name, icon, color, isNone) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "category-picker-option";
+    btn.dataset.value = id;
+    btn.setAttribute("role", "option");
+    btn.setAttribute("aria-selected", "false");
+    btn.append(...categoryPickerOptionContent(name, icon, color, isNone));
+    const check = document.createElement("i");
+    check.className = "fa-solid fa-check category-picker-option-check";
+    check.setAttribute("aria-hidden", "true");
+    btn.appendChild(check);
+    btn.addEventListener("click", () => {
+      setCategoryPickerValue(id, name, icon, color);
+      closeCategoryPickerMenu();
+    });
+    categoryPickerMenu.appendChild(btn);
+  };
+
+  buildOption("", "No category", null, null, true);
   for (const cat of categories) {
-    const option = document.createElement("option");
-    option.value = cat.id;
-    option.textContent = cat.name;
-    select.appendChild(option);
+    buildOption(cat.id, cat.name, categoryIconClass(cat.icon), cat.color, false);
   }
-  if (categories.some((c) => c.id === previousValue)) {
-    select.value = previousValue;
-  }
+
+  const validValue = categories.some((c) => c.id === previousValue) ? previousValue : "";
+  const match = categories.find((c) => c.id === validValue);
+  setCategoryPickerValue(
+    validValue,
+    match ? match.name : "No category",
+    match ? categoryIconClass(match.icon) : null,
+    match ? match.color : null,
+  );
 }
 
 function renderCategoriesList() {
@@ -241,9 +442,10 @@ function renderCategoriesList() {
     const item = document.createElement("div");
     item.className = "category-item";
 
-    const swatch = document.createElement("span");
-    swatch.className = "category-swatch";
-    swatch.style.background = cat.color;
+    const iconWrap = document.createElement("span");
+    iconWrap.className = "category-item-icon";
+    iconWrap.style.setProperty("--item-color", cat.color);
+    iconWrap.innerHTML = `<i class="${categoryIconClass(cat.icon)}" aria-hidden="true"></i>`;
 
     const name = document.createElement("span");
     name.className = "category-item-name";
@@ -268,7 +470,7 @@ function renderCategoriesList() {
     deleteBtn.addEventListener("click", () => handleDeleteCategory(cat));
 
     actions.append(editBtn, deleteBtn);
-    item.append(swatch, name, actions);
+    item.append(iconWrap, name, actions);
     categoriesListEl.appendChild(item);
   }
 }
@@ -278,6 +480,8 @@ function startEditCategory(cat) {
   $("#catId").value = cat.id;
   $("#catName").value = cat.name;
   $("#catColor").value = cat.color;
+  $("#catIcon").value = categoryIconClass(cat.icon);
+  updateCategoryIconPreview();
   $("#catSubmitBtn").textContent = "Save changes";
   $("#catCancelEditBtn").hidden = false;
   $("#categoryMsg").textContent = "";
@@ -289,13 +493,19 @@ function resetCategoryForm() {
   $("#categoryForm").reset();
   $("#catId").value = "";
   $("#catColor").value = "#a78bfa";
+  $("#catIcon").value = "";
+  updateCategoryIconPreview();
   $("#catSubmitBtn").textContent = "Add category";
   $("#catCancelEditBtn").hidden = true;
   $("#categoryMsg").textContent = "";
 }
 
 async function handleDeleteCategory(cat) {
-  if (!confirm(`Delete category "${cat.name}"? Waypoints using it will become uncategorized.`)) return;
+  const ok = await confirmAction(`Delete category "${cat.name}"? Waypoints using it will become uncategorized.`, {
+    title: "Delete category?",
+    confirmLabel: "Delete",
+  });
+  if (!ok) return;
   try {
     await deleteCategory(cat.id);
     if (editingCategory && editingCategory.id === cat.id) resetCategoryForm();
@@ -313,12 +523,13 @@ $("#categoryForm").addEventListener("submit", async (e) => {
   msg.textContent = "";
   const name = $("#catName").value.trim();
   const color = $("#catColor").value;
+  const icon = sanitizeIconClass($("#catIcon").value);
   if (!name) return;
   try {
     if (editingCategory) {
-      await updateCategory(editingCategory.id, { name, color });
+      await updateCategory(editingCategory.id, { name, color, icon });
     } else {
-      await createCategory({ name, color });
+      await createCategory({ name, color, icon });
     }
     resetCategoryForm();
     await loadCategories();
@@ -329,30 +540,8 @@ $("#categoryForm").addEventListener("submit", async (e) => {
 });
 
 $("#catCancelEditBtn").addEventListener("click", resetCategoryForm);
-
-function openCategoriesPanel() {
-  categoriesPanel.hidden = false;
-  categoriesBtn.setAttribute("aria-expanded", "true");
-}
-
-function closeCategoriesPanel() {
-  categoriesPanel.hidden = true;
-  categoriesBtn.setAttribute("aria-expanded", "false");
-  resetCategoryForm();
-}
-
-categoriesBtn.addEventListener("click", () => {
-  if (categoriesPanel.hidden) openCategoriesPanel();
-  else closeCategoriesPanel();
-});
-
-$("#categoriesPanelClose").addEventListener("click", closeCategoriesPanel);
-
-document.addEventListener("click", (e) => {
-  if (categoriesPanel.hidden) return;
-  if (categoriesPanel.contains(e.target) || categoriesBtn.contains(e.target)) return;
-  closeCategoriesPanel();
-});
+$("#catIcon").addEventListener("input", updateCategoryIconPreview);
+$("#catColor").addEventListener("input", updateCategoryIconPreview);
 
 // ---------------------------------------------------------------------------
 // Dimension tabs
@@ -364,27 +553,40 @@ dimTabs.addEventListener("click", (e) => {
   switchDimension(btn.dataset.dim);
 });
 
+dimSelect.addEventListener("change", () => {
+  switchDimension(dimSelect.value);
+});
+
 function switchDimension(dim) {
+  const previousDim = currentDim;
   currentDim = dim;
   for (const btn of dimTabs.querySelectorAll(".dim-tab")) {
     btn.dataset.active = String(btn.dataset.dim === dim);
   }
+  dimSelect.value = dim;
+  dimSelectWrap.dataset.dim = dim;
 
   hideTooltip();
   closeSidebarDrawer();
+  if (previousDim === "categories" && dim !== "categories") {
+    resetCategoryForm();
+  }
 
-  if (dim === "server") {
+  if (dim === "server" || dim === "categories") {
     gridPanel.hidden = true;
     sidebarEl.hidden = true;
-    serverPanel.hidden = false;
     sidebarToggleBtn.hidden = true;
-    loadServerPanel();
+    serverPanel.hidden = dim !== "server";
+    categoriesTabPanel.hidden = dim !== "categories";
+    if (dim === "server") loadServerPanel();
+    else loadCategories();
     return;
   }
 
   gridPanel.hidden = false;
   sidebarEl.hidden = false;
   serverPanel.hidden = true;
+  categoriesTabPanel.hidden = true;
   sidebarToggleBtn.hidden = false;
   grid.setDimensionColor(DIM_COLORS[dim]);
   sidebarTitle.textContent = DIM_LABELS[dim];
@@ -394,6 +596,8 @@ function switchDimension(dim) {
 async function loadCurrentView() {
   if (currentDim === "server") {
     loadServerPanel();
+  } else if (currentDim === "categories") {
+    loadCategories();
   } else {
     loadWaypointsForDim(currentDim);
   }
@@ -462,9 +666,7 @@ function buildWaypointCard(wp) {
   swatch.className = "waypoint-swatch";
   swatch.style.background = wp.color;
   swatch.style.color = wp.color;
-  swatch.innerHTML = wp.name.toLowerCase().includes("spawn")
-    ? '<i class="fa-solid fa-house" aria-hidden="true"></i>'
-    : '<i class="fa-solid fa-location-dot" aria-hidden="true"></i>';
+  swatch.innerHTML = '<i class="fa-solid fa-location-dot" aria-hidden="true"></i>';
   const name = document.createElement("span");
   name.className = "waypoint-name";
   name.textContent = wp.name;
@@ -536,13 +738,14 @@ function buildWaypointCard(wp) {
 }
 
 async function handleDelete(wp) {
-  if (!confirm(`Delete "${wp.name}"?`)) return;
+  const ok = await confirmAction(`Delete "${wp.name}"?`, { title: "Delete waypoint?", confirmLabel: "Delete" });
+  if (!ok) return;
   try {
     await deleteWaypoint(wp.id);
     hideTooltip();
     await loadWaypointsForDim(currentDim);
   } catch (err) {
-    alert(err.message || "Could not delete waypoint.");
+    await notifyError(err.message || "Could not delete waypoint.");
   }
 }
 
@@ -604,12 +807,24 @@ function showTooltip(wp) {
 }
 
 function positionTooltip(wp) {
-  const rect = $("#gridContainer").getBoundingClientRect();
   const p = grid.worldToScreen(wp.x, wp.z);
-  const left = Math.min(p.x + 16, rect.width - pinTooltip.offsetWidth - 8);
-  const top = Math.min(p.y + 16, rect.height - pinTooltip.offsetHeight - 8);
-  pinTooltip.style.left = `${Math.max(8, left)}px`;
-  pinTooltip.style.top = `${Math.max(8, top)}px`;
+  const tw = pinTooltip.offsetWidth;
+  const th = pinTooltip.offsetHeight;
+  // The marker icon is drawn above its coordinate point (~24px tall) with a
+  // soft glow on top of that, so the gap has to clear the whole icon, not
+  // just its tip, or the tooltip ends up covering the waypoint it describes.
+  const gap = 40;
+
+  // Always anchor centered above the pin's tip, connected by a CSS arrow
+  // (see .pin-tooltip::after). This keeps the tooltip glued to the actual
+  // waypoint at all times instead of jumping to a different side/corner
+  // when it would run past a screen edge - it may run past the edge, and
+  // that's fine, since staying attached to the pin matters more.
+  const left = p.x - tw / 2;
+  const top = p.y - th - gap;
+
+  pinTooltip.style.left = `${left}px`;
+  pinTooltip.style.top = `${top}px`;
 }
 
 function formatWaypointCoords(wp) {
@@ -820,8 +1035,9 @@ function openWaypointForm(seed) {
   $("#wpX").value = seed.x ?? 0;
   $("#wpY").value = seed.y ?? "";
   $("#wpZ").value = seed.z ?? 0;
-  populateCategorySelect();
   $("#wpCategory").value = seed.category_id ?? "";
+  populateCategorySelect();
+  closeCategoryPickerMenu();
   $("#wpColor").value = seed.color ?? "#a78bfa";
   updateColorValue();
   $("#wpDeleteBtn").hidden = !editingWaypoint || !Auth.canEditWaypoint(editingWaypoint);
@@ -833,6 +1049,7 @@ function openWaypointForm(seed) {
 function closeWaypointForm() {
   waypointModal.hidden = true;
   editingWaypoint = null;
+  closeCategoryPickerMenu();
 }
 
 $("#waypointModalClose").addEventListener("click", closeWaypointForm);
@@ -860,7 +1077,8 @@ function updateColorValue() {
 
 $("#wpDeleteBtn").addEventListener("click", async () => {
   if (!editingWaypoint || !Auth.canEditWaypoint(editingWaypoint)) return;
-  if (!confirm(`Delete "${editingWaypoint.name}"?`)) return;
+  const ok = await confirmAction(`Delete "${editingWaypoint.name}"?`, { title: "Delete waypoint?", confirmLabel: "Delete" });
+  if (!ok) return;
   try {
     await deleteWaypoint(editingWaypoint.id);
     closeWaypointForm();
@@ -914,8 +1132,8 @@ $("#waypointForm").addEventListener("submit", async (e) => {
 async function loadServerPanel() {
   try {
     const info = await getServerInfo();
-    $("#serverHostname").textContent = info.hostname || "—";
-    $("#serverIp").textContent = info.ip || "—";
+    $("#serverHostname").textContent = info.hostname || "Not set";
+    $("#serverIp").textContent = info.ip || "Not set";
     $("#serverHostnameInput").value = info.hostname || "";
     $("#serverIpInput").value = info.ip || "";
   } catch (err) {

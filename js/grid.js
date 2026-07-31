@@ -3,7 +3,9 @@ const MIN_LABEL_GAP_PX = 70;
 const MIN_SCALE = 0.02;
 const MAX_SCALE = 12;
 const PIN_HIT_RADIUS = 20;
+const PIN_HIT_RADIUS_TOUCH = 28;
 const PIN_ICON_HEIGHT = 24;
+const TOUCH_TAP_MOVE_THRESHOLD = 10;
 
 function pickSpacing(scale) {
   for (const s of NICE_SPACINGS) {
@@ -41,8 +43,17 @@ export class Grid {
     this._dragStart = null;
     this._dragOriginCenter = null;
 
+    this._touchMode = null; // null | "pan" | "pinch"
+    this._touchMoved = false;
+    this._touchDragStart = null;
+    this._touchDragOriginCenter = null;
+    this._pinchStartDist = null;
+    this._pinchStartScale = null;
+    this._pinchWorldAtMid = null;
+
     this.onEmptyRightClick = null; // (worldX, worldZ) => void
     this.onEmptyClick = null; // () => void
+    this.onEmptyTap = null; // (worldX, worldZ) => void - mobile tap on blank space; falls back to onEmptyClick
     this.onPinClick = null; // (waypoint) => void
     this.onViewChange = null; // () => void
     this._jumpAnimation = null;
@@ -227,6 +238,118 @@ export class Grid {
       },
       { passive: false },
     );
+
+    // Touch: single-finger pan, two-finger pinch-zoom, tap to select/add.
+    c.addEventListener(
+      "touchstart",
+      (e) => {
+        cancelAnimationFrame(this._jumpAnimation);
+        if (e.touches.length === 1) {
+          const t = e.touches[0];
+          this._touchMode = "pan";
+          this._touchMoved = false;
+          this._touchDragStart = { x: t.clientX, y: t.clientY };
+          this._touchDragOriginCenter = { x: this.centerX, z: this.centerZ };
+        } else if (e.touches.length === 2) {
+          this._touchMode = "pinch";
+          this._touchMoved = true;
+          const [t1, t2] = e.touches;
+          this._pinchStartDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+          this._pinchStartScale = this.scale;
+          const rect = c.getBoundingClientRect();
+          const midX = (t1.clientX + t2.clientX) / 2 - rect.left;
+          const midY = (t1.clientY + t2.clientY) / 2 - rect.top;
+          this._pinchWorldAtMid = this.screenToWorld(midX, midY);
+        }
+      },
+      { passive: true },
+    );
+
+    c.addEventListener(
+      "touchmove",
+      (e) => {
+        if (this._touchMode === "pinch" && e.touches.length === 2) {
+          e.preventDefault();
+          const [t1, t2] = e.touches;
+          const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+          if (this._pinchStartDist) {
+            const factor = dist / this._pinchStartDist;
+            this.scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, this._pinchStartScale * factor));
+          }
+          const rect = c.getBoundingClientRect();
+          const midX = (t1.clientX + t2.clientX) / 2 - rect.left;
+          const midY = (t1.clientY + t2.clientY) / 2 - rect.top;
+          const afterWorld = this.screenToWorld(midX, midY);
+          this.centerX += this._pinchWorldAtMid.x - afterWorld.x;
+          this.centerZ += this._pinchWorldAtMid.z - afterWorld.z;
+          this.draw();
+          this.onViewChange?.();
+        } else if (this._touchMode === "pan" && e.touches.length === 1) {
+          e.preventDefault();
+          const t = e.touches[0];
+          const dx = t.clientX - this._touchDragStart.x;
+          const dy = t.clientY - this._touchDragStart.y;
+          if (Math.abs(dx) > TOUCH_TAP_MOVE_THRESHOLD || Math.abs(dy) > TOUCH_TAP_MOVE_THRESHOLD) {
+            this._touchMoved = true;
+          }
+          this.centerX = this._touchDragOriginCenter.x - dx / this.scale;
+          this.centerZ = this._touchDragOriginCenter.z - dy / this.scale;
+          const rect = c.getBoundingClientRect();
+          const sx = t.clientX - rect.left;
+          const sy = t.clientY - rect.top;
+          const w = this.screenToWorld(sx, sy);
+          this.readout.hidden = false;
+          this.readout.textContent = `x ${Math.round(w.x)}, z ${Math.round(w.z)}`;
+          this.draw();
+          this.onViewChange?.();
+        }
+      },
+      { passive: false },
+    );
+
+    c.addEventListener(
+      "touchend",
+      (e) => {
+        this.readout.hidden = true;
+        if (e.touches.length === 0) {
+          if (this._touchMode === "pan" && !this._touchMoved) {
+            e.preventDefault(); // swallow the tap so no synthetic click fires too
+            const t = e.changedTouches[0];
+            const rect = c.getBoundingClientRect();
+            const sx = t.clientX - rect.left;
+            const sy = t.clientY - rect.top;
+            const hit = this._hitTestPin(sx, sy, true);
+            if (hit) {
+              this.onPinClick?.(hit);
+            } else {
+              const w = this.screenToWorld(sx, sy);
+              if (this.onEmptyTap) this.onEmptyTap(Math.round(w.x), Math.round(w.z));
+              else this.onEmptyClick?.();
+            }
+          }
+          this._touchMode = null;
+          this._touchMoved = false;
+          this._pinchStartDist = null;
+        } else if (e.touches.length === 1) {
+          // Lifted one finger out of a two-finger pinch: resume single-finger
+          // pan seamlessly from here, without treating it as a fresh tap.
+          const t = e.touches[0];
+          this._touchMode = "pan";
+          this._touchMoved = true;
+          this._touchDragStart = { x: t.clientX, y: t.clientY };
+          this._touchDragOriginCenter = { x: this.centerX, z: this.centerZ };
+          this._pinchStartDist = null;
+        }
+      },
+      { passive: false },
+    );
+
+    c.addEventListener("touchcancel", () => {
+      this._touchMode = null;
+      this._touchMoved = false;
+      this._pinchStartDist = null;
+      this.readout.hidden = true;
+    });
   }
 
   zoomBy(factor) {
@@ -241,12 +364,13 @@ export class Grid {
     this.onViewChange?.();
   }
 
-  _hitTestPin(sx, sy) {
+  _hitTestPin(sx, sy, isTouch = false) {
+    const radius = isTouch ? PIN_HIT_RADIUS_TOUCH : PIN_HIT_RADIUS;
     for (let i = this.waypoints.length - 1; i >= 0; i--) {
       const wp = this.waypoints[i];
       const p = this.worldToScreen(wp.x, wp.z);
       const d = Math.hypot(p.x - sx, p.y - PIN_ICON_HEIGHT / 2 - sy);
-      if (d <= PIN_HIT_RADIUS) return wp;
+      if (d <= radius) return wp;
     }
     return null;
   }
@@ -314,7 +438,7 @@ export class Grid {
       if (p.x < -20 || p.x > w + 20 || p.y < -20 || p.y > h + 20) continue;
 
       const color = wp.color || this.dimensionColor;
-      const icon = wp.name.toLowerCase().includes("spawn") ? "\uf015" : "\uf3c5";
+      const icon = "\uf3c5";
       ctx.save();
       ctx.fillStyle = color;
       ctx.shadowColor = color;
