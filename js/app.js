@@ -285,6 +285,7 @@ function renderCategoryFilterRow() {
     categoryFilter = null;
     renderCategoryFilterRow();
     renderSidebar();
+    updateMapWaypoints();
   });
   categoryFilterRowEl.appendChild(allChip);
 
@@ -304,6 +305,7 @@ function renderCategoryFilterRow() {
       categoryFilter = categoryFilter === cat.id ? null : cat.id;
       renderCategoryFilterRow();
       renderSidebar();
+      updateMapWaypoints();
     });
     categoryFilterRowEl.appendChild(chip);
   }
@@ -317,6 +319,7 @@ function renderCategoryFilterRow() {
     categoryFilter = categoryFilter === "__none__" ? null : "__none__";
     renderCategoryFilterRow();
     renderSidebar();
+    updateMapWaypoints();
   });
   categoryFilterRowEl.appendChild(noneChip);
 }
@@ -610,7 +613,7 @@ async function loadWaypointsForDim(dim) {
     console.error(err);
     currentWaypoints = [];
   }
-  grid.setWaypoints(currentWaypoints);
+  updateMapWaypoints();
   renderSidebar();
 }
 
@@ -618,13 +621,19 @@ async function loadWaypointsForDim(dim) {
 // Sidebar
 // ---------------------------------------------------------------------------
 
+function matchesCategoryFilter(wp) {
+  if (categoryFilter === null) return true;
+  if (categoryFilter === "__none__") return !wp.category_id;
+  return wp.category_id === categoryFilter;
+}
+
+function updateMapWaypoints() {
+  grid.setWaypoints(currentWaypoints.filter(matchesCategoryFilter));
+}
+
 function renderSidebar() {
   const query = waypointSearchEl.value.trim().toLowerCase();
-  const matchesCategory = (wp) => {
-    if (categoryFilter === null) return true;
-    if (categoryFilter === "__none__") return !wp.category_id;
-    return wp.category_id === categoryFilter;
-  };
+  const matchesCategory = matchesCategoryFilter;
   const visibleWaypoints = currentWaypoints.filter(
     (wp) =>
       matchesCategory(wp) &&
