@@ -108,14 +108,59 @@ const categoriesTab = dimTabs.querySelector('[data-dim="categories"]');
 const categoriesTabPanel = $("#categoriesTabPanel");
 const categoriesListEl = $("#categoriesList");
 
+const settingsTabPanel = $("#settingsTabPanel");
+const settingHideFilteredEl = $("#settingHideFiltered");
+const settingCopyFormatEl = $("#settingCopyFormat");
+
 const sidebarToggleBtn = $("#sidebarToggleBtn");
 const sidebarCloseBtn = $("#sidebarCloseBtn");
 const sidebarScrim = $("#sidebarScrim");
 
 // ---------------------------------------------------------------------------
+// Settings (persisted to localStorage)
+// ---------------------------------------------------------------------------
+
+const SETTINGS_STORAGE_KEY = "miaucraft-settings";
+const DEFAULT_SETTINGS = {
+  hideFilteredWaypoints: true,
+  copyFormat: "labeled",
+};
+
+const COORD_COPY_FORMATS = {
+  labeled: (x, y, z) => `x ${x}${y !== null ? `, y ${y}` : ""}, z ${z}`,
+  comma: (x, y, z) => `${x}${y !== null ? `, ${y}` : ""}, ${z}`,
+  space: (x, y, z) => `${x}${y !== null ? ` ${y}` : ""} ${z}`,
+  slash: (x, y, z) => `${x}${y !== null ? ` / ${y}` : ""} / ${z}`,
+};
+
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
+    if (!raw) return { ...DEFAULT_SETTINGS };
+    return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+  } catch {
+    return { ...DEFAULT_SETTINGS };
+  }
+}
+
+function saveSettings() {
+  try {
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+  } catch {
+    // localStorage unavailable (private browsing, disabled, etc) - ignore
+  }
+}
+
+function formatCoordsForCopy(x, y, z) {
+  const formatter = COORD_COPY_FORMATS[settings.copyFormat] || COORD_COPY_FORMATS.labeled;
+  return formatter(x, y !== null && y !== undefined ? y : null, z);
+}
+
+// ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
 
+let settings = loadSettings();
 let currentDim = "overworld";
 let currentWaypoints = [];
 let openTooltipWaypoint = null;
@@ -575,14 +620,16 @@ function switchDimension(dim) {
     resetCategoryForm();
   }
 
-  if (dim === "server" || dim === "categories") {
+  if (dim === "server" || dim === "categories" || dim === "settings") {
     gridPanel.hidden = true;
     sidebarEl.hidden = true;
     sidebarToggleBtn.hidden = true;
     serverPanel.hidden = dim !== "server";
     categoriesTabPanel.hidden = dim !== "categories";
+    settingsTabPanel.hidden = dim !== "settings";
     if (dim === "server") loadServerPanel();
-    else loadCategories();
+    else if (dim === "categories") loadCategories();
+    else updateSettingsUI();
     return;
   }
 
@@ -590,6 +637,7 @@ function switchDimension(dim) {
   sidebarEl.hidden = false;
   serverPanel.hidden = true;
   categoriesTabPanel.hidden = true;
+  settingsTabPanel.hidden = true;
   sidebarToggleBtn.hidden = false;
   grid.setDimensionColor(DIM_COLORS[dim]);
   sidebarTitle.textContent = DIM_LABELS[dim];
@@ -601,10 +649,34 @@ async function loadCurrentView() {
     loadServerPanel();
   } else if (currentDim === "categories") {
     loadCategories();
+  } else if (currentDim === "settings") {
+    updateSettingsUI();
   } else {
     loadWaypointsForDim(currentDim);
   }
 }
+
+// ---------------------------------------------------------------------------
+// Settings tab
+// ---------------------------------------------------------------------------
+
+function updateSettingsUI() {
+  settingHideFilteredEl.checked = settings.hideFilteredWaypoints;
+  settingCopyFormatEl.value = settings.copyFormat;
+}
+
+settingHideFilteredEl.addEventListener("change", () => {
+  settings.hideFilteredWaypoints = settingHideFilteredEl.checked;
+  saveSettings();
+  updateMapWaypoints();
+});
+
+settingCopyFormatEl.addEventListener("change", () => {
+  settings.copyFormat = settingCopyFormatEl.value;
+  saveSettings();
+  renderSidebar();
+  if (openTooltipWaypoint) showTooltip(openTooltipWaypoint);
+});
 
 async function loadWaypointsForDim(dim) {
   try {
@@ -628,7 +700,8 @@ function matchesCategoryFilter(wp) {
 }
 
 function updateMapWaypoints() {
-  grid.setWaypoints(currentWaypoints.filter(matchesCategoryFilter));
+  const waypointsForMap = settings.hideFilteredWaypoints ? currentWaypoints.filter(matchesCategoryFilter) : currentWaypoints;
+  grid.setWaypoints(waypointsForMap);
 }
 
 function renderSidebar() {
@@ -693,7 +766,11 @@ function buildWaypointCard(wp) {
 
   const coords = document.createElement("div");
   coords.className = "waypoint-coords";
-  coords.textContent = formatWaypointCoords(wp);
+  const coordsText = document.createElement("span");
+  coordsText.className = "coords-text";
+  coordsText.textContent = formatWaypointCoords(wp);
+  const copyBtn = buildCopyCoordsButton(() => formatCoordsForCopy(wp.x, wp.y !== null && wp.y !== undefined ? wp.y : null, wp.z));
+  coords.append(coordsText, copyBtn);
   card.appendChild(coords);
   appendDimensionConversion(card, wp, "waypoint-coords-conversion");
 
@@ -780,7 +857,11 @@ function showTooltip(wp) {
   }
   const coords = document.createElement("p");
   coords.className = "pin-coords";
-  coords.textContent = formatWaypointCoords(wp);
+  const coordsText = document.createElement("span");
+  coordsText.className = "coords-text";
+  coordsText.textContent = formatWaypointCoords(wp);
+  const coordsCopyBtn = buildCopyCoordsButton(() => formatCoordsForCopy(wp.x, wp.y !== null && wp.y !== undefined ? wp.y : null, wp.z));
+  coords.append(coordsText, coordsCopyBtn);
   pinTooltip.appendChild(coords);
   appendDimensionConversion(pinTooltip, wp, "pin-coords pin-coords-conversion");
   const by = document.createElement("p");
@@ -837,20 +918,56 @@ function positionTooltip(wp) {
 }
 
 function formatWaypointCoords(wp) {
-  return `x ${wp.x}${wp.y !== null && wp.y !== undefined ? `, y ${wp.y}` : ""}, z ${wp.z}`;
+  return formatCoordsForCopy(wp.x, wp.y !== null && wp.y !== undefined ? wp.y : null, wp.z);
+}
+
+function buildCopyCoordsButton(getText) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "coords-copy-btn";
+  btn.title = "Copy coordinates";
+  btn.setAttribute("aria-label", "Copy coordinates");
+  btn.innerHTML = '<i class="fa-solid fa-copy" aria-hidden="true"></i>';
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    copyTextToClipboard(getText(), btn);
+  });
+  return btn;
+}
+
+async function copyTextToClipboard(text, btn) {
+  const icon = btn.querySelector("i");
+  try {
+    await navigator.clipboard.writeText(text);
+    icon.className = "fa-solid fa-check";
+    btn.classList.add("copied");
+  } catch {
+    icon.className = "fa-solid fa-xmark";
+  }
+  window.setTimeout(() => {
+    icon.className = "fa-solid fa-copy";
+    btn.classList.remove("copied");
+  }, 1200);
 }
 
 function appendDimensionConversion(container, wp, className) {
   if (wp.dimension !== "overworld" && wp.dimension !== "nether") return;
   const converted = document.createElement(className.includes("pin-") ? "p" : "div");
-  converted.className = className;
+  converted.className = `${className} coords-conversion-text`;
+  let label, dimension, x, z;
   if (wp.dimension === "nether") {
-    converted.dataset.dimension = "overworld";
-    converted.textContent = `Overworld: x ${wp.x * 8}, z ${wp.z * 8}`;
+    dimension = "overworld";
+    label = "Overworld";
+    x = wp.x * 8;
+    z = wp.z * 8;
   } else {
-    converted.dataset.dimension = "nether";
-    converted.textContent = `Nether: x ${Math.round(wp.x / 8)}, z ${Math.round(wp.z / 8)}`;
+    dimension = "nether";
+    label = "Nether";
+    x = Math.round(wp.x / 8);
+    z = Math.round(wp.z / 8);
   }
+  converted.dataset.dimension = dimension;
+  converted.textContent = `${label}: ${formatCoordsForCopy(x, null, z)}`;
   container.appendChild(converted);
 }
 
@@ -959,6 +1076,14 @@ function closeOnBackdropClick(backdrop, close) {
 closeOnBackdropClick(authModal, closeAuthModal);
 
 waypointSearchEl.addEventListener("input", renderSidebar);
+
+document.addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
+    e.preventDefault();
+    waypointSearchEl.focus();
+    waypointSearchEl.select();
+  }
+});
 
 function setAuthTab(tab) {
   for (const btn of authModal.querySelectorAll(".modal-tab")) {

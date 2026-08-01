@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
-    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap"
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Roboto+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap"
     rel="stylesheet"
   />
   <script src="https://kit.fontawesome.com/384138011e.js" crossorigin="anonymous"></script>
@@ -32,6 +32,10 @@
             <i class="fa-solid fa-server" aria-hidden="true"></i>
             <span class="dim-tab-label">Server</span>
           </button>
+          <button class="dim-tab dim-tab--settings" data-dim="settings">
+            <i class="fa-solid fa-gear" aria-hidden="true"></i>
+            <span class="dim-tab-label">Settings</span>
+          </button>
         </nav>
 
         <div class="auth-area" id="authArea">
@@ -48,6 +52,7 @@
             <option value="end">End</option>
             <option value="categories" id="dimSelectCategories" hidden>Categories</option>
             <option value="server" id="dimSelectServer" hidden>Server</option>
+            <option value="settings">Settings</option>
           </select>
           <i class="fa-solid fa-chevron-down dim-select-chevron" aria-hidden="true"></i>
         </div>
@@ -140,6 +145,36 @@
             </div>
             <span class="form-msg" id="categoryMsg"></span>
           </form>
+        </div>
+      </section>
+
+      <section class="settings-tab-panel" id="settingsTabPanel" hidden>
+        <div class="settings-tab-card">
+          <h2>Settings</h2>
+
+          <div class="settings-row">
+            <div class="settings-row-text">
+              <span class="settings-row-label">Hide filtered waypoints on map</span>
+              <span class="settings-row-desc">When a category is selected, only show its waypoints on the map too, not just in the list.</span>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="settingHideFiltered" />
+              <span class="switch-track"><span class="switch-thumb"></span></span>
+            </label>
+          </div>
+
+          <div class="settings-row">
+            <div class="settings-row-text">
+              <span class="settings-row-label">Coordinate format</span>
+              <span class="settings-row-desc">Controls how coordinates are shown and copied throughout the app.</span>
+            </div>
+            <select class="settings-select" id="settingCopyFormat" aria-label="Coordinate format">
+              <option value="labeled">x X, y Y, z Z</option>
+              <option value="comma">X, Y, Z</option>
+              <option value="space">X Y Z</option>
+              <option value="slash">X / Y / Z</option>
+            </select>
+          </div>
         </div>
       </section>
     </main>
