@@ -980,7 +980,7 @@ function appendDimensionConversion(container, wp, className) {
 // A tiny opt-in hook for one-off waypoints that have their own reference image.
 // Add more entries here (exact waypoint name -> image path) as needed.
 const SPECIAL_WAYPOINT_IMAGES = {
-  "Blehh Cat": "/img/blehh-map.png",
+  "Blehh Cat": "img/blehh-map.png",
 };
 
 function appendSpecialWaypointImage(container, wp) {
