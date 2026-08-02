@@ -84,6 +84,8 @@ input {
   backdrop-filter: blur(6px);
   flex-shrink: 0;
   justify-content: center;
+  position: relative;
+  z-index: 40;
 }
 
 .topbar-row {
@@ -249,6 +251,7 @@ input {
   padding: 3px 7px;
   border-radius: 4px;
   white-space: nowrap;
+  z-index: 10;
 }
 
 .grid-controls {
@@ -258,6 +261,7 @@ input {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  z-index: 10;
 }
 
 .icon-btn {
@@ -368,6 +372,8 @@ input {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  position: relative;
+  z-index: 40;
 }
 
 .sidebar-header {
