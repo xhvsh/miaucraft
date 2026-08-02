@@ -149,19 +149,14 @@ export class Grid {
         const dx = e.clientX - this._dragStart.x;
         const dy = e.clientY - this._dragStart.y;
         if (Math.abs(dx) > 3 || Math.abs(dy) > 3) this._dragMoved = true;
-      this.centerX = this._dragOriginCenter.x - dx / this.scale;
-      this.centerZ = this._dragOriginCenter.z - dy / this.scale;
-      this.draw();
-      this.onViewChange?.();
+        this.centerX = this._dragOriginCenter.x - dx / this.scale;
+        this.centerZ = this._dragOriginCenter.z - dy / this.scale;
+        this.draw();
+        this.onViewChange?.();
       }
 
       const rect = c.getBoundingClientRect();
-      if (
-        e.clientX >= rect.left &&
-        e.clientX <= rect.right &&
-        e.clientY >= rect.top &&
-        e.clientY <= rect.bottom
-      ) {
+      if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
         const sx = e.clientX - rect.left;
         const sy = e.clientY - rect.top;
         const w = this.screenToWorld(sx, sy);
@@ -451,7 +446,6 @@ export class Grid {
       ctx.strokeText(icon, p.x, p.y);
       ctx.fillText(icon, p.x, p.y);
       ctx.restore();
-
     }
 
     if (this.hoveredWaypoint) {

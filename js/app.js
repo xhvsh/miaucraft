@@ -1,17 +1,6 @@
 import * as Auth from "./auth.js";
 import { Grid } from "./grid.js";
-import {
-  listWaypoints,
-  createWaypoint,
-  updateWaypoint,
-  deleteWaypoint,
-  getServerInfo,
-  setServerInfo,
-  listCategories,
-  createCategory,
-  updateCategory,
-  deleteCategory,
-} from "./waypoints.js";
+import { listWaypoints, createWaypoint, updateWaypoint, deleteWaypoint, getServerInfo, setServerInfo, listCategories, createCategory, updateCategory, deleteCategory } from "./waypoints.js";
 
 const DIM_COLORS = {
   overworld: "#4ade80",
@@ -27,13 +16,7 @@ const DIM_LABELS = { overworld: "Overworld", nether: "Nether", end: "End" };
 const $ = (sel) => document.querySelector(sel);
 
 // Custom confirm/alert dialog, replacing native confirm()/alert() popups.
-function showConfirmDialog({
-  title = "Are you sure?",
-  message = "",
-  confirmLabel = "Confirm",
-  danger = true,
-  alertOnly = false,
-} = {}) {
+function showConfirmDialog({ title = "Are you sure?", message = "", confirmLabel = "Confirm", danger = true, alertOnly = false } = {}) {
   return new Promise((resolve) => {
     const modal = $("#confirmModal");
     const confirmBtn = $("#confirmModalConfirmBtn");
@@ -471,12 +454,7 @@ function populateCategorySelect() {
 
   const validValue = categories.some((c) => c.id === previousValue) ? previousValue : "";
   const match = categories.find((c) => c.id === validValue);
-  setCategoryPickerValue(
-    validValue,
-    match ? match.name : "No category",
-    match ? categoryIconClass(match.icon) : null,
-    match ? match.color : null,
-  );
+  setCategoryPickerValue(validValue, match ? match.name : "No category", match ? categoryIconClass(match.icon) : null, match ? match.color : null);
 }
 
 function renderCategoriesList() {
@@ -726,11 +704,7 @@ function renderSidebar() {
   if (visibleWaypoints.length === 0) {
     const empty = document.createElement("div");
     empty.className = "empty-state";
-    empty.textContent = isFiltered
-      ? "No waypoints match this search or filter."
-      : Auth.can("addWaypoint")
-      ? "No waypoints yet. Right-click the grid to add one."
-      : "No waypoints here yet.";
+    empty.textContent = isFiltered ? "No waypoints match this search or filter." : Auth.can("addWaypoint") ? "No waypoints yet. Right-click the grid to add one." : "No waypoints here yet.";
     waypointListEl.appendChild(empty);
     return;
   }
@@ -1033,12 +1007,7 @@ document.addEventListener("pointerdown", (e) => {
 });
 
 document.addEventListener("click", (e) => {
-  if (
-    !pinTooltip.hidden &&
-    !tooltipPointerStartedInside &&
-    !pinTooltip.contains(e.target) &&
-    !e.target.closest(".grid-canvas, .waypoint-card")
-  ) {
+  if (!pinTooltip.hidden && !tooltipPointerStartedInside && !pinTooltip.contains(e.target) && !e.target.closest(".grid-canvas, .waypoint-card")) {
     hideTooltip();
   }
   tooltipPointerStartedInside = false;
@@ -1138,9 +1107,7 @@ function setAuthTab(tab) {
   $("#registerForm").hidden = tab !== "register";
   const isLogin = tab === "login";
   $(".auth-modal-header h2").textContent = isLogin ? "Welcome back" : "Create your account";
-  $(".auth-modal-header p").textContent = isLogin
-    ? "Sign in to manage server waypoints."
-    : "Use an access code to join Miaucraft.";
+  $(".auth-modal-header p").textContent = isLogin ? "Sign in to manage server waypoints." : "Use an access code to join Miaucraft.";
 }
 
 authModal.querySelectorAll(".modal-tab").forEach((btn) => {
@@ -1152,9 +1119,7 @@ authModal.querySelectorAll("[data-password-toggle]").forEach((button) => {
     const input = document.getElementById(button.dataset.passwordToggle);
     const showing = input.type === "text";
     input.type = showing ? "password" : "text";
-    button.innerHTML = showing
-      ? '<i class="fa-solid fa-eye" aria-hidden="true"></i>'
-      : '<i class="fa-solid fa-eye-slash" aria-hidden="true"></i>';
+    button.innerHTML = showing ? '<i class="fa-solid fa-eye" aria-hidden="true"></i>' : '<i class="fa-solid fa-eye-slash" aria-hidden="true"></i>';
     button.setAttribute("aria-label", showing ? "Show password" : "Hide password");
     button.setAttribute("aria-pressed", String(!showing));
   });

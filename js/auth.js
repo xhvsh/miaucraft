@@ -62,11 +62,7 @@ export function canEditWaypoint(waypoint) {
 }
 
 async function loadProfile(userId) {
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("id, username, role")
-    .eq("id", userId)
-    .maybeSingle();
+  const { data, error } = await supabase.from("profiles").select("id, username, role").eq("id", userId).maybeSingle();
   if (error) {
     console.error("Failed to load profile:", error);
     return null;

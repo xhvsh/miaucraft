@@ -1,11 +1,7 @@
 import { supabase } from "./supabaseClient.js";
 
 export async function listWaypoints(dimension) {
-  const { data, error } = await supabase
-    .from("waypoints")
-    .select("*")
-    .eq("dimension", dimension)
-    .order("created_at", { ascending: true });
+  const { data, error } = await supabase.from("waypoints").select("*").eq("dimension", dimension).order("created_at", { ascending: true });
   if (error) throw error;
   return data;
 }
@@ -17,12 +13,7 @@ export async function createWaypoint(waypoint) {
 }
 
 export async function updateWaypoint(id, patch) {
-  const { data, error } = await supabase
-    .from("waypoints")
-    .update(patch)
-    .eq("id", id)
-    .select()
-    .single();
+  const { data, error } = await supabase.from("waypoints").update(patch).eq("id", id).select().single();
   if (error) throw error;
   return data;
 }
@@ -33,10 +24,7 @@ export async function deleteWaypoint(id) {
 }
 
 export async function listCategories() {
-  const { data, error } = await supabase
-    .from("categories")
-    .select("*")
-    .order("name", { ascending: true });
+  const { data, error } = await supabase.from("categories").select("*").order("name", { ascending: true });
   if (error) throw error;
   return data;
 }
@@ -48,12 +36,7 @@ export async function createCategory(category) {
 }
 
 export async function updateCategory(id, patch) {
-  const { data, error } = await supabase
-    .from("categories")
-    .update(patch)
-    .eq("id", id)
-    .select()
-    .single();
+  const { data, error } = await supabase.from("categories").update(patch).eq("id", id).select().single();
   if (error) throw error;
   return data;
 }

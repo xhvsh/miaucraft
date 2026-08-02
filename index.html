@@ -1,324 +1,321 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Miaucraft</title>
-  <meta name="color-scheme" content="dark" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link
-    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Roboto+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap"
-    rel="stylesheet"
-  />
-  <script src="https://kit.fontawesome.com/384138011e.js" crossorigin="anonymous"></script>
-  <link rel="stylesheet" href="./style.css" />
-</head>
-<body>
-  <div id="app">
-    <header class="topbar">
-      <div class="topbar-row topbar-row--top">
-        <div class="brand">MIAUCRAFT</div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Miaucraft</title>
+    <meta name="color-scheme" content="dark" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Roboto+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <script src="https://kit.fontawesome.com/384138011e.js" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <div class="topbar-row topbar-row--top">
+          <div class="brand">MIAUCRAFT</div>
 
-        <nav class="dim-tabs" id="dimTabs">
-          <button class="dim-tab" data-dim="overworld" data-active="true">Overworld</button>
-          <button class="dim-tab" data-dim="nether">Nether</button>
-          <button class="dim-tab" data-dim="end">End</button>
-          <button class="dim-tab dim-tab--categories" data-dim="categories" hidden>
-            <i class="fa-solid fa-tags" aria-hidden="true"></i>
-            <span class="dim-tab-label">Categories</span>
-          </button>
-          <button class="dim-tab dim-tab--server" data-dim="server" hidden>
-            <i class="fa-solid fa-server" aria-hidden="true"></i>
-            <span class="dim-tab-label">Server</span>
-          </button>
-          <button class="dim-tab dim-tab--settings" data-dim="settings">
-            <i class="fa-solid fa-gear" aria-hidden="true"></i>
-            <span class="dim-tab-label">Settings</span>
-          </button>
-        </nav>
-
-        <div class="auth-area" id="authArea">
-          <span class="auth-status">guest</span>
-          <button class="btn btn-ghost" id="signInBtn" type="button">Sign in</button>
-        </div>
-      </div>
-
-      <div class="topbar-row topbar-row--bottom">
-        <div class="dim-select-wrap" id="dimSelectWrap" data-dim="overworld">
-          <select class="dim-select" id="dimSelect" aria-label="Dimension">
-            <option value="overworld">Overworld</option>
-            <option value="nether">Nether</option>
-            <option value="end">End</option>
-            <option value="categories" id="dimSelectCategories" hidden>Categories</option>
-            <option value="server" id="dimSelectServer" hidden>Server</option>
-            <option value="settings">Settings</option>
-          </select>
-          <i class="fa-solid fa-chevron-down dim-select-chevron" aria-hidden="true"></i>
-        </div>
-
-        <button class="icon-btn sidebar-toggle-btn" id="sidebarToggleBtn" type="button" title="Toggle waypoint list" aria-label="Toggle waypoint list" aria-expanded="false">
-          <i class="fa-solid fa-list" aria-hidden="true"></i>
-        </button>
-      </div>
-    </header>
-
-    <main class="workspace">
-      <section class="grid-panel" id="gridPanel">
-        <div class="grid-container" id="gridContainer"></div>
-
-        <div class="grid-controls">
-          <button class="icon-btn" id="zoomInBtn" type="button" title="Zoom in" aria-label="Zoom in"><i class="fa-solid fa-plus" aria-hidden="true"></i></button>
-          <button class="icon-btn" id="zoomOutBtn" type="button" title="Zoom out" aria-label="Zoom out"><i class="fa-solid fa-minus" aria-hidden="true"></i></button>
-          <button class="icon-btn icon-btn--wide" id="recenterBtn" type="button" title="Back to origin" aria-label="Back to origin"><i class="fa-solid fa-crosshairs" aria-hidden="true"></i></button>
-        </div>
-
-        <div class="pin-tooltip" id="pinTooltip" hidden></div>
-      </section>
-
-      <div class="sidebar-scrim" id="sidebarScrim" hidden></div>
-
-      <aside class="sidebar" id="sidebar">
-        <div class="sidebar-header">
-          <h2 id="sidebarTitle">Overworld</h2>
-          <span class="waypoint-count" id="waypointCount">0</span>
-          <button class="modal-close sidebar-close-btn" id="sidebarCloseBtn" type="button" aria-label="Close waypoint list">&times;</button>
-        </div>
-        <div class="waypoint-search-wrap">
-          <input type="search" id="waypointSearch" placeholder="Search waypoints" aria-label="Search waypoints" />
-        </div>
-        <div class="category-filter-row" id="categoryFilterRow"></div>
-        <div class="waypoint-list" id="waypointList"></div>
-      </aside>
-
-      <section class="server-panel" id="serverPanel" hidden>
-        <div class="server-card">
-          <h2>Server</h2>
-          <div class="server-field">
-            <span class="server-field-label">Hostname</span>
-            <span class="server-field-value" id="serverHostname">Not set</span>
-            <button class="server-copy" type="button" data-copy-source="serverHostname" hidden>Copy</button>
-          </div>
-          <div class="server-field">
-            <span class="server-field-label">Numeric IP</span>
-            <span class="server-field-value" id="serverIp">Not set</span>
-            <button class="server-copy" type="button" data-copy-source="serverIp" hidden>Copy</button>
-          </div>
-          <div class="server-edit" id="serverEdit" hidden>
-            <h3>Edit</h3>
-            <label>
-              Hostname
-              <input type="text" id="serverHostnameInput" autocomplete="off" />
-            </label>
-            <label>
-              Numeric IP
-              <input type="text" id="serverIpInput" autocomplete="off" />
-            </label>
-            <button class="btn btn-primary" id="serverSaveBtn" type="button">Save</button>
-            <span class="form-msg" id="serverSaveMsg"></span>
-          </div>
-        </div>
-      </section>
-
-      <section class="categories-tab-panel" id="categoriesTabPanel" hidden>
-        <div class="categories-tab-card">
-          <h2>Categories</h2>
-          <div class="categories-list" id="categoriesList"></div>
-          <form class="category-form" id="categoryForm">
-            <input type="hidden" id="catId" />
-            <div class="category-form-row">
-              <span class="category-icon-preview" id="catIconPreview">
-                <i class="fa-solid fa-hashtag" id="catIconPreviewGlyph" aria-hidden="true"></i>
-              </span>
-              <span class="color-picker category-color-picker">
-                <input type="color" id="catColor" value="#a78bfa" aria-label="Category color" />
-              </span>
-              <input type="text" id="catName" placeholder="Category name" maxlength="40" required />
-            </div>
-            <label class="category-icon-field">
-              Icon <span class="optional">Font Awesome class, e.g. "fa-solid fa-hashtag" or "fa-brands fa-fort-awesome"</span>
-              <input type="text" id="catIcon" placeholder="fa-solid fa-hashtag" maxlength="60" autocomplete="off" />
-            </label>
-            <div class="modal-actions">
-              <button class="btn btn-primary" type="submit" id="catSubmitBtn">Add category</button>
-              <button class="btn btn-ghost" id="catCancelEditBtn" type="button" hidden>Cancel</button>
-            </div>
-            <span class="form-msg" id="categoryMsg"></span>
-          </form>
-        </div>
-      </section>
-
-      <section class="settings-tab-panel" id="settingsTabPanel" hidden>
-        <div class="settings-tab-card">
-          <h2>Settings</h2>
-
-          <div class="settings-row">
-            <div class="settings-row-text">
-              <span class="settings-row-label">Hide filtered waypoints on map</span>
-              <span class="settings-row-desc">When a category is selected, only show its waypoints on the map too, not just in the list.</span>
-            </div>
-            <label class="switch">
-              <input type="checkbox" id="settingHideFiltered" />
-              <span class="switch-track"><span class="switch-thumb"></span></span>
-            </label>
-          </div>
-
-          <div class="settings-row">
-            <div class="settings-row-text">
-              <span class="settings-row-label">Coordinate format</span>
-              <span class="settings-row-desc">Controls how coordinates are shown and copied throughout the app.</span>
-            </div>
-            <select class="settings-select" id="settingCopyFormat" aria-label="Coordinate format">
-              <option value="labeled">x X, y Y, z Z</option>
-              <option value="comma">X, Y, Z</option>
-              <option value="space">X Y Z</option>
-              <option value="slash">X / Y / Z</option>
-            </select>
-          </div>
-        </div>
-      </section>
-    </main>
-  </div>
-
-  <!-- Auth modal -->
-  <div class="modal-backdrop" id="authModal" hidden>
-    <div class="modal auth-modal-card">
-      <div class="auth-modal-header">
-        <span class="auth-kicker">Miaucraft</span>
-        <h2>Welcome back</h2>
-        <p>Sign in to manage server waypoints.</p>
-      </div>
-      <div class="modal-tabs auth-tabs">
-        <button class="modal-tab" data-authtab="login" data-active="true">Sign in</button>
-        <button class="modal-tab" data-authtab="register">Create account</button>
-      </div>
-
-      <form class="modal-form" id="loginForm">
-        <label>
-          Username
-          <input type="text" id="loginUsername" autocomplete="username" required />
-        </label>
-        <label>
-          Password
-          <span class="password-field">
-            <input type="password" id="loginPassword" autocomplete="current-password" required />
-            <button class="password-toggle" type="button" data-password-toggle="loginPassword" aria-label="Show password" aria-pressed="false"><i class="fa-solid fa-eye" aria-hidden="true"></i></button>
-          </span>
-        </label>
-        <button class="btn btn-primary" type="submit">Sign in</button>
-        <span class="form-msg" id="loginMsg"></span>
-      </form>
-
-      <form class="modal-form" id="registerForm" hidden>
-        <label>
-          Username
-          <input type="text" id="registerUsername" autocomplete="username" required />
-        </label>
-        <label>
-          Password
-          <span class="password-field">
-            <input type="password" id="registerPassword" autocomplete="new-password" required />
-            <button class="password-toggle" type="button" data-password-toggle="registerPassword" aria-label="Show password" aria-pressed="false"><i class="fa-solid fa-eye" aria-hidden="true"></i></button>
-          </span>
-        </label>
-        <label>
-          Repeat password
-          <span class="password-field">
-            <input type="password" id="registerPasswordRepeat" autocomplete="new-password" required />
-            <button class="password-toggle" type="button" data-password-toggle="registerPasswordRepeat" aria-label="Show password" aria-pressed="false"><i class="fa-solid fa-eye" aria-hidden="true"></i></button>
-          </span>
-        </label>
-        <label>
-          Access code
-          <input type="text" id="registerCode" autocomplete="off" required />
-        </label>
-        <button class="btn btn-primary" type="submit">Create account</button>
-        <span class="form-msg" id="registerMsg"></span>
-      </form>
-    </div>
-  </div>
-
-  <!-- Waypoint add/edit modal -->
-  <div class="modal-backdrop" id="waypointModal" hidden>
-    <div class="modal waypoint-modal-card">
-      <div class="modal-tabs">
-        <h3 class="modal-title" id="waypointModalTitle">Add waypoint</h3>
-        <button class="modal-close" id="waypointModalClose" type="button">&times;</button>
-      </div>
-
-      <form class="modal-form" id="waypointForm">
-        <input type="hidden" id="wpId" />
-        <label>
-          Name
-          <input type="text" id="wpName" required maxlength="60" />
-        </label>
-        <label>
-          Description
-          <input type="text" id="wpDescription" maxlength="160" />
-        </label>
-        <div class="coord-row">
-          <label>
-            X
-            <input type="number" id="wpX" step="1" required />
-          </label>
-          <label>
-            Y (optional)
-            <input type="number" id="wpY" step="1" />
-          </label>
-          <label>
-            Z
-            <input type="number" id="wpZ" step="1" required />
-          </label>
-        </div>
-        <div class="nether-preview" id="netherPreview" hidden></div>
-        <label class="category-picker-field">
-          Category
-          <div class="category-picker" id="categoryPicker">
-            <input type="hidden" id="wpCategory" value="" />
-            <button type="button" class="category-picker-trigger" id="categoryPickerTrigger" aria-haspopup="listbox" aria-expanded="false">
-              <span class="category-picker-content" id="categoryPickerTriggerContent">
-                <span class="category-picker-icon category-picker-icon--none">
-                  <i class="fa-solid fa-ban" aria-hidden="true"></i>
-                </span>
-                <span class="category-picker-label">No category</span>
-              </span>
-              <i class="fa-solid fa-chevron-down category-picker-chevron" aria-hidden="true"></i>
+          <nav class="dim-tabs" id="dimTabs">
+            <button class="dim-tab" data-dim="overworld" data-active="true">Overworld</button>
+            <button class="dim-tab" data-dim="nether">Nether</button>
+            <button class="dim-tab" data-dim="end">End</button>
+            <button class="dim-tab dim-tab--categories" data-dim="categories" hidden>
+              <i class="fa-solid fa-tags" aria-hidden="true"></i>
+              <span class="dim-tab-label">Categories</span>
             </button>
-            <div class="category-picker-menu" id="categoryPickerMenu" role="listbox" hidden></div>
-          </div>
-        </label>
-        <label>
-          Color
-          <span class="color-picker">
-            <input type="color" id="wpColor" value="#a78bfa" aria-label="Waypoint color" />
-            <span class="color-value" id="wpColorValue">#A78BFA</span>
-          </span>
-        </label>
-        <div class="modal-actions">
-          <button class="btn btn-primary" type="submit">Save</button>
-          <button class="btn btn-danger" id="wpDeleteBtn" type="button" hidden>Delete</button>
-        </div>
-        <span class="form-msg" id="waypointMsg"></span>
-      </form>
-    </div>
-  </div>
+            <button class="dim-tab dim-tab--server" data-dim="server" hidden>
+              <i class="fa-solid fa-server" aria-hidden="true"></i>
+              <span class="dim-tab-label">Server</span>
+            </button>
+            <button class="dim-tab dim-tab--settings" data-dim="settings">
+              <i class="fa-solid fa-gear" aria-hidden="true"></i>
+              <span class="dim-tab-label">Settings</span>
+            </button>
+          </nav>
 
-  <div class="modal-backdrop" id="confirmModal" hidden>
-    <div class="modal confirm-modal-card">
-      <h3 class="modal-title" id="confirmModalTitle">Are you sure?</h3>
-      <p class="confirm-modal-message" id="confirmModalMessage"></p>
-      <div class="modal-actions">
-        <button class="btn btn-ghost" id="confirmModalCancelBtn" type="button">Cancel</button>
-        <button class="btn btn-danger" id="confirmModalConfirmBtn" type="button">Confirm</button>
+          <div class="auth-area" id="authArea">
+            <span class="auth-status">guest</span>
+            <button class="btn btn-ghost" id="signInBtn" type="button">Sign in</button>
+          </div>
+        </div>
+
+        <div class="topbar-row topbar-row--bottom">
+          <div class="dim-select-wrap" id="dimSelectWrap" data-dim="overworld">
+            <select class="dim-select" id="dimSelect" aria-label="Dimension">
+              <option value="overworld">Overworld</option>
+              <option value="nether">Nether</option>
+              <option value="end">End</option>
+              <option value="categories" id="dimSelectCategories" hidden>Categories</option>
+              <option value="server" id="dimSelectServer" hidden>Server</option>
+              <option value="settings">Settings</option>
+            </select>
+            <i class="fa-solid fa-chevron-down dim-select-chevron" aria-hidden="true"></i>
+          </div>
+
+          <button class="icon-btn sidebar-toggle-btn" id="sidebarToggleBtn" type="button" title="Toggle waypoint list" aria-label="Toggle waypoint list" aria-expanded="false">
+            <i class="fa-solid fa-list" aria-hidden="true"></i>
+          </button>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <section class="grid-panel" id="gridPanel">
+          <div class="grid-container" id="gridContainer"></div>
+
+          <div class="grid-controls">
+            <button class="icon-btn" id="zoomInBtn" type="button" title="Zoom in" aria-label="Zoom in"><i class="fa-solid fa-plus" aria-hidden="true"></i></button>
+            <button class="icon-btn" id="zoomOutBtn" type="button" title="Zoom out" aria-label="Zoom out"><i class="fa-solid fa-minus" aria-hidden="true"></i></button>
+            <button class="icon-btn icon-btn--wide" id="recenterBtn" type="button" title="Back to origin" aria-label="Back to origin"><i class="fa-solid fa-crosshairs" aria-hidden="true"></i></button>
+          </div>
+
+          <div class="pin-tooltip" id="pinTooltip" hidden></div>
+        </section>
+
+        <div class="sidebar-scrim" id="sidebarScrim" hidden></div>
+
+        <aside class="sidebar" id="sidebar">
+          <div class="sidebar-header">
+            <h2 id="sidebarTitle">Overworld</h2>
+            <span class="waypoint-count" id="waypointCount">0</span>
+            <button class="modal-close sidebar-close-btn" id="sidebarCloseBtn" type="button" aria-label="Close waypoint list">&times;</button>
+          </div>
+          <div class="waypoint-search-wrap">
+            <input type="search" id="waypointSearch" placeholder="Search waypoints" aria-label="Search waypoints" />
+          </div>
+          <div class="category-filter-row" id="categoryFilterRow"></div>
+          <div class="waypoint-list" id="waypointList"></div>
+        </aside>
+
+        <section class="server-panel" id="serverPanel" hidden>
+          <div class="server-card">
+            <h2>Server</h2>
+            <div class="server-field">
+              <span class="server-field-label">Hostname</span>
+              <span class="server-field-value" id="serverHostname">Not set</span>
+              <button class="server-copy" type="button" data-copy-source="serverHostname" hidden>Copy</button>
+            </div>
+            <div class="server-field">
+              <span class="server-field-label">Numeric IP</span>
+              <span class="server-field-value" id="serverIp">Not set</span>
+              <button class="server-copy" type="button" data-copy-source="serverIp" hidden>Copy</button>
+            </div>
+            <div class="server-edit" id="serverEdit" hidden>
+              <h3>Edit</h3>
+              <label>
+                Hostname
+                <input type="text" id="serverHostnameInput" autocomplete="off" />
+              </label>
+              <label>
+                Numeric IP
+                <input type="text" id="serverIpInput" autocomplete="off" />
+              </label>
+              <button class="btn btn-primary" id="serverSaveBtn" type="button">Save</button>
+              <span class="form-msg" id="serverSaveMsg"></span>
+            </div>
+          </div>
+        </section>
+
+        <section class="categories-tab-panel" id="categoriesTabPanel" hidden>
+          <div class="categories-tab-card">
+            <h2>Categories</h2>
+            <div class="categories-list" id="categoriesList"></div>
+            <form class="category-form" id="categoryForm">
+              <input type="hidden" id="catId" />
+              <div class="category-form-row">
+                <span class="category-icon-preview" id="catIconPreview">
+                  <i class="fa-solid fa-hashtag" id="catIconPreviewGlyph" aria-hidden="true"></i>
+                </span>
+                <span class="color-picker category-color-picker">
+                  <input type="color" id="catColor" value="#a78bfa" aria-label="Category color" />
+                </span>
+                <input type="text" id="catName" placeholder="Category name" maxlength="40" required />
+              </div>
+              <label class="category-icon-field">
+                Icon <span class="optional">Font Awesome class, e.g. "fa-solid fa-hashtag" or "fa-brands fa-fort-awesome"</span>
+                <input type="text" id="catIcon" placeholder="fa-solid fa-hashtag" maxlength="60" autocomplete="off" />
+              </label>
+              <div class="modal-actions">
+                <button class="btn btn-primary" type="submit" id="catSubmitBtn">Add category</button>
+                <button class="btn btn-ghost" id="catCancelEditBtn" type="button" hidden>Cancel</button>
+              </div>
+              <span class="form-msg" id="categoryMsg"></span>
+            </form>
+          </div>
+        </section>
+
+        <section class="settings-tab-panel" id="settingsTabPanel" hidden>
+          <div class="settings-tab-card">
+            <h2>Settings</h2>
+
+            <div class="settings-row">
+              <div class="settings-row-text">
+                <span class="settings-row-label">Hide filtered waypoints on map</span>
+                <span class="settings-row-desc">When a category is selected, only show its waypoints on the map too, not just in the list.</span>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="settingHideFiltered" />
+                <span class="switch-track"><span class="switch-thumb"></span></span>
+              </label>
+            </div>
+
+            <div class="settings-row">
+              <div class="settings-row-text">
+                <span class="settings-row-label">Coordinate format</span>
+                <span class="settings-row-desc">Controls how coordinates are shown and copied throughout the app.</span>
+              </div>
+              <select class="settings-select" id="settingCopyFormat" aria-label="Coordinate format">
+                <option value="labeled">x X, y Y, z Z</option>
+                <option value="comma">X, Y, Z</option>
+                <option value="space">X Y Z</option>
+                <option value="slash">X / Y / Z</option>
+              </select>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- Auth modal -->
+    <div class="modal-backdrop" id="authModal" hidden>
+      <div class="modal auth-modal-card">
+        <div class="auth-modal-header">
+          <span class="auth-kicker">Miaucraft</span>
+          <h2>Welcome back</h2>
+          <p>Sign in to manage server waypoints.</p>
+        </div>
+        <div class="modal-tabs auth-tabs">
+          <button class="modal-tab" data-authtab="login" data-active="true">Sign in</button>
+          <button class="modal-tab" data-authtab="register">Create account</button>
+        </div>
+
+        <form class="modal-form" id="loginForm">
+          <label>
+            Username
+            <input type="text" id="loginUsername" autocomplete="username" required />
+          </label>
+          <label>
+            Password
+            <span class="password-field">
+              <input type="password" id="loginPassword" autocomplete="current-password" required />
+              <button class="password-toggle" type="button" data-password-toggle="loginPassword" aria-label="Show password" aria-pressed="false"><i class="fa-solid fa-eye" aria-hidden="true"></i></button>
+            </span>
+          </label>
+          <button class="btn btn-primary" type="submit">Sign in</button>
+          <span class="form-msg" id="loginMsg"></span>
+        </form>
+
+        <form class="modal-form" id="registerForm" hidden>
+          <label>
+            Username
+            <input type="text" id="registerUsername" autocomplete="username" required />
+          </label>
+          <label>
+            Password
+            <span class="password-field">
+              <input type="password" id="registerPassword" autocomplete="new-password" required />
+              <button class="password-toggle" type="button" data-password-toggle="registerPassword" aria-label="Show password" aria-pressed="false"><i class="fa-solid fa-eye" aria-hidden="true"></i></button>
+            </span>
+          </label>
+          <label>
+            Repeat password
+            <span class="password-field">
+              <input type="password" id="registerPasswordRepeat" autocomplete="new-password" required />
+              <button class="password-toggle" type="button" data-password-toggle="registerPasswordRepeat" aria-label="Show password" aria-pressed="false"><i class="fa-solid fa-eye" aria-hidden="true"></i></button>
+            </span>
+          </label>
+          <label>
+            Access code
+            <input type="text" id="registerCode" autocomplete="off" required />
+          </label>
+          <button class="btn btn-primary" type="submit">Create account</button>
+          <span class="form-msg" id="registerMsg"></span>
+        </form>
       </div>
     </div>
-  </div>
 
-  <div class="modal-backdrop image-lightbox-backdrop" id="imageLightbox" hidden>
-    <img class="image-lightbox-img" id="imageLightboxImg" src="" alt="" />
-  </div>
+    <!-- Waypoint add/edit modal -->
+    <div class="modal-backdrop" id="waypointModal" hidden>
+      <div class="modal waypoint-modal-card">
+        <div class="modal-tabs">
+          <h3 class="modal-title" id="waypointModalTitle">Add waypoint</h3>
+          <button class="modal-close" id="waypointModalClose" type="button">&times;</button>
+        </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-  <script type="module" src="js/app.js"></script>
-</body>
+        <form class="modal-form" id="waypointForm">
+          <input type="hidden" id="wpId" />
+          <label>
+            Name
+            <input type="text" id="wpName" required maxlength="60" />
+          </label>
+          <label>
+            Description
+            <input type="text" id="wpDescription" maxlength="160" />
+          </label>
+          <div class="coord-row">
+            <label>
+              X
+              <input type="number" id="wpX" step="1" required />
+            </label>
+            <label>
+              Y (optional)
+              <input type="number" id="wpY" step="1" />
+            </label>
+            <label>
+              Z
+              <input type="number" id="wpZ" step="1" required />
+            </label>
+          </div>
+          <div class="nether-preview" id="netherPreview" hidden></div>
+          <label class="category-picker-field">
+            Category
+            <div class="category-picker" id="categoryPicker">
+              <input type="hidden" id="wpCategory" value="" />
+              <button type="button" class="category-picker-trigger" id="categoryPickerTrigger" aria-haspopup="listbox" aria-expanded="false">
+                <span class="category-picker-content" id="categoryPickerTriggerContent">
+                  <span class="category-picker-icon category-picker-icon--none">
+                    <i class="fa-solid fa-ban" aria-hidden="true"></i>
+                  </span>
+                  <span class="category-picker-label">No category</span>
+                </span>
+                <i class="fa-solid fa-chevron-down category-picker-chevron" aria-hidden="true"></i>
+              </button>
+              <div class="category-picker-menu" id="categoryPickerMenu" role="listbox" hidden></div>
+            </div>
+          </label>
+          <label>
+            Color
+            <span class="color-picker">
+              <input type="color" id="wpColor" value="#a78bfa" aria-label="Waypoint color" />
+              <span class="color-value" id="wpColorValue">#A78BFA</span>
+            </span>
+          </label>
+          <div class="modal-actions">
+            <button class="btn btn-primary" type="submit">Save</button>
+            <button class="btn btn-danger" id="wpDeleteBtn" type="button" hidden>Delete</button>
+          </div>
+          <span class="form-msg" id="waypointMsg"></span>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="confirmModal" hidden>
+      <div class="modal confirm-modal-card">
+        <h3 class="modal-title" id="confirmModalTitle">Are you sure?</h3>
+        <p class="confirm-modal-message" id="confirmModalMessage"></p>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" id="confirmModalCancelBtn" type="button">Cancel</button>
+          <button class="btn btn-danger" id="confirmModalConfirmBtn" type="button">Confirm</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop image-lightbox-backdrop" id="imageLightbox" hidden>
+      <img class="image-lightbox-img" id="imageLightboxImg" src="" alt="" />
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+    <script type="module" src="js/app.js"></script>
+  </body>
 </html>
