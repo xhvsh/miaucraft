@@ -112,6 +112,9 @@ const settingsTabPanel = $("#settingsTabPanel");
 const settingHideFilteredEl = $("#settingHideFiltered");
 const settingCopyFormatEl = $("#settingCopyFormat");
 
+const imageLightbox = $("#imageLightbox");
+const imageLightboxImg = $("#imageLightboxImg");
+
 const sidebarToggleBtn = $("#sidebarToggleBtn");
 const sidebarCloseBtn = $("#sidebarCloseBtn");
 const sidebarScrim = $("#sidebarScrim");
@@ -764,6 +767,8 @@ function buildWaypointCard(wp) {
     card.appendChild(desc);
   }
 
+  appendSpecialWaypointImage(card, wp);
+
   const coords = document.createElement("div");
   coords.className = "waypoint-coords";
   const coordsText = document.createElement("span");
@@ -855,6 +860,7 @@ function showTooltip(wp) {
     desc.textContent = wp.description;
     pinTooltip.appendChild(desc);
   }
+  appendSpecialWaypointImage(pinTooltip, wp);
   const coords = document.createElement("p");
   coords.className = "pin-coords";
   const coordsText = document.createElement("span");
@@ -970,6 +976,45 @@ function appendDimensionConversion(container, wp, className) {
   converted.textContent = `${label}: ${formatCoordsForCopy(x, null, z)}`;
   container.appendChild(converted);
 }
+
+// A tiny opt-in hook for one-off waypoints that have their own reference image.
+// Add more entries here (exact waypoint name -> image path) as needed.
+const SPECIAL_WAYPOINT_IMAGES = {
+  "Blehh Cat": "/img/blehh-map.png",
+};
+
+function appendSpecialWaypointImage(container, wp) {
+  const src = SPECIAL_WAYPOINT_IMAGES[wp.name];
+  if (!src) return;
+  const img = document.createElement("img");
+  img.className = "waypoint-special-image";
+  img.src = src;
+  img.alt = `${wp.name} reference image`;
+  img.loading = "lazy";
+  img.title = "Click to enlarge";
+  img.addEventListener("click", (e) => {
+    e.stopPropagation();
+    openImageLightbox(src, img.alt);
+  });
+  container.appendChild(img);
+}
+
+function openImageLightbox(src, alt) {
+  imageLightboxImg.src = src;
+  imageLightboxImg.alt = alt;
+  imageLightbox.hidden = false;
+}
+
+function closeImageLightbox() {
+  imageLightbox.hidden = true;
+  imageLightboxImg.src = "";
+}
+
+closeOnBackdropClick(imageLightbox, closeImageLightbox);
+imageLightboxImg.addEventListener("click", closeImageLightbox);
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !imageLightbox.hidden) closeImageLightbox();
+});
 
 function formatWaypointDate(value) {
   if (!value) return "on an unknown date";

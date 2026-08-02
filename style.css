@@ -513,6 +513,31 @@ input {
   margin-top: 2px;
 }
 
+.waypoint-special-image {
+  display: block;
+  width: 160px;
+  height: 160px;
+  object-fit: cover;
+  margin-top: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: zoom-in;
+  transition: border-color 0.15s;
+}
+
+.waypoint-special-image:hover {
+  border-color: var(--accent);
+}
+
+.image-lightbox-img {
+  max-width: min(90vw, 450px);
+  max-height: 80vh;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+  cursor: zoom-out;
+}
+
 .waypoint-desc {
   font-size: 12px;
   color: var(--text-muted);
