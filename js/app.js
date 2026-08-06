@@ -102,6 +102,10 @@ const logsListEl = $("#logsList");
 const logsEmptyEl = $("#logsEmpty");
 const logsLoadingEl = $("#logsLoading");
 const logSearchEl = $("#logSearch");
+const logsFiltersToggleBtn = $("#logsFiltersToggle");
+const logsFiltersPanel = $("#logsFiltersPanel");
+const logsFiltersDot = $("#logsFiltersDot");
+const logEntityFilterEl = $("#logEntityFilter");
 const logUserFilterEl = $("#logUserFilter");
 const logActionFilterEl = $("#logActionFilter");
 const logDimensionFilterEl = $("#logDimensionFilter");
@@ -709,15 +713,17 @@ function updateMapWaypoints() {
 function renderSidebar() {
   const query = waypointSearchEl.value.trim().toLowerCase();
   const matchesCategory = matchesCategoryFilter;
-  const visibleWaypoints = currentWaypoints.filter(
-    (wp) =>
-      matchesCategory(wp) &&
-      [wp.name, wp.description, wp.created_by_username, wp.x, wp.y, wp.z]
-        .filter((value) => value !== null && value !== undefined)
-        .join(" ")
-        .toLowerCase()
-        .includes(query),
-  );
+  const visibleWaypoints = currentWaypoints
+    .filter(
+      (wp) =>
+        matchesCategory(wp) &&
+        [wp.name, wp.description, wp.created_by_username, wp.x, wp.y, wp.z]
+          .filter((value) => value !== null && value !== undefined)
+          .join(" ")
+          .toLowerCase()
+          .includes(query),
+    )
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base", numeric: true }));
   const isFiltered = Boolean(query) || categoryFilter !== null;
   waypointCountEl.textContent = isFiltered ? `${visibleWaypoints.length}/${currentWaypoints.length}` : String(currentWaypoints.length);
   waypointListEl.innerHTML = "";
@@ -1197,9 +1203,20 @@ function openWaypointForm(seed) {
   $("#wpId").value = seed.id ?? "";
   $("#wpName").value = seed.name ?? "";
   $("#wpDescription").value = seed.description ?? "";
-  $("#wpX").value = seed.x ?? 0;
+  const wpXEl = $("#wpX");
+  const wpZEl = $("#wpZ");
+  if (editingWaypoint) {
+    wpXEl.placeholder = "";
+    wpXEl.value = seed.x ?? 0;
+    wpZEl.placeholder = "";
+    wpZEl.value = seed.z ?? 0;
+  } else {
+    wpXEl.value = "";
+    wpZEl.value = "";
+    wpXEl.placeholder = String(Math.round(seed.x ?? 0));
+    wpZEl.placeholder = String(Math.round(seed.z ?? 0));
+  }
   $("#wpY").value = seed.y ?? "";
-  $("#wpZ").value = seed.z ?? 0;
   $("#wpCategory").value = seed.category_id ?? "";
   populateCategorySelect();
   closeCategoryPickerMenu();
@@ -1222,14 +1239,22 @@ closeOnBackdropClick(waypointModal, closeWaypointForm);
 
 function updateNetherPreview() {
   const preview = $("#netherPreview");
-  if (currentDim !== "nether") {
+  if (currentDim !== "nether" && currentDim !== "overworld") {
     preview.hidden = true;
     return;
   }
-  const x = Number($("#wpX").value) || 0;
-  const z = Number($("#wpZ").value) || 0;
+  const xEl = $("#wpX");
+  const zEl = $("#wpZ");
+  const x = Number(xEl.value.trim() === "" ? xEl.placeholder : xEl.value) || 0;
+  const z = Number(zEl.value.trim() === "" ? zEl.placeholder : zEl.value) || 0;
   preview.hidden = false;
-  preview.textContent = `overworld: x ${x * 8}, z ${z * 8}`;
+  if (currentDim === "nether") {
+    preview.className = "nether-preview nether-preview--overworld";
+    preview.textContent = `Overworld: ${formatCoordsForCopy(x * 8, null, z * 8)}`;
+  } else {
+    preview.className = "nether-preview nether-preview--nether";
+    preview.textContent = `Nether: ${formatCoordsForCopy(Math.round(x / 8), null, Math.round(z / 8))}`;
+  }
 }
 
 $("#wpX").addEventListener("input", updateNetherPreview);
@@ -1260,12 +1285,16 @@ $("#waypointForm").addEventListener("submit", async (e) => {
 
   const yRaw = $("#wpY").value;
   const categoryRaw = $("#wpCategory").value;
+  const xEl = $("#wpX");
+  const zEl = $("#wpZ");
+  const xRaw = xEl.value.trim() === "" ? xEl.placeholder : xEl.value;
+  const zRaw = zEl.value.trim() === "" ? zEl.placeholder : zEl.value;
   const payload = {
     name: $("#wpName").value.trim(),
     description: $("#wpDescription").value.trim() || null,
-    x: Math.round(Number($("#wpX").value)),
+    x: Math.round(Number(xRaw)) || 0,
     y: yRaw === "" ? null : Math.round(Number(yRaw)),
-    z: Math.round(Number($("#wpZ").value)),
+    z: Math.round(Number(zRaw)) || 0,
     category_id: categoryRaw === "" ? null : categoryRaw,
     color: $("#wpColor").value,
   };
@@ -1431,6 +1460,162 @@ function diffLogChanges(before, after) {
   return diffs;
 }
 
+const LOG_DETAIL_FIELDS = {
+  waypoint: [
+    { key: "name", label: "Name" },
+    { key: "description", label: "Description" },
+    { key: "dimension", label: "Dimension" },
+    { key: "coords", label: "Coordinates" },
+    { key: "color", label: "Color" },
+    { key: "category_id", label: "Category" },
+    { key: "created_by_username", label: "Created by" },
+    { key: "created_at", label: "Created at" },
+  ],
+  category: [
+    { key: "name", label: "Name" },
+    { key: "color", label: "Color" },
+    { key: "icon", label: "Icon" },
+    { key: "created_at", label: "Created at" },
+  ],
+};
+
+function formatLogDetailValue(key, snapshot) {
+  if (!snapshot) return "None";
+  if (key === "coords") {
+    if (snapshot.x === undefined) return "None";
+    const hasY = snapshot.y !== null && snapshot.y !== undefined;
+    return formatCoordsForCopy(snapshot.x, hasY ? snapshot.y : null, snapshot.z);
+  }
+  if (key === "created_at") {
+    return snapshot.created_at ? formatWaypointDate(snapshot.created_at) : "None";
+  }
+  return formatLogFieldValue(key, snapshot[key]);
+}
+
+function buildLogDetailsPanel(log) {
+  const wrap = document.createElement("div");
+  wrap.className = "log-entry-details";
+  wrap.hidden = true;
+
+  const fields = LOG_DETAIL_FIELDS[log.entity_type] || [];
+  const isUpdate = log.action === "update" && log.changes && log.changes.before && log.changes.after;
+  const snapshot = isUpdate ? null : log.changes;
+
+  const table = document.createElement("div");
+  table.className = `log-detail-table${isUpdate ? " log-detail-table--compare" : ""}`;
+
+  if (isUpdate) {
+    const header = document.createElement("div");
+    header.className = "log-detail-row log-detail-row--header";
+    header.innerHTML = `<span></span><span>Previous</span><span>Edited</span>`;
+    table.appendChild(header);
+  }
+
+  for (const field of fields) {
+    const row = document.createElement("div");
+    row.className = "log-detail-row";
+    if (isUpdate) {
+      const beforeVal = formatLogDetailValue(field.key, log.changes.before);
+      const afterVal = formatLogDetailValue(field.key, log.changes.after);
+      const changedClass = beforeVal !== afterVal ? " log-detail-value--changed" : "";
+      row.innerHTML = `<span class="log-detail-label">${escapeHtml(field.label)}</span><span class="log-detail-value${changedClass}"><span class="log-detail-tag">Previous</span>${escapeHtml(beforeVal)}</span><span class="log-detail-value${changedClass}"><span class="log-detail-tag">Edited</span>${escapeHtml(afterVal)}</span>`;
+    } else {
+      const val = formatLogDetailValue(field.key, snapshot);
+      row.innerHTML = `<span class="log-detail-label">${escapeHtml(field.label)}</span><span class="log-detail-value">${escapeHtml(val)}</span>`;
+    }
+    table.appendChild(row);
+  }
+
+  wrap.appendChild(table);
+
+  if (log.action === "delete" && log.changes) {
+    const canRestore = log.entity_type === "waypoint" ? Auth.can("addWaypoint") : Auth.can("manageCategories");
+    if (canRestore) {
+      const actions = document.createElement("div");
+      actions.className = "log-detail-actions";
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn btn-ghost log-detail-restore-btn";
+      btn.textContent = log.entity_type === "waypoint" ? "Recreate this waypoint" : "Recreate this category";
+      btn.addEventListener("click", (event) => {
+        event.stopPropagation();
+        restoreLogSnapshot(log, log.changes, true);
+      });
+      actions.appendChild(btn);
+      wrap.appendChild(actions);
+    }
+  } else if (isUpdate) {
+    const canRestore =
+      log.entity_type === "waypoint" ? Auth.canEditWaypoint({ created_by: log.changes.before.created_by }) : Auth.can("manageCategories");
+    if (canRestore) {
+      const actions = document.createElement("div");
+      actions.className = "log-detail-actions";
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn btn-ghost log-detail-restore-btn";
+      btn.textContent = "Revert to previous version";
+      btn.addEventListener("click", (event) => {
+        event.stopPropagation();
+        restoreLogSnapshot(log, log.changes.before, false);
+      });
+      actions.appendChild(btn);
+      wrap.appendChild(actions);
+    }
+  }
+
+  return wrap;
+}
+
+async function restoreLogSnapshot(log, snapshot, recreate) {
+  const isWaypoint = log.entity_type === "waypoint";
+  const label = isWaypoint ? "waypoint" : "category";
+  const verb = recreate ? "Recreate" : "Revert";
+  const ok = await confirmAction(
+    recreate ? `This will create a new ${label} using the data from this log entry.` : `This will overwrite the current ${label} "${snapshot.name}" with the version shown here.`,
+    { title: `${verb} this ${label}?`, confirmLabel: verb, danger: false }
+  );
+  if (!ok) return;
+
+  try {
+    if (isWaypoint) {
+      const payload = {
+        name: snapshot.name,
+        description: snapshot.description ?? null,
+        x: snapshot.x,
+        y: snapshot.y ?? null,
+        z: snapshot.z,
+        color: snapshot.color,
+        category_id: snapshot.category_id ?? null,
+      };
+      if (recreate) {
+        const state = Auth.getState();
+        await createWaypoint({
+          ...payload,
+          dimension: snapshot.dimension || log.dimension,
+          created_by: state.session.user.id,
+          created_by_username: state.profile.username,
+        });
+      } else {
+        await updateWaypoint(log.entity_id, payload);
+      }
+      if (["overworld", "nether", "end"].includes(currentDim)) {
+        await loadWaypointsForDim(currentDim);
+      }
+    } else {
+      const payload = { name: snapshot.name, color: snapshot.color, icon: snapshot.icon };
+      if (recreate) {
+        await createCategory(payload);
+      } else {
+        await updateCategory(log.entity_id, payload);
+      }
+      await loadCategories();
+    }
+    await loadLogs();
+  } catch (err) {
+    notifyError(err.message || `Could not ${recreate ? "recreate" : "restore"} this ${label}.`);
+  }
+}
+
 async function loadLogs() {
   logsLoadingEl.hidden = false;
   logsEmptyEl.hidden = true;
@@ -1460,11 +1645,13 @@ function populateLogUserFilter() {
 
 function renderLogs() {
   const search = logSearchEl.value.trim().toLowerCase();
+  const entityFilter = logEntityFilterEl.value;
   const userFilter = logUserFilterEl.value;
   const actionFilter = logActionFilterEl.value;
   const dimFilter = logDimensionFilterEl.value;
 
   const filtered = allLogs.filter((log) => {
+    if (entityFilter && log.entity_type !== entityFilter) return false;
     if (userFilter && log.user_id !== userFilter) return false;
     if (actionFilter && log.action !== actionFilter) return false;
     if (dimFilter && log.dimension !== dimFilter) return false;
@@ -1535,6 +1722,9 @@ function buildLogEntry(log) {
     body.appendChild(detail);
   }
 
+  const entryActions = document.createElement("div");
+  entryActions.className = "log-entry-actions";
+
   if (log.entity_type === "waypoint" && log.entity_id) {
     const waypointExists = !deletedWaypointIds.has(log.entity_id);
     const jumpBtn = document.createElement("button");
@@ -1550,8 +1740,24 @@ function buildLogEntry(log) {
       jumpBtn.disabled = true;
       jumpBtn.title = "This waypoint doesn't exist anymore.";
     }
-    body.appendChild(jumpBtn);
+    entryActions.appendChild(jumpBtn);
   }
+
+  const detailsPanel = buildLogDetailsPanel(log);
+  const detailsToggleBtn = document.createElement("button");
+  detailsToggleBtn.type = "button";
+  detailsToggleBtn.className = "log-entry-details-toggle";
+  detailsToggleBtn.innerHTML = `<i class="fa-solid fa-chevron-down" aria-hidden="true"></i> Details`;
+  detailsToggleBtn.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const willOpen = detailsPanel.hidden;
+    detailsPanel.hidden = !willOpen;
+    detailsToggleBtn.classList.toggle("is-open", willOpen);
+  });
+  entryActions.appendChild(detailsToggleBtn);
+
+  body.appendChild(entryActions);
+  body.appendChild(detailsPanel);
 
   item.append(icon, body);
   return item;
@@ -1568,14 +1774,43 @@ async function jumpToLogWaypoint(log) {
   if (mobileMediaQuery.matches) closeSidebarDrawer();
 }
 
+function updateLogDimensionFilterVisibility() {
+  const hideDimension = logEntityFilterEl.value === "category";
+  logDimensionFilterEl.hidden = hideDimension;
+  if (hideDimension && logDimensionFilterEl.value) {
+    logDimensionFilterEl.value = "";
+  }
+}
+
+function updateLogsFiltersDot() {
+  const active = Boolean(logEntityFilterEl.value || logUserFilterEl.value || logActionFilterEl.value || logDimensionFilterEl.value);
+  logsFiltersDot.hidden = !active;
+}
+
+function applyLogFilterChange() {
+  updateLogsFiltersDot();
+  renderLogs();
+}
+
+logsFiltersToggleBtn.addEventListener("click", () => {
+  const willOpen = logsFiltersPanel.hidden;
+  logsFiltersPanel.hidden = !willOpen;
+  logsFiltersToggleBtn.setAttribute("aria-expanded", String(willOpen));
+  logsFiltersToggleBtn.classList.toggle("is-active", willOpen);
+});
+
 let logFilterDebounce = null;
 logSearchEl.addEventListener("input", () => {
   window.clearTimeout(logFilterDebounce);
   logFilterDebounce = window.setTimeout(renderLogs, 150);
 });
-logUserFilterEl.addEventListener("change", renderLogs);
-logActionFilterEl.addEventListener("change", renderLogs);
-logDimensionFilterEl.addEventListener("change", renderLogs);
+logEntityFilterEl.addEventListener("change", () => {
+  updateLogDimensionFilterVisibility();
+  applyLogFilterChange();
+});
+logUserFilterEl.addEventListener("change", applyLogFilterChange);
+logActionFilterEl.addEventListener("change", applyLogFilterChange);
+logDimensionFilterEl.addEventListener("change", applyLogFilterChange);
 
 // ---------------------------------------------------------------------------
 // Utilities

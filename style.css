@@ -1067,15 +1067,21 @@ input[type="color"] {
   font-family: var(--font-mono);
   font-size: 11.5px;
   color: var(--dim-nether);
-  background: rgba(248, 113, 113, 0.08);
-  border: 1px solid rgba(248, 113, 113, 0.2);
-  border-radius: var(--radius-sm);
-  padding: 8px 10px;
+  margin: 2px 0 0;
+}
+
+.nether-preview--overworld {
+  color: var(--dim-overworld);
 }
 
 .modal-actions {
   display: flex;
+  flex-direction: column;
   gap: 10px;
+}
+
+.modal-actions .btn {
+  width: 100%;
 }
 
 /* Refined waypoint and account interface ---------------------------------- */
@@ -1335,6 +1341,15 @@ input[type="number"] {
 .coord-row label {
   min-width: 0;
 }
+.no-spinner::-webkit-outer-spin-button,
+.no-spinner::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.no-spinner {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
 .waypoint-modal-card .modal-title {
   font-size: 16px;
 }
@@ -1515,17 +1530,19 @@ input[type="number"] {
 
 .logs-toolbar {
   display: flex;
-  flex-wrap: wrap;
+  align-items: stretch;
   gap: 10px;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .logs-search-wrap {
-  flex: 1 1 200px;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .logs-search-wrap input {
   width: 100%;
+  height: 100%;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg);
@@ -1538,13 +1555,41 @@ input[type="number"] {
   border-color: var(--accent);
 }
 
-.logs-filters {
+.logs-filters-toggle {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+  padding: 10px 14px;
+}
+
+.logs-filters-toggle.is-active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.logs-filters-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px 0 var(--accent);
+}
+
+.logs-filters-panel {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  padding: 12px;
+  margin-bottom: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
 }
 
-.logs-filters .settings-select {
+.logs-filters-panel .settings-select {
+  flex: 1 1 150px;
   min-width: 0;
 }
 
@@ -1657,9 +1702,16 @@ input[type="number"] {
   color: var(--text-muted);
 }
 
-.log-entry-jump-btn {
-  align-self: flex-start;
+.log-entry-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-top: 4px;
+}
+
+.log-entry-jump-btn,
+.log-entry-details-toggle {
+  align-self: flex-start;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1673,7 +1725,8 @@ input[type="number"] {
   cursor: pointer;
 }
 
-.log-entry-jump-btn:hover:not(:disabled) {
+.log-entry-jump-btn:hover:not(:disabled),
+.log-entry-details-toggle:hover {
   border-color: var(--accent);
   background: var(--accent-soft);
 }
@@ -1682,6 +1735,86 @@ input[type="number"] {
   color: var(--text-dim);
   cursor: not-allowed;
   opacity: 0.7;
+}
+
+.log-entry-details-toggle i {
+  font-size: 9px;
+  transition: transform 0.15s ease;
+}
+
+.log-entry-details-toggle.is-open {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.log-entry-details-toggle.is-open i {
+  transform: rotate(180deg);
+}
+
+.log-entry-details {
+  margin-top: 8px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--surface-2);
+}
+
+.log-detail-table {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.log-detail-row {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 8px;
+  font-size: 12px;
+  padding: 3px 0;
+}
+
+.log-detail-table--compare .log-detail-row {
+  grid-template-columns: 110px 1fr 1fr;
+}
+
+.log-detail-row--header {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border-soft);
+  padding-bottom: 6px;
+  margin-bottom: 2px;
+}
+
+.log-detail-label {
+  color: var(--text-muted);
+}
+
+.log-detail-value {
+  color: var(--text);
+  word-break: break-word;
+}
+
+.log-detail-value--changed {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.log-detail-tag {
+  display: none;
+}
+
+.log-detail-actions {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.log-detail-restore-btn {
+  font-size: 11.5px;
+  padding: 6px 12px;
 }
 
 .logs-empty,
@@ -2074,6 +2207,12 @@ input[type="number"] {
 .dim-select-wrap[data-dim="categories"] {
   --select-color: var(--accent);
 }
+.dim-select-wrap[data-dim="logs"] {
+  --select-color: var(--accent);
+}
+.dim-select-wrap[data-dim="settings"] {
+  --select-color: var(--accent);
+}
 
 .dim-select-wrap::before {
   content: "";
@@ -2096,7 +2235,7 @@ input[type="number"] {
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  color: var(--text);
+  color: var(--select-color);
   font-family: var(--font-mono);
   font-size: 13px;
   letter-spacing: 0.03em;
@@ -2265,12 +2404,51 @@ input[type="number"] {
     padding: 24px 16px;
   }
 
-  .logs-filters {
-    flex-direction: column;
+  .logs-toolbar {
+    flex-wrap: nowrap;
   }
 
-  .logs-filters .settings-select {
+  .logs-filters-toggle span:not(.logs-filters-dot) {
+    display: none;
+  }
+
+  .logs-filters-panel {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .logs-filters-panel .settings-select {
     width: 100%;
+    flex: none;
+  }
+
+  .log-detail-table--compare .log-detail-row--header {
+    display: none;
+  }
+
+  .log-detail-table--compare .log-detail-row {
+    grid-template-columns: 1fr;
+    gap: 2px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border-soft);
+  }
+
+  .log-detail-table--compare .log-detail-row:last-child {
+    border-bottom: none;
+  }
+
+  .log-detail-table--compare .log-detail-label {
+    font-weight: 600;
+  }
+
+  .log-detail-tag {
+    display: inline-block;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-dim);
+    margin-right: 5px;
   }
 
   .pin-tooltip {
