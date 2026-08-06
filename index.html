@@ -29,6 +29,10 @@
               <i class="fa-solid fa-server" aria-hidden="true"></i>
               <span class="dim-tab-label">Server</span>
             </button>
+            <button class="dim-tab dim-tab--logs" data-dim="logs" hidden>
+              <i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i>
+              <span class="dim-tab-label">Logs</span>
+            </button>
             <button class="dim-tab dim-tab--settings" data-dim="settings">
               <i class="fa-solid fa-gear" aria-hidden="true"></i>
               <span class="dim-tab-label">Settings</span>
@@ -49,6 +53,7 @@
               <option value="end">End</option>
               <option value="categories" id="dimSelectCategories" hidden>Categories</option>
               <option value="server" id="dimSelectServer" hidden>Server</option>
+              <option value="logs" id="dimSelectLogs" hidden>Logs</option>
               <option value="settings">Settings</option>
             </select>
             <i class="fa-solid fa-chevron-down dim-select-chevron" aria-hidden="true"></i>
@@ -142,6 +147,37 @@
               </div>
               <span class="form-msg" id="categoryMsg"></span>
             </form>
+          </div>
+        </section>
+
+        <section class="logs-tab-panel" id="logsTabPanel" hidden>
+          <div class="logs-tab-card">
+            <h2>Logs</h2>
+            <div class="logs-toolbar">
+              <div class="logs-search-wrap">
+                <input type="search" id="logSearch" placeholder="Search logs" aria-label="Search logs" />
+              </div>
+              <div class="logs-filters">
+                <select class="settings-select" id="logUserFilter" aria-label="Filter by user">
+                  <option value="">All users</option>
+                </select>
+                <select class="settings-select" id="logActionFilter" aria-label="Filter by action">
+                  <option value="">All actions</option>
+                  <option value="create">Created</option>
+                  <option value="update">Edited</option>
+                  <option value="delete">Deleted</option>
+                </select>
+                <select class="settings-select" id="logDimensionFilter" aria-label="Filter by dimension">
+                  <option value="">All dimensions</option>
+                  <option value="overworld">Overworld</option>
+                  <option value="nether">Nether</option>
+                  <option value="end">End</option>
+                </select>
+              </div>
+            </div>
+            <div class="logs-list" id="logsList"></div>
+            <div class="logs-empty" id="logsEmpty" hidden>No logs match your filters.</div>
+            <div class="logs-loading" id="logsLoading" hidden>Loading logs…</div>
           </div>
         </section>
 

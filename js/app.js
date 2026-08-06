@@ -1,6 +1,6 @@
 import * as Auth from "./auth.js";
 import { Grid } from "./grid.js";
-import { listWaypoints, createWaypoint, updateWaypoint, deleteWaypoint, getServerInfo, setServerInfo, listCategories, createCategory, updateCategory, deleteCategory } from "./waypoints.js";
+import { listWaypoints, createWaypoint, updateWaypoint, deleteWaypoint, getServerInfo, setServerInfo, listCategories, createCategory, updateCategory, deleteCategory, listLogs } from "./waypoints.js";
 
 const DIM_COLORS = {
   overworld: "#4ade80",
@@ -94,6 +94,17 @@ const categoriesListEl = $("#categoriesList");
 const settingsTabPanel = $("#settingsTabPanel");
 const settingHideFilteredEl = $("#settingHideFiltered");
 const settingCopyFormatEl = $("#settingCopyFormat");
+
+const logsTab = dimTabs.querySelector('[data-dim="logs"]');
+const dimSelectLogsOption = $("#dimSelectLogs");
+const logsTabPanel = $("#logsTabPanel");
+const logsListEl = $("#logsList");
+const logsEmptyEl = $("#logsEmpty");
+const logsLoadingEl = $("#logsLoading");
+const logSearchEl = $("#logSearch");
+const logUserFilterEl = $("#logUserFilter");
+const logActionFilterEl = $("#logActionFilter");
+const logDimensionFilterEl = $("#logDimensionFilter");
 
 const imageLightbox = $("#imageLightbox");
 const imageLightboxImg = $("#imageLightboxImg");
@@ -196,8 +207,13 @@ Auth.onAuthChange((state) => {
   if (!Auth.can("manageCategories") && currentDim === "categories") {
     switchDimension("overworld");
   }
+  logsTab.hidden = !state.session;
+  if (!state.session && currentDim === "logs") {
+    switchDimension("overworld");
+  }
   dimSelectServerOption.hidden = !state.session;
   dimSelectCategoriesOption.hidden = !Auth.can("manageCategories");
+  dimSelectLogsOption.hidden = !state.session;
   loadCurrentView();
 });
 
@@ -601,15 +617,17 @@ function switchDimension(dim) {
     resetCategoryForm();
   }
 
-  if (dim === "server" || dim === "categories" || dim === "settings") {
+  if (dim === "server" || dim === "categories" || dim === "settings" || dim === "logs") {
     gridPanel.hidden = true;
     sidebarEl.hidden = true;
     sidebarToggleBtn.hidden = true;
     serverPanel.hidden = dim !== "server";
     categoriesTabPanel.hidden = dim !== "categories";
     settingsTabPanel.hidden = dim !== "settings";
+    logsTabPanel.hidden = dim !== "logs";
     if (dim === "server") loadServerPanel();
     else if (dim === "categories") loadCategories();
+    else if (dim === "logs") loadLogs();
     else updateSettingsUI();
     return;
   }
@@ -619,6 +637,7 @@ function switchDimension(dim) {
   serverPanel.hidden = true;
   categoriesTabPanel.hidden = true;
   settingsTabPanel.hidden = true;
+  logsTabPanel.hidden = true;
   sidebarToggleBtn.hidden = false;
   grid.setDimensionColor(DIM_COLORS[dim]);
   sidebarTitle.textContent = DIM_LABELS[dim];
@@ -630,6 +649,8 @@ async function loadCurrentView() {
     loadServerPanel();
   } else if (currentDim === "categories") {
     loadCategories();
+  } else if (currentDim === "logs") {
+    loadLogs();
   } else if (currentDim === "settings") {
     updateSettingsUI();
   } else {
@@ -1326,6 +1347,210 @@ $("#serverSaveBtn").addEventListener("click", async () => {
     msg.textContent = err.message || "Could not save.";
   }
 });
+
+// ---------------------------------------------------------------------------
+// Logs
+// ---------------------------------------------------------------------------
+
+let allLogs = [];
+let deletedWaypointIds = new Set();
+
+const LOG_ACTION_LABELS = { create: "created", update: "edited", delete: "deleted" };
+const LOG_ACTION_ICONS = { create: "fa-plus", update: "fa-pen", delete: "fa-trash" };
+const LOG_FIELD_LABELS = {
+  name: "Name",
+  description: "Description",
+  x: "X",
+  y: "Y",
+  z: "Z",
+  color: "Color",
+  category_id: "Category",
+  icon: "Icon",
+  dimension: "Dimension",
+};
+const LOG_IGNORED_FIELDS = new Set(["id", "created_at", "updated_at", "created_by", "created_by_username"]);
+const LOG_COORD_FIELDS = new Set(["x", "y", "z"]);
+
+function formatLogFieldValue(field, value) {
+  if (value === null || value === undefined || value === "") return "None";
+  if (field === "category_id") return categoryById(value)?.name || "Unknown category";
+  if (field === "dimension") return DIM_LABELS[value] || value;
+  return String(value);
+}
+
+function diffLogChanges(before, after) {
+  const diffs = [];
+  const keys = new Set([...Object.keys(before || {}), ...Object.keys(after || {})]);
+
+  const coordsChanged = ["x", "y", "z"].some((k) => JSON.stringify(before?.[k]) !== JSON.stringify(after?.[k]));
+  if (coordsChanged && (before?.x !== undefined || after?.x !== undefined)) {
+    diffs.push({
+      field: "coords",
+      label: "Coordinates",
+      before: formatCoordsForCopy(before?.x, before?.y ?? null, before?.z),
+      after: formatCoordsForCopy(after?.x, after?.y ?? null, after?.z),
+    });
+  }
+
+  for (const key of keys) {
+    if (LOG_IGNORED_FIELDS.has(key) || LOG_COORD_FIELDS.has(key)) continue;
+    const beforeVal = before ? before[key] : undefined;
+    const afterVal = after ? after[key] : undefined;
+    if (JSON.stringify(beforeVal) === JSON.stringify(afterVal)) continue;
+    diffs.push({
+      field: key,
+      label: LOG_FIELD_LABELS[key] || key,
+      before: formatLogFieldValue(key, beforeVal),
+      after: formatLogFieldValue(key, afterVal),
+    });
+  }
+  return diffs;
+}
+
+async function loadLogs() {
+  logsLoadingEl.hidden = false;
+  logsEmptyEl.hidden = true;
+  logsListEl.innerHTML = "";
+  try {
+    allLogs = await listLogs();
+    deletedWaypointIds = new Set(allLogs.filter((l) => l.entity_type === "waypoint" && l.action === "delete").map((l) => l.entity_id));
+    populateLogUserFilter();
+    renderLogs();
+  } catch (err) {
+    logsListEl.innerHTML = `<div class="logs-error">Could not load logs: ${escapeHtml(err.message || "unknown error")}</div>`;
+  } finally {
+    logsLoadingEl.hidden = true;
+  }
+}
+
+function populateLogUserFilter() {
+  const current = logUserFilterEl.value;
+  const users = new Map();
+  for (const log of allLogs) {
+    if (log.user_id && log.username) users.set(log.user_id, log.username);
+  }
+  const sorted = [...users.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  logUserFilterEl.innerHTML = '<option value="">All users</option>' + sorted.map(([id, name]) => `<option value="${escapeHtml(id)}">${escapeHtml(name)}</option>`).join("");
+  if (sorted.some(([id]) => id === current)) logUserFilterEl.value = current;
+}
+
+function renderLogs() {
+  const search = logSearchEl.value.trim().toLowerCase();
+  const userFilter = logUserFilterEl.value;
+  const actionFilter = logActionFilterEl.value;
+  const dimFilter = logDimensionFilterEl.value;
+
+  const filtered = allLogs.filter((log) => {
+    if (userFilter && log.user_id !== userFilter) return false;
+    if (actionFilter && log.action !== actionFilter) return false;
+    if (dimFilter && log.dimension !== dimFilter) return false;
+    if (search) {
+      const haystack = `${log.entity_name || ""} ${log.username || ""}`.toLowerCase();
+      if (!haystack.includes(search)) return false;
+    }
+    return true;
+  });
+
+  logsListEl.innerHTML = "";
+  logsEmptyEl.hidden = filtered.length !== 0;
+
+  const frag = document.createDocumentFragment();
+  for (const log of filtered) {
+    frag.appendChild(buildLogEntry(log));
+  }
+  logsListEl.appendChild(frag);
+}
+
+function buildLogEntry(log) {
+  const item = document.createElement("div");
+  item.className = `log-entry log-entry--${log.action}`;
+
+  const icon = document.createElement("span");
+  icon.className = "log-entry-icon";
+  icon.innerHTML = `<i class="fa-solid ${LOG_ACTION_ICONS[log.action] || "fa-circle"}" aria-hidden="true"></i>`;
+
+  const body = document.createElement("div");
+  body.className = "log-entry-body";
+
+  const summary = document.createElement("div");
+  summary.className = "log-entry-summary";
+  const actionLabel = LOG_ACTION_LABELS[log.action] || log.action;
+  const entityLabel = log.entity_type === "waypoint" ? "waypoint" : "category";
+  const dimColor = log.dimension ? DIM_COLORS[log.dimension] : null;
+  const dimBadge = log.dimension
+    ? ` <span class="log-entry-dim" style="--dim-badge-color: ${dimColor || "var(--text-muted)"}">${escapeHtml(DIM_LABELS[log.dimension] || log.dimension)}</span>`
+    : "";
+  summary.innerHTML = `<span class="log-entry-user">${escapeHtml(log.username || "Unknown user")}</span> ${actionLabel} ${entityLabel} <span class="log-entry-name">"${escapeHtml(log.entity_name || "Unnamed")}"</span>${dimBadge}`;
+
+  const meta = document.createElement("div");
+  meta.className = "log-entry-meta";
+  meta.textContent = formatWaypointDate(log.created_at);
+
+  body.append(summary, meta);
+
+  if (log.action === "update" && log.changes) {
+    const diffs = diffLogChanges(log.changes.before, log.changes.after);
+    if (diffs.length > 0) {
+      const diffList = document.createElement("div");
+      diffList.className = "log-entry-diff";
+      for (const d of diffs) {
+        const row = document.createElement("span");
+        row.className = "log-entry-diff-row";
+        row.innerHTML = `<span class="log-entry-diff-field">${escapeHtml(d.label)}:</span> ${escapeHtml(d.before)} <i class="fa-solid fa-arrow-right" aria-hidden="true"></i> ${escapeHtml(d.after)}`;
+        diffList.appendChild(row);
+      }
+      body.appendChild(diffList);
+    }
+  } else if ((log.action === "create" || log.action === "delete") && log.changes && log.entity_type === "waypoint") {
+    const snapshot = log.changes;
+    const hasY = snapshot.y !== null && snapshot.y !== undefined;
+    const detail = document.createElement("div");
+    detail.className = "log-entry-detail";
+    detail.textContent = formatCoordsForCopy(snapshot.x, hasY ? snapshot.y : null, snapshot.z);
+    body.appendChild(detail);
+  }
+
+  if (log.entity_type === "waypoint" && log.entity_id) {
+    const waypointExists = !deletedWaypointIds.has(log.entity_id);
+    const jumpBtn = document.createElement("button");
+    jumpBtn.type = "button";
+    jumpBtn.className = "log-entry-jump-btn";
+    jumpBtn.innerHTML = `<i class="fa-solid fa-location-crosshairs" aria-hidden="true"></i> Jump to waypoint`;
+    if (waypointExists) {
+      jumpBtn.addEventListener("click", (event) => {
+        event.stopPropagation();
+        jumpToLogWaypoint(log);
+      });
+    } else {
+      jumpBtn.disabled = true;
+      jumpBtn.title = "This waypoint doesn't exist anymore.";
+    }
+    body.appendChild(jumpBtn);
+  }
+
+  item.append(icon, body);
+  return item;
+}
+
+async function jumpToLogWaypoint(log) {
+  if (!log.dimension || !log.entity_id) return;
+  switchDimension(log.dimension);
+  await loadWaypointsForDim(log.dimension);
+  const wp = currentWaypoints.find((w) => w.id === log.entity_id);
+  if (!wp) return;
+  grid.jumpTo(wp.x, wp.z);
+  showTooltip(wp);
+  if (mobileMediaQuery.matches) closeSidebarDrawer();
+}
+
+let logFilterDebounce = null;
+logSearchEl.addEventListener("input", () => {
+  window.clearTimeout(logFilterDebounce);
+  logFilterDebounce = window.setTimeout(renderLogs, 150);
+});
+logUserFilterEl.addEventListener("change", renderLogs);
+logActionFilterEl.addEventListener("change", renderLogs);
+logDimensionFilterEl.addEventListener("change", renderLogs);
 
 // ---------------------------------------------------------------------------
 // Utilities

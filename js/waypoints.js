@@ -46,6 +46,12 @@ export async function deleteCategory(id) {
   if (error) throw error;
 }
 
+export async function listLogs(limit = 1000) {
+  const { data, error } = await supabase.from("logs").select("*").order("created_at", { ascending: false }).limit(limit);
+  if (error) throw error;
+  return data;
+}
+
 export async function getServerInfo() {
   const { data, error } = await supabase.from("server_info").select("key, value");
   if (error) throw error;
