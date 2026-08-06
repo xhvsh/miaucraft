@@ -2,7 +2,7 @@
 
 A simple waypoint manager I built for private SMP server. Just a lightweight web app to keep track of bases, farms, portals, and other important spots so nobody on the server has to remember coordinates from memory or have a lot of waypoints in xaero's minimap.
 
-**Live demo:** https://xhvsh.github.io/miaucraft/
+**Live demo:** https://miaucraft.vercel.app/
 
 ## Why
 
