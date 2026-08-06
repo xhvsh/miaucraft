@@ -1371,6 +1371,30 @@ const LOG_FIELD_LABELS = {
 const LOG_IGNORED_FIELDS = new Set(["id", "created_at", "updated_at", "created_by", "created_by_username"]);
 const LOG_COORD_FIELDS = new Set(["x", "y", "z"]);
 
+function formatRelativeTime(value) {
+  if (!value) return "unknown time";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "unknown time";
+  const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+  const divisions = [
+    { amount: 60, unit: "seconds" },
+    { amount: 60, unit: "minutes" },
+    { amount: 24, unit: "hours" },
+    { amount: 7, unit: "days" },
+    { amount: 4.34524, unit: "weeks" },
+    { amount: 12, unit: "months" },
+    { amount: Infinity, unit: "years" },
+  ];
+  let duration = (date.getTime() - Date.now()) / 1000;
+  for (const division of divisions) {
+    if (Math.abs(duration) < division.amount) {
+      return rtf.format(Math.round(duration), division.unit);
+    }
+    duration /= division.amount;
+  }
+  return "unknown time";
+}
+
 function formatLogFieldValue(field, value) {
   if (value === null || value === undefined || value === "") return "None";
   if (field === "category_id") return categoryById(value)?.name || "Unknown category";
@@ -1484,7 +1508,8 @@ function buildLogEntry(log) {
 
   const meta = document.createElement("div");
   meta.className = "log-entry-meta";
-  meta.textContent = formatWaypointDate(log.created_at);
+  meta.textContent = `${formatWaypointDate(log.created_at)} (${formatRelativeTime(log.created_at)})`;
+  meta.title = formatWaypointDate(log.created_at);
 
   body.append(summary, meta);
 

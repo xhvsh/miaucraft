@@ -1602,6 +1602,7 @@ input[type="number"] {
 
 .log-entry-user {
   font-weight: 600;
+  color: var(--accent);
 }
 
 .log-entry-name {
