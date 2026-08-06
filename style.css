@@ -1354,6 +1354,27 @@ input[type="number"] {
   font-size: 16px;
 }
 
+.waypoint-modal-card .modal-actions {
+  flex-direction: row;
+}
+
+.waypoint-modal-card .modal-actions button[type="submit"] {
+  flex: 1;
+  width: auto;
+}
+
+.waypoint-delete-btn {
+  flex: none;
+  align-self: center;
+  max-width: 38px;
+  height: 38px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+}
+
 .auth-modal-card {
   width: min(92vw, 470px);
   padding: 30px;
@@ -1674,34 +1695,6 @@ input[type="number"] {
   color: var(--text-muted);
 }
 
-.log-entry-detail {
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-  color: var(--text);
-}
-
-.log-entry-diff {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  margin-top: 2px;
-}
-
-.log-entry-diff-row {
-  font-size: 12.5px;
-  color: var(--text);
-}
-
-.log-entry-diff-field {
-  color: var(--text-muted);
-}
-
-.log-entry-diff-row i {
-  font-size: 9px;
-  margin: 0 3px;
-  color: var(--text-muted);
-}
-
 .log-entry-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1773,21 +1766,6 @@ input[type="number"] {
   padding: 3px 0;
 }
 
-.log-detail-table--compare .log-detail-row {
-  grid-template-columns: 110px 1fr 1fr;
-}
-
-.log-detail-row--header {
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-dim);
-  border-bottom: 1px solid var(--border-soft);
-  padding-bottom: 6px;
-  margin-bottom: 2px;
-}
-
 .log-detail-label {
   color: var(--text-muted);
 }
@@ -1797,13 +1775,14 @@ input[type="number"] {
   word-break: break-word;
 }
 
-.log-detail-value--changed {
-  color: var(--accent);
-  font-weight: 600;
+.log-detail-value-before {
+  color: #a15252;
 }
 
-.log-detail-tag {
-  display: none;
+.log-detail-value--changed i {
+  font-size: 9px;
+  margin: 0 4px;
+  color: var(--text-dim);
 }
 
 .log-detail-actions {
@@ -2067,6 +2046,12 @@ input[type="number"] {
 
 .category-form .modal-actions {
   margin-top: 2px;
+  flex-direction: row;
+}
+
+.category-form .modal-actions .btn {
+  flex: 1;
+  width: auto;
 }
 
 /* Category filter chips (sidebar) ------------------------------------------ */
@@ -2429,32 +2414,19 @@ input[type="number"] {
     flex: none;
   }
 
-  .log-detail-table--compare .log-detail-row--header {
-    display: none;
-  }
-
-  .log-detail-table--compare .log-detail-row {
+  .log-detail-row {
     grid-template-columns: 1fr;
     gap: 2px;
     padding: 6px 0;
     border-bottom: 1px solid var(--border-soft);
   }
 
-  .log-detail-table--compare .log-detail-row:last-child {
+  .log-detail-row:last-child {
     border-bottom: none;
   }
 
-  .log-detail-table--compare .log-detail-label {
+  .log-detail-label {
     font-weight: 600;
-  }
-
-  .log-detail-tag {
-    display: inline-block;
-    font-size: 9px;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--text-dim);
-    margin-right: 5px;
   }
 
   .pin-tooltip {

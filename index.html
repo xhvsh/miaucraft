@@ -142,8 +142,8 @@
                 <input type="text" id="catIcon" placeholder="fa-solid fa-hashtag" maxlength="60" autocomplete="off" />
               </label>
               <div class="modal-actions">
-                <button class="btn btn-ghost" id="catCancelEditBtn" type="button" hidden>Cancel</button>
                 <button class="btn btn-primary" type="submit" id="catSubmitBtn">Add category</button>
+                <button class="btn btn-ghost" id="catCancelEditBtn" type="button" hidden>Cancel</button>
               </div>
               <span class="form-msg" id="categoryMsg"></span>
             </form>
@@ -338,8 +338,10 @@
             </span>
           </label>
           <div class="modal-actions">
-            <button class="btn btn-danger" id="wpDeleteBtn" type="button" hidden>Delete</button>
             <button class="btn btn-primary" type="submit">Save</button>
+            <button class="btn btn-danger waypoint-delete-btn" id="wpDeleteBtn" type="button" hidden aria-label="Delete waypoint" title="Delete waypoint">
+              <i class="fa-solid fa-trash" aria-hidden="true"></i>
+            </button>
           </div>
           <span class="form-msg" id="waypointMsg"></span>
         </form>

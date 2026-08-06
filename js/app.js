@@ -1386,20 +1386,6 @@ let deletedWaypointIds = new Set();
 
 const LOG_ACTION_LABELS = { create: "created", update: "edited", delete: "deleted" };
 const LOG_ACTION_ICONS = { create: "fa-plus", update: "fa-pen", delete: "fa-trash" };
-const LOG_FIELD_LABELS = {
-  name: "Name",
-  description: "Description",
-  x: "X",
-  y: "Y",
-  z: "Z",
-  color: "Color",
-  category_id: "Category",
-  icon: "Icon",
-  dimension: "Dimension",
-};
-const LOG_IGNORED_FIELDS = new Set(["id", "created_at", "updated_at", "created_by", "created_by_username"]);
-const LOG_COORD_FIELDS = new Set(["x", "y", "z"]);
-
 function formatRelativeTime(value) {
   if (!value) return "unknown time";
   const date = new Date(value);
@@ -1429,35 +1415,6 @@ function formatLogFieldValue(field, value) {
   if (field === "category_id") return categoryById(value)?.name || "Unknown category";
   if (field === "dimension") return DIM_LABELS[value] || value;
   return String(value);
-}
-
-function diffLogChanges(before, after) {
-  const diffs = [];
-  const keys = new Set([...Object.keys(before || {}), ...Object.keys(after || {})]);
-
-  const coordsChanged = ["x", "y", "z"].some((k) => JSON.stringify(before?.[k]) !== JSON.stringify(after?.[k]));
-  if (coordsChanged && (before?.x !== undefined || after?.x !== undefined)) {
-    diffs.push({
-      field: "coords",
-      label: "Coordinates",
-      before: formatCoordsForCopy(before?.x, before?.y ?? null, before?.z),
-      after: formatCoordsForCopy(after?.x, after?.y ?? null, after?.z),
-    });
-  }
-
-  for (const key of keys) {
-    if (LOG_IGNORED_FIELDS.has(key) || LOG_COORD_FIELDS.has(key)) continue;
-    const beforeVal = before ? before[key] : undefined;
-    const afterVal = after ? after[key] : undefined;
-    if (JSON.stringify(beforeVal) === JSON.stringify(afterVal)) continue;
-    diffs.push({
-      field: key,
-      label: LOG_FIELD_LABELS[key] || key,
-      before: formatLogFieldValue(key, beforeVal),
-      after: formatLogFieldValue(key, afterVal),
-    });
-  }
-  return diffs;
 }
 
 const LOG_DETAIL_FIELDS = {
@@ -1497,19 +1454,16 @@ function buildLogDetailsPanel(log) {
   wrap.className = "log-entry-details";
   wrap.hidden = true;
 
-  const fields = LOG_DETAIL_FIELDS[log.entity_type] || [];
   const isUpdate = log.action === "update" && log.changes && log.changes.before && log.changes.after;
   const snapshot = isUpdate ? null : log.changes;
+  let fields = LOG_DETAIL_FIELDS[log.entity_type] || [];
+  if (isUpdate) {
+    // Not editable, so they can't have changed — no point showing them in an edit's before/after.
+    fields = fields.filter((field) => field.key !== "created_by_username" && field.key !== "created_at");
+  }
 
   const table = document.createElement("div");
-  table.className = `log-detail-table${isUpdate ? " log-detail-table--compare" : ""}`;
-
-  if (isUpdate) {
-    const header = document.createElement("div");
-    header.className = "log-detail-row log-detail-row--header";
-    header.innerHTML = `<span></span><span>Previous</span><span>Edited</span>`;
-    table.appendChild(header);
-  }
+  table.className = "log-detail-table";
 
   for (const field of fields) {
     const row = document.createElement("div");
@@ -1517,8 +1471,9 @@ function buildLogDetailsPanel(log) {
     if (isUpdate) {
       const beforeVal = formatLogDetailValue(field.key, log.changes.before);
       const afterVal = formatLogDetailValue(field.key, log.changes.after);
-      const changedClass = beforeVal !== afterVal ? " log-detail-value--changed" : "";
-      row.innerHTML = `<span class="log-detail-label">${escapeHtml(field.label)}</span><span class="log-detail-value${changedClass}"><span class="log-detail-tag">Previous</span>${escapeHtml(beforeVal)}</span><span class="log-detail-value${changedClass}"><span class="log-detail-tag">Edited</span>${escapeHtml(afterVal)}</span>`;
+      const changed = beforeVal !== afterVal;
+      const valueHtml = changed ? `<span class="log-detail-value-before">${escapeHtml(beforeVal)}</span> <i class="fa-solid fa-arrow-right" aria-hidden="true"></i> ${escapeHtml(afterVal)}` : escapeHtml(afterVal);
+      row.innerHTML = `<span class="log-detail-label">${escapeHtml(field.label)}</span><span class="log-detail-value${changed ? " log-detail-value--changed" : ""}">${valueHtml}</span>`;
     } else {
       const val = formatLogDetailValue(field.key, snapshot);
       row.innerHTML = `<span class="log-detail-label">${escapeHtml(field.label)}</span><span class="log-detail-value">${escapeHtml(val)}</span>`;
@@ -1539,24 +1494,11 @@ function buildLogDetailsPanel(log) {
       btn.textContent = log.entity_type === "waypoint" ? "Recreate this waypoint" : "Recreate this category";
       btn.addEventListener("click", (event) => {
         event.stopPropagation();
-        restoreLogSnapshot(log, log.changes, true);
-      });
-      actions.appendChild(btn);
-      wrap.appendChild(actions);
-    }
-  } else if (isUpdate) {
-    const canRestore =
-      log.entity_type === "waypoint" ? Auth.canEditWaypoint({ created_by: log.changes.before.created_by }) : Auth.can("manageCategories");
-    if (canRestore) {
-      const actions = document.createElement("div");
-      actions.className = "log-detail-actions";
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "btn btn-ghost log-detail-restore-btn";
-      btn.textContent = "Revert to previous version";
-      btn.addEventListener("click", (event) => {
-        event.stopPropagation();
-        restoreLogSnapshot(log, log.changes.before, false);
+        if (log.entity_type === "waypoint") {
+          recreateWaypointFromLog(log);
+        } else {
+          recreateCategoryFromLog(log);
+        }
       });
       actions.appendChild(btn);
       wrap.appendChild(actions);
@@ -1566,54 +1508,37 @@ function buildLogDetailsPanel(log) {
   return wrap;
 }
 
-async function restoreLogSnapshot(log, snapshot, recreate) {
-  const isWaypoint = log.entity_type === "waypoint";
-  const label = isWaypoint ? "waypoint" : "category";
-  const verb = recreate ? "Recreate" : "Revert";
-  const ok = await confirmAction(
-    recreate ? `This will create a new ${label} using the data from this log entry.` : `This will overwrite the current ${label} "${snapshot.name}" with the version shown here.`,
-    { title: `${verb} this ${label}?`, confirmLabel: verb, danger: false }
-  );
-  if (!ok) return;
+async function recreateCategoryFromLog(log) {
+  const snapshot = log.changes;
+  if (!snapshot) return;
+  switchDimension("categories");
+  resetCategoryForm();
+  $("#catName").value = snapshot.name || "";
+  $("#catColor").value = snapshot.color || "#a78bfa";
+  $("#catIcon").value = categoryIconClass(snapshot.icon) || "";
+  updateCategoryIconPreview();
+  $("#catName").focus();
+}
 
-  try {
-    if (isWaypoint) {
-      const payload = {
-        name: snapshot.name,
-        description: snapshot.description ?? null,
-        x: snapshot.x,
-        y: snapshot.y ?? null,
-        z: snapshot.z,
-        color: snapshot.color,
-        category_id: snapshot.category_id ?? null,
-      };
-      if (recreate) {
-        const state = Auth.getState();
-        await createWaypoint({
-          ...payload,
-          dimension: snapshot.dimension || log.dimension,
-          created_by: state.session.user.id,
-          created_by_username: state.profile.username,
-        });
-      } else {
-        await updateWaypoint(log.entity_id, payload);
-      }
-      if (["overworld", "nether", "end"].includes(currentDim)) {
-        await loadWaypointsForDim(currentDim);
-      }
-    } else {
-      const payload = { name: snapshot.name, color: snapshot.color, icon: snapshot.icon };
-      if (recreate) {
-        await createCategory(payload);
-      } else {
-        await updateCategory(log.entity_id, payload);
-      }
-      await loadCategories();
-    }
-    await loadLogs();
-  } catch (err) {
-    notifyError(err.message || `Could not ${recreate ? "recreate" : "restore"} this ${label}.`);
-  }
+// Instead of recreating the waypoint outright, jump to where it was and open the
+// "Add waypoint" form pre-filled with its old data, ready to review/edit before saving.
+async function recreateWaypointFromLog(log) {
+  const snapshot = log.changes;
+  if (!snapshot) return;
+  const dimension = snapshot.dimension || log.dimension || currentDim;
+  switchDimension(dimension);
+  await loadWaypointsForDim(dimension);
+  grid.jumpTo(snapshot.x, snapshot.z);
+  if (mobileMediaQuery.matches) closeSidebarDrawer();
+  openWaypointForm({
+    name: snapshot.name,
+    description: snapshot.description ?? "",
+    x: snapshot.x,
+    y: snapshot.y ?? null,
+    z: snapshot.z,
+    category_id: snapshot.category_id ?? null,
+    color: snapshot.color,
+  });
 }
 
 async function loadLogs() {
@@ -1688,9 +1613,7 @@ function buildLogEntry(log) {
   const actionLabel = LOG_ACTION_LABELS[log.action] || log.action;
   const entityLabel = log.entity_type === "waypoint" ? "waypoint" : "category";
   const dimColor = log.dimension ? DIM_COLORS[log.dimension] : null;
-  const dimBadge = log.dimension
-    ? ` <span class="log-entry-dim" style="--dim-badge-color: ${dimColor || "var(--text-muted)"}">${escapeHtml(DIM_LABELS[log.dimension] || log.dimension)}</span>`
-    : "";
+  const dimBadge = log.dimension ? ` <span class="log-entry-dim" style="--dim-badge-color: ${dimColor || "var(--text-muted)"}">${escapeHtml(DIM_LABELS[log.dimension] || log.dimension)}</span>` : "";
   summary.innerHTML = `<span class="log-entry-user">${escapeHtml(log.username || "Unknown user")}</span> ${actionLabel} ${entityLabel} <span class="log-entry-name">"${escapeHtml(log.entity_name || "Unnamed")}"</span>${dimBadge}`;
 
   const meta = document.createElement("div");
@@ -1699,28 +1622,6 @@ function buildLogEntry(log) {
   meta.title = formatWaypointDate(log.created_at);
 
   body.append(summary, meta);
-
-  if (log.action === "update" && log.changes) {
-    const diffs = diffLogChanges(log.changes.before, log.changes.after);
-    if (diffs.length > 0) {
-      const diffList = document.createElement("div");
-      diffList.className = "log-entry-diff";
-      for (const d of diffs) {
-        const row = document.createElement("span");
-        row.className = "log-entry-diff-row";
-        row.innerHTML = `<span class="log-entry-diff-field">${escapeHtml(d.label)}:</span> ${escapeHtml(d.before)} <i class="fa-solid fa-arrow-right" aria-hidden="true"></i> ${escapeHtml(d.after)}`;
-        diffList.appendChild(row);
-      }
-      body.appendChild(diffList);
-    }
-  } else if ((log.action === "create" || log.action === "delete") && log.changes && log.entity_type === "waypoint") {
-    const snapshot = log.changes;
-    const hasY = snapshot.y !== null && snapshot.y !== undefined;
-    const detail = document.createElement("div");
-    detail.className = "log-entry-detail";
-    detail.textContent = formatCoordsForCopy(snapshot.x, hasY ? snapshot.y : null, snapshot.z);
-    body.appendChild(detail);
-  }
 
   const entryActions = document.createElement("div");
   entryActions.className = "log-entry-actions";
