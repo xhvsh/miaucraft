@@ -2281,6 +2281,12 @@ input[type="number"] {
 .dim-select option[value="categories"] {
   color: var(--accent);
 }
+.dim-select option[value="logs"] {
+  color: var(--accent);
+}
+.dim-select option[value="settings"] {
+  color: var(--accent);
+}
 
 /* Mobile sidebar drawer ------------------------------------------------------ */
 
