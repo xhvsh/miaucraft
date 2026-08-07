@@ -94,6 +94,7 @@ const categoriesListEl = $("#categoriesList");
 const settingsTabPanel = $("#settingsTabPanel");
 const settingHideFilteredEl = $("#settingHideFiltered");
 const settingCopyFormatEl = $("#settingCopyFormat");
+const settingShowConversionEl = $("#settingShowConversion");
 
 const logsTab = dimTabs.querySelector('[data-dim="logs"]');
 const dimSelectLogsOption = $("#dimSelectLogs");
@@ -125,6 +126,7 @@ const SETTINGS_STORAGE_KEY = "miaucraft-settings";
 const DEFAULT_SETTINGS = {
   hideFilteredWaypoints: true,
   copyFormat: "labeled",
+  showDimensionConversion: false,
 };
 
 const COORD_COPY_FORMATS = {
@@ -669,6 +671,7 @@ async function loadCurrentView() {
 function updateSettingsUI() {
   settingHideFilteredEl.checked = settings.hideFilteredWaypoints;
   settingCopyFormatEl.value = settings.copyFormat;
+  settingShowConversionEl.checked = settings.showDimensionConversion;
 }
 
 settingHideFilteredEl.addEventListener("change", () => {
@@ -679,6 +682,13 @@ settingHideFilteredEl.addEventListener("change", () => {
 
 settingCopyFormatEl.addEventListener("change", () => {
   settings.copyFormat = settingCopyFormatEl.value;
+  saveSettings();
+  renderSidebar();
+  if (openTooltipWaypoint) showTooltip(openTooltipWaypoint);
+});
+
+settingShowConversionEl.addEventListener("change", () => {
+  settings.showDimensionConversion = settingShowConversionEl.checked;
   saveSettings();
   renderSidebar();
   if (openTooltipWaypoint) showTooltip(openTooltipWaypoint);
@@ -958,6 +968,7 @@ async function copyTextToClipboard(text, btn) {
 }
 
 function appendDimensionConversion(container, wp, className) {
+  if (!settings.showDimensionConversion) return;
   if (wp.dimension !== "overworld" && wp.dimension !== "nether") return;
   const converted = document.createElement(className.includes("pin-") ? "p" : "div");
   converted.className = `${className} coords-conversion-text`;
@@ -1239,6 +1250,10 @@ closeOnBackdropClick(waypointModal, closeWaypointForm);
 
 function updateNetherPreview() {
   const preview = $("#netherPreview");
+  if (!settings.showDimensionConversion || (currentDim !== "nether" && currentDim !== "overworld")) {
+    preview.hidden = true;
+    return;
+  }
   if (currentDim !== "nether" && currentDim !== "overworld") {
     preview.hidden = true;
     return;
