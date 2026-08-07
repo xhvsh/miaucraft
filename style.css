@@ -1776,7 +1776,8 @@ input[type="number"] {
 }
 
 .log-detail-value-before {
-  color: #a15252;
+  color: var(--text-dim);
+  text-decoration: line-through;
 }
 
 .log-detail-value--changed i {
