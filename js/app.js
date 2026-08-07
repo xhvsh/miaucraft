@@ -576,7 +576,7 @@ $("#categoryForm").addEventListener("submit", async (e) => {
   if (!name) return;
   try {
     if (editingCategory) {
-      await updateCategory(editingCategory.id, { name, color, icon });
+      await updateCategory(editingCategory.id, { name, color, icon }, editingCategory);
     } else {
       await createCategory({ name, color, icon });
     }
@@ -1302,7 +1302,7 @@ $("#waypointForm").addEventListener("submit", async (e) => {
   try {
     if (editingWaypoint) {
       if (!Auth.canEditWaypoint(editingWaypoint)) throw new Error("You cannot edit this waypoint.");
-      await updateWaypoint(editingWaypoint.id, payload);
+      await updateWaypoint(editingWaypoint.id, payload, editingWaypoint);
     } else {
       const state = Auth.getState();
       await createWaypoint({
@@ -1345,20 +1345,9 @@ async function loadServerPanel() {
 }
 
 document.querySelectorAll(".server-copy").forEach((button) => {
-  button.addEventListener("click", async () => {
+  button.addEventListener("click", () => {
     const value = $("#" + button.dataset.copySource).textContent;
-    try {
-      await navigator.clipboard.writeText(value);
-      button.textContent = "Copied";
-      window.setTimeout(() => {
-        button.textContent = "Copy";
-      }, 1500);
-    } catch {
-      button.textContent = "Failed";
-      window.setTimeout(() => {
-        button.textContent = "Copy";
-      }, 1500);
-    }
+    copyTextToClipboard(value, button);
   });
 });
 

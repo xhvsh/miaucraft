@@ -12,7 +12,10 @@ export async function createWaypoint(waypoint) {
   return data;
 }
 
-export async function updateWaypoint(id, patch) {
+export async function updateWaypoint(id, patch, before) {
+  if (before && Object.keys(patch).every((key) => before[key] === patch[key])) {
+    return before;
+  }
   const { data, error } = await supabase.from("waypoints").update(patch).eq("id", id).select().single();
   if (error) throw error;
   return data;
@@ -35,7 +38,10 @@ export async function createCategory(category) {
   return data;
 }
 
-export async function updateCategory(id, patch) {
+export async function updateCategory(id, patch, before) {
+  if (before && Object.keys(patch).every((key) => before[key] === patch[key])) {
+    return before;
+  }
   const { data, error } = await supabase.from("categories").update(patch).eq("id", id).select().single();
   if (error) throw error;
   return data;

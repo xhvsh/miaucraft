@@ -1450,18 +1450,9 @@ input[type="number"] {
 .server-field-value {
   margin-left: auto;
 }
+
 .server-copy {
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  background: transparent;
-  color: var(--text-muted);
-  padding: 4px 8px;
-  font-size: 11px;
-  cursor: pointer;
-}
-.server-copy:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--accent);
+  flex-shrink: 0;
 }
 .server-copy:disabled {
   cursor: not-allowed;
