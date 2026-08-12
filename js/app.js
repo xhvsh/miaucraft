@@ -1,6 +1,7 @@
 import * as Auth from "./auth.js";
 import { Grid } from "./grid.js";
 import { listWaypoints, createWaypoint, updateWaypoint, deleteWaypoint, getServerInfo, setServerInfo, listCategories, createCategory, updateCategory, deleteCategory, listLogs } from "./waypoints.js";
+import { SERVER_VERSION } from "./config.js";
 
 const DIM_COLORS = {
   overworld: "#4ade80",
@@ -82,6 +83,7 @@ const waypointListEl = $("#waypointList");
 const waypointSearchEl = $("#waypointSearch");
 const categoryFilterRowEl = $("#categoryFilterRow");
 const serverPanel = $("#serverPanel");
+$("#serverVersion").textContent = SERVER_VERSION;
 const pinTooltip = $("#pinTooltip");
 
 const authModal = $("#authModal");
@@ -1456,7 +1458,10 @@ function formatLogDetailValue(key, snapshot) {
 function buildLogDetailsPanel(log) {
   const wrap = document.createElement("div");
   wrap.className = "log-entry-details";
-  wrap.hidden = true;
+
+  const inner = document.createElement("div");
+  inner.className = "log-entry-details-inner";
+  wrap.appendChild(inner);
 
   const isUpdate = log.action === "update" && log.changes && log.changes.before && log.changes.after;
   const snapshot = isUpdate ? null : log.changes;
@@ -1485,7 +1490,7 @@ function buildLogDetailsPanel(log) {
     table.appendChild(row);
   }
 
-  wrap.appendChild(table);
+  inner.appendChild(table);
 
   if (log.action === "delete" && log.changes) {
     const canRestore = log.entity_type === "waypoint" ? Auth.can("addWaypoint") : Auth.can("manageCategories");
@@ -1505,7 +1510,7 @@ function buildLogDetailsPanel(log) {
         }
       });
       actions.appendChild(btn);
-      wrap.appendChild(actions);
+      inner.appendChild(actions);
     }
   }
 
@@ -1655,8 +1660,8 @@ function buildLogEntry(log) {
   detailsToggleBtn.innerHTML = `<i class="fa-solid fa-chevron-down" aria-hidden="true"></i> Details`;
   detailsToggleBtn.addEventListener("click", (event) => {
     event.stopPropagation();
-    const willOpen = detailsPanel.hidden;
-    detailsPanel.hidden = !willOpen;
+    const willOpen = !detailsPanel.classList.contains("is-open");
+    detailsPanel.classList.toggle("is-open", willOpen);
     detailsToggleBtn.classList.toggle("is-open", willOpen);
   });
   entryActions.appendChild(detailsToggleBtn);
@@ -1698,8 +1703,8 @@ function applyLogFilterChange() {
 }
 
 logsFiltersToggleBtn.addEventListener("click", () => {
-  const willOpen = logsFiltersPanel.hidden;
-  logsFiltersPanel.hidden = !willOpen;
+  const willOpen = !logsFiltersPanel.classList.contains("is-open");
+  logsFiltersPanel.classList.toggle("is-open", willOpen);
   logsFiltersToggleBtn.setAttribute("aria-expanded", String(willOpen));
   logsFiltersToggleBtn.classList.toggle("is-active", willOpen);
 });

@@ -1590,14 +1590,33 @@ input[type="number"] {
 }
 
 .logs-filters-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  margin-bottom: 0;
+  transition: grid-template-rows 0.2s ease, opacity 0.15s ease, margin-bottom 0.2s ease;
+}
+
+.logs-filters-panel > .logs-filters-panel-inner {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  padding: 12px;
-  margin-bottom: 16px;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg);
+}
+
+.logs-filters-panel.is-open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  margin-bottom: 16px;
+}
+
+.logs-filters-panel.is-open > .logs-filters-panel-inner {
+  padding: 12px;
 }
 
 .logs-filters-panel .settings-select {
@@ -1736,11 +1755,31 @@ input[type="number"] {
 }
 
 .log-entry-details {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  margin-top: 0;
+  transition: grid-template-rows 0.2s ease, opacity 0.15s ease, margin-top 0.2s ease;
+}
+
+.log-entry-details.is-open {
+  grid-template-rows: 1fr;
+  opacity: 1;
   margin-top: 8px;
+}
+
+.log-entry-details-inner {
+  min-height: 0;
+  overflow: hidden;
   border: 1px solid var(--border-soft);
   border-radius: 8px;
-  padding: 10px 12px;
+  padding: 0 12px;
   background: var(--surface-2);
+  transition: padding 0.2s ease;
+}
+
+.log-entry-details.is-open .log-entry-details-inner {
+  padding: 10px 12px;
 }
 
 .log-detail-table {
@@ -2395,9 +2434,8 @@ input[type="number"] {
     display: none;
   }
 
-  .logs-filters-panel {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+  .logs-filters-panel-inner {
+    flex-direction: column;
     gap: 8px;
   }
 

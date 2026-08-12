@@ -106,6 +106,10 @@
               <span class="server-field-value" id="serverIp">Not set</span>
               <button class="server-copy coords-copy-btn" type="button" data-copy-source="serverIp" title="Copy" aria-label="Copy" hidden><i class="fa-solid fa-copy" aria-hidden="true"></i></button>
             </div>
+            <div class="server-field">
+              <span class="server-field-label">Version</span>
+              <span class="server-field-value" id="serverVersion">—</span>
+            </div>
             <div class="server-edit" id="serverEdit" hidden>
               <h3>Edit</h3>
               <label>
@@ -163,27 +167,29 @@
                 <span class="logs-filters-dot" id="logsFiltersDot" hidden></span>
               </button>
             </div>
-            <div class="logs-filters-panel" id="logsFiltersPanel" hidden>
-              <select class="settings-select" id="logEntityFilter" aria-label="Filter by type">
-                <option value="">All types</option>
-                <option value="waypoint">Waypoint</option>
-                <option value="category">Category</option>
-              </select>
-              <select class="settings-select" id="logUserFilter" aria-label="Filter by user">
-                <option value="">All users</option>
-              </select>
-              <select class="settings-select" id="logActionFilter" aria-label="Filter by action">
-                <option value="">All actions</option>
-                <option value="create">Created</option>
-                <option value="update">Edited</option>
-                <option value="delete">Deleted</option>
-              </select>
-              <select class="settings-select" id="logDimensionFilter" aria-label="Filter by dimension">
-                <option value="">All dimensions</option>
-                <option value="overworld">Overworld</option>
-                <option value="nether">Nether</option>
-                <option value="end">End</option>
-              </select>
+            <div class="logs-filters-panel" id="logsFiltersPanel">
+              <div class="logs-filters-panel-inner">
+                <select class="settings-select" id="logEntityFilter" aria-label="Filter by type">
+                  <option value="">All types</option>
+                  <option value="waypoint">Waypoint</option>
+                  <option value="category">Category</option>
+                </select>
+                <select class="settings-select" id="logUserFilter" aria-label="Filter by user">
+                  <option value="">All users</option>
+                </select>
+                <select class="settings-select" id="logActionFilter" aria-label="Filter by action">
+                  <option value="">All actions</option>
+                  <option value="create">Created</option>
+                  <option value="update">Edited</option>
+                  <option value="delete">Deleted</option>
+                </select>
+                <select class="settings-select" id="logDimensionFilter" aria-label="Filter by dimension">
+                  <option value="">All dimensions</option>
+                  <option value="overworld">Overworld</option>
+                  <option value="nether">Nether</option>
+                  <option value="end">End</option>
+                </select>
+              </div>
             </div>
             <div class="logs-list" id="logsList"></div>
             <div class="logs-empty" id="logsEmpty" hidden>No logs match your filters.</div>
