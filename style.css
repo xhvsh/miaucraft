@@ -744,6 +744,14 @@ input[type="number"]:focus {
   border-color: var(--accent);
 }
 
+input[type="text"]:disabled,
+input[type="password"]:disabled,
+input[type="number"]:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background: var(--border);
+}
+
 .password-field {
   display: flex;
   align-items: center;
@@ -1594,7 +1602,10 @@ input[type="number"] {
   grid-template-rows: 0fr;
   opacity: 0;
   margin-bottom: 0;
-  transition: grid-template-rows 0.2s ease, opacity 0.15s ease, margin-bottom 0.2s ease;
+  transition:
+    grid-template-rows 0.2s ease,
+    opacity 0.15s ease,
+    margin-bottom 0.2s ease;
 }
 
 .logs-filters-panel > .logs-filters-panel-inner {
@@ -1759,7 +1770,10 @@ input[type="number"] {
   grid-template-rows: 0fr;
   opacity: 0;
   margin-top: 0;
-  transition: grid-template-rows 0.2s ease, opacity 0.15s ease, margin-top 0.2s ease;
+  transition:
+    grid-template-rows 0.2s ease,
+    opacity 0.15s ease,
+    margin-top 0.2s ease;
 }
 
 .log-entry-details.is-open {

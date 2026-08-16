@@ -1103,7 +1103,7 @@ function consumeSharedAccessCodeLink() {
   openAuthModal("register");
   $("#registerCode").value = code;
   $("#registerCode").disabled = true;
-  $("#registerCodeLabel").textContent = "Code loaded from link";
+  $("#registerCodeLabel").textContent = "Access Code loaded from link";
 }
 
 function openAuthModal(tab) {
