@@ -1100,13 +1100,20 @@ function consumeSharedAccessCodeLink() {
   if (!match) return;
   const code = decodeURIComponent(match[1]);
   window.history.replaceState({}, "", "/");
-  openAuthModal("register");
-  $("#registerCode").value = code;
-  $("#registerCode").disabled = true;
-  $("#registerCodeLabel").textContent = "Access Code loaded from link";
+
+  const unsubscribe = Auth.onAuthChange((state) => {
+    if (!state.ready) return;
+    unsubscribe();
+    if (Auth.isLoggedIn()) return;
+    openAuthModal("register");
+    $("#registerCode").value = code;
+    $("#registerCode").disabled = true;
+    $("#registerCodeLabel").textContent = "Access code loaded from link";
+  });
 }
 
 function openAuthModal(tab) {
+  if (Auth.isLoggedIn()) return;
   setAuthTab(tab);
   authModal.hidden = false;
 }
