@@ -1740,3 +1740,12 @@ renderAuthArea();
 switchDimension("overworld");
 loadCategories();
 Auth.init();
+
+function consumeSharedAccessCodeLink() {
+  const match = window.location.pathname.match(/^\/c\/([^/]+)\/?$/);
+  if (!match) return;
+  const code = decodeURIComponent(match[1]);
+  window.history.replaceState({}, "", "/");
+  openAuthModal("register");
+  $("#registerCode").value = code;
+}
