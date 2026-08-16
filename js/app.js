@@ -1141,6 +1141,12 @@ function closeOnBackdropClick(backdrop, close) {
     pointerStartedOnBackdrop = e.target === backdrop;
   });
 
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if (!authModal.hidden) closeAuthModal();
+    if (!pinTooltip.hidden) hideTooltip();
+  });
+
   backdrop.addEventListener("click", (e) => {
     if (pointerStartedOnBackdrop && e.target === backdrop) close();
     pointerStartedOnBackdrop = false;
