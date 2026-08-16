@@ -1113,7 +1113,6 @@ function consumeSharedAccessCodeLink() {
 }
 
 function openAuthModal(tab) {
-  if (Auth.isLoggedIn() && Auth.getState().profile) return;
   setAuthTab(tab);
   authModal.hidden = false;
 }
