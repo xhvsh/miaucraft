@@ -1093,6 +1093,8 @@ $("#recenterBtn").addEventListener("click", () => grid.recenter());
 // Auth modal
 // ---------------------------------------------------------------------------
 
+const DEFAULT_REGISTER_CODE_LABEL = "Access code (contact xhvsh if you need one)";
+
 function consumeSharedAccessCodeLink() {
   const match = window.location.pathname.match(/^\/c\/([^/]+)\/?$/);
   if (!match) return;
@@ -1100,6 +1102,8 @@ function consumeSharedAccessCodeLink() {
   window.history.replaceState({}, "", "/");
   openAuthModal("register");
   $("#registerCode").value = code;
+  $("#registerCode").disabled = true;
+  $("#registerCodeLabel").textContent = "Code loaded from link";
 }
 
 function openAuthModal(tab) {
@@ -1119,6 +1123,8 @@ function closeAuthModal() {
   });
   $("#loginMsg").textContent = "";
   $("#registerMsg").textContent = "";
+  $("#registerCodeLabel").textContent = DEFAULT_REGISTER_CODE_LABEL;
+  $("#registerCode").disabled = false;
 }
 
 function closeOnBackdropClick(backdrop, close) {
