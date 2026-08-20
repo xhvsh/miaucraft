@@ -1,8 +1,5 @@
 import { supabase } from "./supabaseClient.js";
 
-// Set to "test" locally (after running 002_test_schema.sql) to develop
-// against isolated tables without touching production data or needing a
-// second Supabase project. Leave as "public" for the real deployment.
 const SCHEMA = "public";
 
 const db = (table) => (SCHEMA === "public" ? supabase.from(table) : supabase.schema(SCHEMA).from(table));
@@ -12,7 +9,7 @@ const db = (table) => (SCHEMA === "public" ? supabase.from(table) : supabase.sch
 // ---------------------------------------------------------------------------
 
 export async function listPlayers() {
-  const { data, error } = await db("players").select("*");
+  const { data, error } = await db("players").select("*").eq("hidden", false);
   if (error) throw error;
   return data;
 }
@@ -35,7 +32,14 @@ export async function listAccountUsernamesLower() {
 export async function listPlayerStats(statKeys, limit = 10) {
   const keys = Array.isArray(statKeys) ? statKeys : [statKeys];
   for (const key of keys) {
-    const { data, error } = await db("player_stats").select("player_id, stat_value, players(username)").eq("stat_key", key).order("stat_value", { ascending: false }).limit(limit);
+    // players!inner + players.hidden filter: excludes stat rows belonging to
+    // hidden/merged-away player accounts from leaderboards.
+    const { data, error } = await db("player_stats")
+      .select("player_id, stat_value, players!inner(username)")
+      .eq("stat_key", key)
+      .eq("players.hidden", false)
+      .order("stat_value", { ascending: false })
+      .limit(limit);
     if (error) throw error;
     if (data && data.length > 0) return data;
   }
@@ -53,7 +57,7 @@ export async function listStatKeys() {
 // ---------------------------------------------------------------------------
 
 export async function listLivePositions() {
-  const { data, error } = await db("live_positions").select("*, players(username, afk)");
+  const { data, error } = await db("live_positions").select("*, players!inner(username, afk)").eq("players.hidden", false);
   if (error) throw error;
   return data;
 }
