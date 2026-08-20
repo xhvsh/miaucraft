@@ -1,7 +1,7 @@
 import * as Auth from "./auth.js";
 import { Grid } from "./grid.js";
-import { listWaypoints, createWaypoint, updateWaypoint, deleteWaypoint, getServerInfo, setServerInfo, listCategories, createCategory, updateCategory, deleteCategory, listLogs } from "./waypoints.js";
-import { SERVER_VERSION } from "./config.js";
+import { listWaypoints, createWaypoint, updateWaypoint, deleteWaypoint, getServerInfo, listCategories, createCategory, updateCategory, deleteCategory, listLogs } from "./waypoints.js";
+import { listPlayers, subscribePlayers, listLivePositions, subscribeLivePositions, getServerStatus, subscribeServerStatus, listWhitelist, subscribeWhitelist, requestWhitelistAdd, requestWhitelistRemove, listPendingWhitelistCommands, subscribeWhitelistCommands, cancelWhitelistCommand, listPlayerStats, listStatKeys } from "./live.js";
 
 const DIM_COLORS = {
   overworld: "#4ade80",
@@ -65,15 +65,40 @@ function confirmAction(message, opts = {}) {
   return showConfirmDialog({ message, ...opts });
 }
 
-function notifyError(message, opts = {}) {
-  return showConfirmDialog({ title: "Something went wrong", message, alertOnly: true, ...opts });
+const toastContainer = document.createElement("div");
+toastContainer.className = "toast-container";
+toastContainer.setAttribute("aria-live", "polite");
+document.body.appendChild(toastContainer);
+
+function toast(message, type = "success", duration = type === "error" ? 5000 : 3200) {
+  const el = document.createElement("div");
+  el.className = `toast toast-${type}`;
+  const icon = type === "error" ? "fa-circle-exclamation" : type === "info" ? "fa-circle-info" : "fa-circle-check";
+  el.innerHTML = `<i class="fa-solid ${icon}" aria-hidden="true"></i><span>${escapeHtml(message)}</span>`;
+  toastContainer.appendChild(el);
+  requestAnimationFrame(() => el.classList.add("toast-visible"));
+
+  let dismissed = false;
+  const dismiss = () => {
+    if (dismissed) return;
+    dismissed = true;
+    el.classList.remove("toast-visible");
+    el.classList.add("toast-leaving");
+    el.addEventListener("transitionend", () => el.remove(), { once: true });
+  };
+  const timer = setTimeout(dismiss, duration);
+  el.addEventListener("click", () => {
+    clearTimeout(timer);
+    dismiss();
+  });
+  return el;
 }
 
 const dimTabs = $("#dimTabs");
 const dimSelect = $("#dimSelect");
 const dimSelectWrap = $("#dimSelectWrap");
 const dimSelectCategoriesOption = $("#dimSelectCategories");
-const dimSelectServerOption = $("#dimSelectServer");
+const dimSelectWhitelistOption = $("#dimSelectWhitelist");
 const authArea = $("#authArea");
 const gridPanel = $("#gridPanel");
 const sidebarEl = document.querySelector(".sidebar");
@@ -83,7 +108,6 @@ const waypointListEl = $("#waypointList");
 const waypointSearchEl = $("#waypointSearch");
 const categoryFilterRowEl = $("#categoryFilterRow");
 const serverPanel = $("#serverPanel");
-$("#serverVersion").textContent = SERVER_VERSION;
 const pinTooltip = $("#pinTooltip");
 
 const authModal = $("#authModal");
@@ -92,6 +116,14 @@ const waypointModal = $("#waypointModal");
 const categoriesTab = dimTabs.querySelector('[data-dim="categories"]');
 const categoriesTabPanel = $("#categoriesTabPanel");
 const categoriesListEl = $("#categoriesList");
+
+const playersListEl = $("#playersList");
+const playersEmptyEl = $("#playersEmpty");
+
+const whitelistTab = dimTabs.querySelector('[data-dim="whitelist"]');
+const whitelistTabPanel = $("#whitelistTabPanel");
+const whitelistListEl = $("#whitelistList");
+const whitelistEmptyEl = $("#whitelistEmpty");
 
 const settingsTabPanel = $("#settingsTabPanel");
 const settingHideFilteredEl = $("#settingHideFiltered");
@@ -112,6 +144,23 @@ const logEntityFilterEl = $("#logEntityFilter");
 const logUserFilterEl = $("#logUserFilter");
 const logActionFilterEl = $("#logActionFilter");
 const logDimensionFilterEl = $("#logDimensionFilter");
+const logsPaginationEl = $("#logsPagination");
+const logsFirstPageBtn = $("#logsFirstPageBtn");
+const logsPrevPageBtn = $("#logsPrevPageBtn");
+const logsNextPageBtn = $("#logsNextPageBtn");
+const logsLastPageBtn = $("#logsLastPageBtn");
+const logsPageInputEl = $("#logsPageInput");
+const logsPageTotalEl = $("#logsPageTotal");
+
+const leaderboardsTabPanel = $("#leaderboardsTabPanel");
+const leaderboardStatChipsEl = $("#leaderboardStatChips");
+const leaderboardCustomRowEl = $("#leaderboardCustomRow");
+const leaderboardCustomInputEl = $("#leaderboardCustomInput");
+const leaderboardStatTitleEl = $("#leaderboardStatTitle");
+const leaderboardStatKeysListEl = $("#leaderboardStatKeysList");
+const leaderboardListEl = $("#leaderboardList");
+const leaderboardEmptyEl = $("#leaderboardEmpty");
+const leaderboardLoadingEl = $("#leaderboardLoading");
 
 const imageLightbox = $("#imageLightbox");
 const imageLightboxImg = $("#imageLightboxImg");
@@ -175,6 +224,34 @@ let categoryFilter = null; // null = all, "__none__" = uncategorized, or a categ
 let editingCategory = null;
 const grid = new Grid($("#gridContainer"), { dimensionColor: DIM_COLORS.overworld });
 
+let livePositions = [];
+
+async function refreshLivePositions() {
+  try {
+    livePositions = await listLivePositions();
+  } catch (err) {
+    console.error(err);
+    livePositions = [];
+  }
+  renderLivePins();
+}
+
+function renderLivePins() {
+  if (!["overworld", "nether", "end"].includes(currentDim)) return;
+  if (isStatusStale(lastServerStatus)) {
+    grid.setPlayers([]);
+    return;
+  }
+  const pins = livePositions.filter((p) => p.dimension === currentDim).map((p) => ({ id: p.player_id, username: p.players?.username ?? "Player", x: p.x, z: p.z, afk: p.players?.afk ?? false }));
+  grid.setPlayers(pins);
+}
+
+subscribeLivePositions(() => {
+  clearTimeout(refreshLivePositions._debounce);
+  refreshLivePositions._debounce = setTimeout(refreshLivePositions, 300);
+});
+refreshLivePositions();
+
 grid.onEmptyRightClick = (x, z) => {
   if (currentDim === "server") return;
   if (!Auth.can("addWaypoint")) {
@@ -206,11 +283,6 @@ grid.onViewChange = () => {
 
 Auth.onAuthChange((state) => {
   renderAuthArea();
-  const serverTab = dimTabs.querySelector('[data-dim="server"]');
-  serverTab.hidden = !state.session;
-  if (!state.session && currentDim === "server") {
-    switchDimension("overworld");
-  }
   categoriesTab.hidden = !Auth.can("manageCategories");
   if (!Auth.can("manageCategories") && currentDim === "categories") {
     switchDimension("overworld");
@@ -219,9 +291,14 @@ Auth.onAuthChange((state) => {
   if (!state.session && currentDim === "logs") {
     switchDimension("overworld");
   }
-  dimSelectServerOption.hidden = !state.session;
+  whitelistTab.hidden = !Auth.can("manageWhitelist");
+  if (!Auth.can("manageWhitelist") && currentDim === "whitelist") {
+    switchDimension("overworld");
+  }
   dimSelectCategoriesOption.hidden = !Auth.can("manageCategories");
   dimSelectLogsOption.hidden = !state.session;
+  dimSelectWhitelistOption.hidden = !Auth.can("manageWhitelist");
+  if (currentDim === "server") loadServerPanel();
   loadCurrentView();
 });
 
@@ -537,7 +614,6 @@ function startEditCategory(cat) {
   updateCategoryIconPreview();
   $("#catSubmitBtn").textContent = "Save changes";
   $("#catCancelEditBtn").hidden = false;
-  $("#categoryMsg").textContent = "";
   $("#catName").focus();
 }
 
@@ -550,7 +626,6 @@ function resetCategoryForm() {
   updateCategoryIconPreview();
   $("#catSubmitBtn").textContent = "Add category";
   $("#catCancelEditBtn").hidden = true;
-  $("#categoryMsg").textContent = "";
 }
 
 async function handleDeleteCategory(cat) {
@@ -566,14 +641,12 @@ async function handleDeleteCategory(cat) {
     await loadCategories();
     await loadWaypointsForDim(currentDim);
   } catch (err) {
-    $("#categoryMsg").textContent = err.message || "Could not delete category.";
+    toast(err.message || "Could not delete category.", "error");
   }
 }
 
 $("#categoryForm").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const msg = $("#categoryMsg");
-  msg.textContent = "";
   const name = $("#catName").value.trim();
   const color = $("#catColor").value;
   const icon = sanitizeIconClass($("#catIcon").value);
@@ -588,7 +661,7 @@ $("#categoryForm").addEventListener("submit", async (e) => {
     await loadCategories();
     await loadWaypointsForDim(currentDim);
   } catch (err) {
-    msg.textContent = err.message || "Could not save category.";
+    toast(err.message || "Could not save category.", "error");
   }
 });
 
@@ -625,31 +698,42 @@ function switchDimension(dim) {
     resetCategoryForm();
   }
 
-  if (dim === "server" || dim === "categories" || dim === "settings" || dim === "logs") {
-    gridPanel.hidden = true;
-    sidebarEl.hidden = true;
-    sidebarToggleBtn.hidden = true;
-    serverPanel.hidden = dim !== "server";
-    categoriesTabPanel.hidden = dim !== "categories";
-    settingsTabPanel.hidden = dim !== "settings";
-    logsTabPanel.hidden = dim !== "logs";
-    if (dim === "server") loadServerPanel();
-    else if (dim === "categories") loadCategories();
+  if (dim === "server" || dim === "categories" || dim === "settings" || dim === "logs" || dim === "whitelist" || dim === "leaderboards") {
+  gridPanel.hidden = true;
+  sidebarEl.hidden = true;
+  sidebarToggleBtn.hidden = true;
+  serverPanel.hidden = dim !== "server";
+  categoriesTabPanel.hidden = dim !== "categories";
+  settingsTabPanel.hidden = dim !== "settings";
+  logsTabPanel.hidden = dim !== "logs";
+  whitelistTabPanel.hidden = dim !== "whitelist";
+  leaderboardsTabPanel.hidden = dim !== "leaderboards";
+  if (dim === "server") loadServerPanel();
+  else {
+    stopServerTicker();
+    if (dim === "categories") loadCategories();
     else if (dim === "logs") loadLogs();
+    else if (dim === "whitelist") loadWhitelistPanel();
+    else if (dim === "leaderboards") loadLeaderboardsTab();
     else updateSettingsUI();
-    return;
   }
+  return;
+}
 
+  stopServerTicker();
   gridPanel.hidden = false;
   sidebarEl.hidden = false;
   serverPanel.hidden = true;
   categoriesTabPanel.hidden = true;
   settingsTabPanel.hidden = true;
   logsTabPanel.hidden = true;
+  whitelistTabPanel.hidden = true;
+  leaderboardsTabPanel.hidden = true;
   sidebarToggleBtn.hidden = false;
   grid.setDimensionColor(DIM_COLORS[dim]);
   sidebarTitle.textContent = DIM_LABELS[dim];
   loadWaypointsForDim(dim);
+  renderLivePins();
 }
 
 async function loadCurrentView() {
@@ -659,8 +743,12 @@ async function loadCurrentView() {
     loadCategories();
   } else if (currentDim === "logs") {
     loadLogs();
+  } else if (currentDim === "whitelist") {
+    loadWhitelistPanel();
   } else if (currentDim === "settings") {
     updateSettingsUI();
+  } else if (currentDim === "leaderboards") {
+    loadLeaderboardsTab();
   } else {
     loadWaypointsForDim(currentDim);
   }
@@ -849,7 +937,7 @@ async function handleDelete(wp) {
     hideTooltip();
     await loadWaypointsForDim(currentDim);
   } catch (err) {
-    await notifyError(err.message || "Could not delete waypoint.");
+    toast(err.message || "Could not delete waypoint.", "error");
   }
 }
 
@@ -991,6 +1079,8 @@ function appendDimensionConversion(container, wp, className) {
   container.appendChild(converted);
 }
 
+// A tiny opt-in hook for one-off waypoints that have their own reference image.
+// Add more entries here (exact waypoint name -> image path) as needed.
 const SPECIAL_WAYPOINT_IMAGES = {
   "Blehh Cat": "/img/blehh-map.png",
 };
@@ -1093,26 +1183,8 @@ $("#recenterBtn").addEventListener("click", () => grid.recenter());
 // Auth modal
 // ---------------------------------------------------------------------------
 
-const DEFAULT_REGISTER_CODE_LABEL = "Access code (contact xhvsh if you need one)";
-
-function consumeSharedAccessCodeLink() {
-  const match = window.location.pathname.match(/^\/c\/([^/]+)\/?$/);
-  if (!match) return;
-  const code = decodeURIComponent(match[1]);
-  window.history.replaceState({}, "", "/");
-
-  const unsubscribe = Auth.onAuthChange((state) => {
-    if (!state.ready) return;
-    unsubscribe();
-    if (Auth.isLoggedIn()) return;
-    openAuthModal("register");
-    $("#registerCode").value = code;
-    $("#registerCode").disabled = true;
-    $("#registerCodeLabel").textContent = "Access code loaded from link";
-  });
-}
-
 function openAuthModal(tab) {
+  if (Auth.isLoggedIn()) return;
   setAuthTab(tab);
   authModal.hidden = false;
 }
@@ -1127,8 +1199,6 @@ function closeAuthModal() {
     button.setAttribute("aria-label", "Show password");
     button.setAttribute("aria-pressed", "false");
   });
-  $("#loginMsg").textContent = "";
-  $("#registerMsg").textContent = "";
   $("#registerCodeLabel").textContent = DEFAULT_REGISTER_CODE_LABEL;
   $("#registerCode").disabled = false;
 }
@@ -1138,12 +1208,6 @@ function closeOnBackdropClick(backdrop, close) {
 
   backdrop.addEventListener("pointerdown", (e) => {
     pointerStartedOnBackdrop = e.target === backdrop;
-  });
-
-  document.addEventListener("keydown", (e) => {
-    if (e.key !== "Escape") return;
-    if (!authModal.hidden) closeAuthModal();
-    if (!pinTooltip.hidden) hideTooltip();
   });
 
   backdrop.addEventListener("click", (e) => {
@@ -1164,6 +1228,12 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  if (!authModal.hidden) closeAuthModal();
+  if (!pinTooltip.hidden) hideTooltip();
+});
+
 function setAuthTab(tab) {
   for (const btn of authModal.querySelectorAll(".modal-tab")) {
     btn.dataset.active = String(btn.dataset.authtab === tab);
@@ -1179,6 +1249,29 @@ authModal.querySelectorAll(".modal-tab").forEach((btn) => {
   btn.addEventListener("click", () => setAuthTab(btn.dataset.authtab));
 });
 
+// ---------------------------------------------------------------------------
+// Shared access-code links: /c/MIAU-xxxx-xxxx-xxxx
+// ---------------------------------------------------------------------------
+
+const DEFAULT_REGISTER_CODE_LABEL = "Access code (contact xhvsh if you need one)";
+
+function consumeSharedAccessCodeLink() {
+  const match = window.location.pathname.match(/^\/c\/([^/]+)\/?$/);
+  if (!match) return;
+  const code = decodeURIComponent(match[1]);
+  window.history.replaceState({}, "", "/");
+
+  const unsubscribe = Auth.onAuthChange((state) => {
+    if (!state.ready) return;
+    unsubscribe();
+    if (Auth.isLoggedIn()) return;
+    openAuthModal("register");
+    $("#registerCode").value = code;
+    $("#registerCode").disabled = true;
+    $("#registerCodeLabel").textContent = "Code loaded from link";
+  });
+}
+
 authModal.querySelectorAll("[data-password-toggle]").forEach((button) => {
   button.addEventListener("click", () => {
     const input = document.getElementById(button.dataset.passwordToggle);
@@ -1192,30 +1285,23 @@ authModal.querySelectorAll("[data-password-toggle]").forEach((button) => {
 
 $("#loginForm").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const msg = $("#loginMsg");
-  msg.textContent = "";
-  msg.className = "form-msg";
   try {
     await Auth.login($("#loginUsername").value.trim(), $("#loginPassword").value);
     closeAuthModal();
   } catch (err) {
-    msg.textContent = err.message || "Could not sign in.";
+    toast(err.message || "Could not sign in.", "error");
   }
 });
 
 $("#registerForm").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const msg = $("#registerMsg");
-  msg.textContent = "";
-  msg.className = "form-msg";
-
   const username = $("#registerUsername").value.trim();
   const password = $("#registerPassword").value;
   const repeat = $("#registerPasswordRepeat").value;
   const code = $("#registerCode").value.trim();
 
   if (password !== repeat) {
-    msg.textContent = "Passwords don't match.";
+    toast("Passwords don't match.", "error");
     return;
   }
 
@@ -1223,7 +1309,7 @@ $("#registerForm").addEventListener("submit", async (e) => {
     await Auth.register(username, password, code);
     closeAuthModal();
   } catch (err) {
-    msg.textContent = err.message || "Registration failed.";
+    toast(err.message || "Registration failed.", "error");
   }
 });
 
@@ -1237,7 +1323,6 @@ function openWaypointForm(seed) {
   if (seed.id && !Auth.canEditWaypoint(seed)) return;
   editingWaypoint = seed.id ? seed : null;
   $("#waypointModalTitle").textContent = editingWaypoint ? "Edit waypoint" : "Add waypoint";
-  $("#waypointMsg").textContent = "";
   $("#wpId").value = seed.id ?? "";
   $("#wpName").value = seed.name ?? "";
   $("#wpDescription").value = seed.description ?? "";
@@ -1316,14 +1401,12 @@ $("#wpDeleteBtn").addEventListener("click", async () => {
     closeWaypointForm();
     await loadWaypointsForDim(currentDim);
   } catch (err) {
-    $("#waypointMsg").textContent = err.message || "Could not delete waypoint.";
+    toast(err.message || "Could not delete waypoint.", "error");
   }
 });
 
 $("#waypointForm").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const msg = $("#waypointMsg");
-  msg.textContent = "";
 
   const yRaw = $("#wpY").value;
   const categoryRaw = $("#wpCategory").value;
@@ -1357,55 +1440,521 @@ $("#waypointForm").addEventListener("submit", async (e) => {
     closeWaypointForm();
     await loadWaypointsForDim(currentDim);
   } catch (err) {
-    msg.textContent = err.message || "Could not save waypoint.";
+    toast(err.message || "Could not save waypoint.", "error");
   }
 });
+
+// ---------------------------------------------------------------------------
+// Leaderboards (public - no auth required)
+// ---------------------------------------------------------------------------
+
+const PRESET_STATS = [
+  { id: "damage_dealt", label: "Damage Dealt", keys: ["DAMAGE_DEALT"], format: "damage" },
+  { id: "elytra_distance", label: "Elytra Distance", keys: ["AVIATE_ONE_CM"], format: "distance" },
+  { id: "jumps", label: "Jumps", keys: ["JUMP"], format: "count" },
+  { id: "mob_kills", label: "Mob Kills", keys: ["MOB_KILLS_TOTAL", "MOB_KILLS"], format: "count" },
+  { id: "time_played", label: "Time Played", keys: ["PLAY_ONE_MINUTE", "TIME_PLAYED"], format: "time" },
+  { id: "blocks_mined", label: "Blocks Mined", keys: ["BLOCKS_MINED_TOTAL"], format: "count" },
+  { id: "piglin_kills", label: "Piglin Kills", keys: ["KILL_ENTITY:ZOMBIFIED_PIGLIN", "KILL_ENTITY:ZOMBIE_PIGMAN"], format: "count" },
+];
+
+// Bukkit/Minecraft statistic key -> human-readable name, matching the
+// vanilla stat menu naming as closely as practical.
+const CM_DISTANCE_LABELS = {
+  WALK: "Walked", SPRINT: "Sprinted", CROUCH: "Crouched", FLY: "Flown", AVIATE: "Flown (Elytra)",
+  CLIMB: "Climbed", FALL: "Fallen", SWIM: "Swum", DIVE: "Dove", BOAT: "Boated",
+  HORSE: "Ridden (Horse)", MINECART: "Ridden (Minecart)", PIG: "Ridden (Pig)", STRIDER: "Ridden (Strider)",
+  WALK_ON_WATER: "Walked on Water", WALK_UNDER_WATER: "Walked Underwater",
+};
+const STAT_PREFIX_LABELS = {
+  KILL_ENTITY: "Kills", ENTITY_KILLED_BY: "Killed By", MINE_BLOCK: "Mined", USE_ITEM: "Used",
+  BREAK_ITEM: "Broken", CRAFT_ITEM: "Crafted", DROP: "Dropped", PICKUP: "Picked Up",
+};
+const STAT_NAME_OVERRIDES = {
+  PLAY_ONE_MINUTE: "Time Played", TIME_PLAYED: "Time Played", CHEST_OPENED: "Chests Opened",
+  BLOCKS_MINED_TOTAL: "Blocks Mined", LEAVE_GAME: "Times Left Game",
+  TALKED_TO_VILLAGER: "Talked to Villager", DROP_COUNT: "Items Dropped",
+  MOB_KILLS_TOTAL: "Mob Kills", MOB_KILLS: "Mob Kills", TOTAL_WORLD_TIME: "Time in World",
+  TRADED_WITH_VILLAGER: "Villager Trades", DAMAGE_DEALT: "Damage Dealt", DAMAGE_TAKEN: "Damage Taken",
+  SNEAK_TIME: "Time Sneaking", TIME_SINCE_REST: "Time Since Rest", TIME_SINCE_DEATH: "Time Since Death",
+  JUMP: "Jumps", DEATHS: "Deaths", PLAYER_KILLS: "Player Kills", FISH_CAUGHT: "Fish Caught",
+  ANIMALS_BRED: "Animals Bred", BELL_RING: "Bells Rung", CAKE_SLICES_EATEN: "Cake Slices Eaten",
+  ENCHANT_ITEM: "Items Enchanted", FLOWER_POTTED: "Flowers Potted", RAID_TRIGGER: "Raids Triggered",
+  RAID_WIN: "Raids Won", RECORD_PLAYED: "Records Played", SLEEP_IN_BED: "Times Slept",
+};
+
+function titleCaseStatKey(str) {
+  return str.toLowerCase().split("_").filter(Boolean).map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+}
+
+function getStatDisplayName(key) {
+  if (!key) return "";
+  if (STAT_NAME_OVERRIDES[key]) return STAT_NAME_OVERRIDES[key];
+  if (key.endsWith("_ONE_CM")) {
+    const base = key.slice(0, -"_ONE_CM".length);
+    return `Distance ${CM_DISTANCE_LABELS[base] || titleCaseStatKey(base)}`;
+  }
+  if (key.includes(":")) {
+    const [prefix, suffix] = key.split(":");
+    const label = STAT_PREFIX_LABELS[prefix] || titleCaseStatKey(prefix);
+    return `${label}: ${titleCaseStatKey(suffix)}`;
+  }
+  return titleCaseStatKey(key);
+}
+
+let activeLeaderboardStatId = PRESET_STATS[0].id;
+let statKeysLoaded = false;
+let leaderboardCustomDebounce = null;
+
+function loadLeaderboardsTab() {
+  renderLeaderboardChips();
+  selectLeaderboardStat(activeLeaderboardStatId);
+}
+
+function renderLeaderboardChips() {
+  leaderboardStatChipsEl.innerHTML = "";
+  for (const stat of PRESET_STATS) {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "leaderboard-chip";
+    chip.dataset.active = String(activeLeaderboardStatId === stat.id);
+    chip.innerHTML = `<span>${stat.label}</span>`;
+    chip.addEventListener("click", () => selectLeaderboardStat(stat.id));
+    leaderboardStatChipsEl.appendChild(chip);
+  }
+  const customChip = document.createElement("button");
+  customChip.type = "button";
+  customChip.className = "leaderboard-chip leaderboard-chip--custom";
+  customChip.dataset.active = String(activeLeaderboardStatId === "custom");
+  customChip.innerHTML = `<span>Custom</span>`;
+  customChip.addEventListener("click", () => selectLeaderboardStat("custom"));
+  leaderboardStatChipsEl.appendChild(customChip);
+}
+
+async function selectLeaderboardStat(id) {
+  activeLeaderboardStatId = id;
+  renderLeaderboardChips();
+  leaderboardCustomRowEl.hidden = id !== "custom";
+
+  if (id === "custom") {
+    await ensureStatKeysLoaded();
+    const key = leaderboardCustomInputEl.value.trim();
+    if (key) {
+      leaderboardStatTitleEl.textContent = getStatDisplayName(key);
+      loadLeaderboard([key], "count");
+    } else {
+      leaderboardStatTitleEl.textContent = "";
+      leaderboardListEl.innerHTML = "";
+      leaderboardEmptyEl.hidden = true;
+    }
+    return;
+  }
+
+  const preset = PRESET_STATS.find((s) => s.id === id);
+  if (preset) {
+    leaderboardStatTitleEl.textContent = "";
+    loadLeaderboard(preset.keys, preset.format);
+  }
+}
+
+async function ensureStatKeysLoaded() {
+  if (statKeysLoaded) return;
+  try {
+    const keys = await listStatKeys();
+    leaderboardStatKeysListEl.innerHTML = keys
+      .map((k) => `<option value="${escapeHtml(k.stat_key)}" label="${escapeHtml(getStatDisplayName(k.stat_key))}">${escapeHtml(getStatDisplayName(k.stat_key))}</option>`)
+      .join("");
+    statKeysLoaded = true;
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+leaderboardCustomInputEl.addEventListener("input", () => {
+  clearTimeout(leaderboardCustomDebounce);
+  leaderboardCustomDebounce = setTimeout(() => {
+    const key = leaderboardCustomInputEl.value.trim();
+    if (!key) {
+      leaderboardStatTitleEl.textContent = "";
+      leaderboardListEl.innerHTML = "";
+      leaderboardEmptyEl.hidden = true;
+      return;
+    }
+    leaderboardStatTitleEl.textContent = getStatDisplayName(key);
+    loadLeaderboard([key], "count");
+  }, 250);
+});
+
+async function loadLeaderboard(candidateKeys, format) {
+  leaderboardLoadingEl.hidden = false;
+  leaderboardEmptyEl.hidden = true;
+  leaderboardListEl.innerHTML = "";
+  let rows = [];
+  try {
+    rows = await listPlayerStats(candidateKeys, 10);
+  } catch (err) {
+    console.error(err);
+    rows = [];
+  }
+  leaderboardLoadingEl.hidden = true;
+  leaderboardEmptyEl.hidden = rows.length > 0;
+  rows.forEach((row, index) => {
+    leaderboardListEl.appendChild(buildLeaderboardRow(row, index + 1, format));
+  });
+}
+
+function buildLeaderboardRow(row, rank, format) {
+  const item = document.createElement("div");
+  item.className = "leaderboard-row";
+  item.dataset.rank = rank <= 3 ? String(rank) : "other";
+  const username = row.players?.username ?? "Unknown";
+  item.innerHTML = `
+    <span class="leaderboard-rank">${rank}</span>
+    <img class="leaderboard-avatar" src="https://mc-heads.net/avatar/${encodeURIComponent(username)}/64" alt="" width="28" height="28" />
+    <span class="leaderboard-username">${escapeHtml(username)}</span>
+    <span class="leaderboard-value">${escapeHtml(formatStatValue(format, row.stat_value))}</span>
+  `;
+  return item;
+}
+
+function formatStatValue(format, value) {
+  const n = Number(value) || 0;
+  switch (format) {
+    case "distance":
+      return `${(n / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })} blocks`;
+    case "time": {
+      const totalSeconds = n / 20;
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+    }
+    case "damage":
+      return `${(n / 10).toLocaleString(undefined, { maximumFractionDigits: 1 })} HP`;
+    case "count":
+    default:
+      return n.toLocaleString();
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Server panel
 // ---------------------------------------------------------------------------
 
+const STATUS_STALE_MS = 30000; // 3x the plugin's default 10s report interval
+let lastServerStatus = null;
+let lastPlayers = [];
+let tickTimer = null;
+
+function setServerConnectionField(id, text, shouldBlur) {
+  const el = $("#" + id);
+  el.textContent = text;
+  el.classList.toggle("ip-blur", shouldBlur);
+  el.classList.remove("is-revealed"); // always re-blur on a fresh load/reload
+}
+
+document.addEventListener("click", (e) => {
+  const value = e.target.closest(".server-field-value.ip-blur");
+  if (value) value.classList.toggle("is-revealed");
+});
+
 async function loadServerPanel() {
   try {
-    const info = await getServerInfo();
-    $("#serverHostname").textContent = info.hostname || "Not set";
-    $("#serverIp").textContent = info.ip || "Not set";
-    $("#serverHostnameInput").value = info.hostname || "";
-    $("#serverIpInput").value = info.ip || "";
+    lastServerStatus = await getServerStatus();
+    renderServerStatus(lastServerStatus);
   } catch (err) {
     console.error(err);
-    $("#serverHostname").textContent = "unavailable";
-    $("#serverIp").textContent = "unavailable";
+    lastServerStatus = null;
+    renderServerStatus(null);
   }
 
-  const editSection = $("#serverEdit");
-  editSection.hidden = !Auth.can("editServerInfo");
+  if (Auth.isLoggedIn()) {
+    try {
+      const info = await getServerInfo();
+      setServerConnectionField("serverHostname", info.hostname || "Not set", Boolean(info.hostname));
+      setServerConnectionField("serverIp", info.ip || "Not set", Boolean(info.ip));
+    } catch (err) {
+      console.error(err);
+      setServerConnectionField("serverHostname", "unavailable", false);
+      setServerConnectionField("serverIp", "unavailable", false);
+    }
+  } else {
+    setServerConnectionField("serverHostname", "Log in to view", false);
+    setServerConnectionField("serverIp", "Log in to view", false);
+  }
+
   for (const button of document.querySelectorAll(".server-copy")) {
     button.hidden = !Auth.isLoggedIn();
     button.disabled = !$("#" + button.dataset.copySource).textContent || $("#" + button.dataset.copySource).textContent === "unavailable";
   }
+
+  loadPlayersPanel();
+  startServerTicker();
 }
+
+function isStatusStale(status) {
+  if (!status || !status.updated_at) return true;
+  return Date.now() - new Date(status.updated_at).getTime() > STATUS_STALE_MS;
+}
+
+function renderServerStatus(status) {
+  const offline = isStatusStale(status);
+  $("#serverOfflineNotice").hidden = !offline;
+
+  if (offline) {
+    $("#serverTps").textContent = "—";
+    $("#serverUptime").textContent = "—";
+    $("#serverOfflineNotice").innerHTML = status?.updated_at ? `<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> Server is offline - last online ${formatRelativeTime(status.updated_at)}` : `<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> Server is offline`;
+    renderLivePins();
+    return;
+  }
+
+  const tps = status.tps_1m != null ? status.tps_1m.toFixed(1) : "—";
+  $("#serverTps").textContent = tps;
+
+  if (status.started_at) {
+    const ms = Date.now() - new Date(status.started_at).getTime();
+    $("#serverUptime").textContent = formatUptime(ms);
+  } else {
+    $("#serverUptime").textContent = "—";
+  }
+  renderLivePins();
+}
+
+function formatUptime(ms) {
+  const totalMinutes = Math.floor(ms / 60000);
+  const days = Math.floor(totalMinutes / 1440);
+  const hours = Math.floor((totalMinutes % 1440) / 60);
+  const minutes = totalMinutes % 60;
+  const parts = [];
+  if (days) parts.push(`${days}d`);
+  if (hours || days) parts.push(`${hours}h`);
+  parts.push(`${minutes}m`);
+  return parts.join(" ");
+}
+
+subscribeServerStatus((payload) => {
+  lastServerStatus = payload.new;
+  if (currentDim === "server") renderServerStatus(lastServerStatus);
+});
+
+// Keeps "last seen"/uptime/offline text current without needing a refresh.
+// Re-checks on a self-adjusting delay: fast (1s) while anything shown is
+// under a minute old, backing off to a minute/hour/day once it's older, so
+// there's no busy-polling once nothing visible is about to change text.
+function startServerTicker() {
+  stopServerTicker();
+  tickTimer = setTimeout(tick, nextTickDelay());
+}
+
+function stopServerTicker() {
+  clearTimeout(tickTimer);
+  tickTimer = null;
+}
+
+function tick() {
+  if (currentDim !== "server") return;
+  renderServerStatus(lastServerStatus);
+  renderPlayersList(lastPlayers);
+  tickTimer = setTimeout(tick, nextTickDelay());
+}
+
+function nextTickDelay() {
+  let delay = 60000; // default: recheck every minute (covers uptime ticking)
+  for (const p of lastPlayers) {
+    if (p.online) continue;
+    const ageSec = (Date.now() - new Date(p.last_seen).getTime()) / 1000;
+    if (ageSec < 60) delay = Math.min(delay, 1000);
+    else if (ageSec < 3600) delay = Math.min(delay, 60000);
+    else if (ageSec < 86400) delay = Math.min(delay, 3600000);
+    else delay = Math.min(delay, 86400000);
+  }
+  return delay;
+}
+
+// ---------------------------------------------------------------------------
+// Players list (shown inside the Server panel)
+// ---------------------------------------------------------------------------
+
+async function loadPlayersPanel() {
+  try {
+    lastPlayers = await listPlayers();
+    renderPlayersList(lastPlayers);
+  } catch (err) {
+    console.error(err);
+    lastPlayers = [];
+    playersListEl.innerHTML = "";
+    playersEmptyEl.hidden = false;
+    playersEmptyEl.textContent = "Could not load players.";
+  }
+}
+
+function sortPlayers(players) {
+  const online = players.filter((p) => p.online).sort((a, b) => a.username.localeCompare(b.username, undefined, { sensitivity: "base" }));
+  const offline = players.filter((p) => !p.online).sort((a, b) => new Date(b.last_seen) - new Date(a.last_seen));
+  return [...online, ...offline];
+}
+
+function formatAbsoluteTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+}
+
+function renderPlayersList(players) {
+  const sorted = sortPlayers(players);
+  const dimByPlayerId = new Map(livePositions.map((p) => [p.player_id, p.dimension]));
+  playersListEl.innerHTML = "";
+  playersEmptyEl.hidden = sorted.length > 0;
+  playersEmptyEl.textContent = "No players have joined yet.";
+  for (const p of sorted) {
+    const row = document.createElement("div");
+    row.className = "players-row";
+
+    const dim = p.online ? dimByPlayerId.get(p.id) : null;
+    const dimBadge = dim ? `<span class="players-dim-badge" style="--dim-badge-color: ${DIM_COLORS[dim] || "var(--text-muted)"}">${escapeHtml(DIM_LABELS[dim] || dim)}</span>` : "";
+
+    let afkBadge = "";
+    if (p.online && p.afk) {
+      const afkTooltipAttr = p.last_moved ? ` data-tooltip="AFK for ${escapeHtml(formatUptime(Date.now() - new Date(p.last_moved).getTime()))}"` : "";
+      afkBadge = `<span class="players-badge afk"${afkTooltipAttr}>AFK</span>`;
+    }
+
+    const badgeText = p.online ? "Online" : "Offline";
+    const tooltipAttr = p.online ? "" : ` data-tooltip="Last seen ${escapeHtml(formatRelativeTime(p.last_seen))} (${escapeHtml(formatAbsoluteTime(p.last_seen))})"`;
+
+    row.innerHTML = `
+      <img class="players-avatar" src="https://mc-heads.net/avatar/${encodeURIComponent(p.username)}/64" alt="" width="32" height="32" />
+      <span class="players-username">${escapeHtml(p.username)}</span>
+      ${dimBadge}
+      ${afkBadge}
+      <span class="players-badge ${p.online ? "online" : "offline"}"${tooltipAttr}>${badgeText}</span>
+    `;
+    playersListEl.appendChild(row);
+  }
+}
+
+// Tap-to-toggle the offline badge's timestamp tooltip on touch devices
+// (desktop gets it for free via :hover in CSS).
+playersListEl.addEventListener("click", (e) => {
+  const badge = e.target.closest(".players-badge.offline, .players-badge.afk");
+  document.querySelectorAll(".players-badge.show-tooltip").forEach((el) => {
+    if (el !== badge) el.classList.remove("show-tooltip");
+  });
+  if (badge) badge.classList.toggle("show-tooltip");
+});
+
+subscribePlayers(async () => {
+  if (currentDim === "server") loadPlayersPanel();
+});
+
+// ---------------------------------------------------------------------------
+// Whitelist panel (owner-only; RLS enforces this server-side too). Reads a
+// read-only mirror of the server's real whitelist; add/remove go through a
+// request queue the plugin executes as real /whitelist commands.
+// ---------------------------------------------------------------------------
+
+async function loadWhitelistPanel() {
+  if (!Auth.can("manageWhitelist")) return;
+  try {
+    const [entries, pending] = await Promise.all([listWhitelist(), listPendingWhitelistCommands()]);
+    renderWhitelist(entries, pending);
+  } catch (err) {
+    console.error(err);
+    whitelistListEl.innerHTML = "";
+    whitelistEmptyEl.hidden = false;
+    whitelistEmptyEl.textContent = "Could not load whitelist.";
+  }
+}
+
+function renderWhitelist(entries, pending) {
+  whitelistListEl.innerHTML = "";
+  whitelistEmptyEl.hidden = entries.length + pending.length > 0;
+
+  for (const entry of entries) {
+    const row = document.createElement("div");
+    row.className = "whitelist-row";
+    row.innerHTML = `
+      <img class="whitelist-avatar" src="https://mc-heads.net/avatar/${encodeURIComponent(entry.username)}/64" alt="" width="24" height="24" />
+      <span class="whitelist-username">${escapeHtml(entry.username)}</span>
+      <button class="whitelist-remove-btn" type="button" data-username="${escapeHtml(entry.username)}" title="Remove" aria-label="Remove ${escapeHtml(entry.username)}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+    `;
+    whitelistListEl.appendChild(row);
+  }
+
+  for (const cmd of pending) {
+    const row = document.createElement("div");
+    row.className = "whitelist-row whitelist-row--pending";
+    row.innerHTML = `
+      <img class="whitelist-avatar" src="https://mc-heads.net/avatar/${encodeURIComponent(cmd.username)}/64" alt="" width="24" height="24" />
+      <span class="whitelist-username">${escapeHtml(cmd.username)}</span>
+      <button class="whitelist-cancel-btn" type="button" data-command-id="${cmd.id}" title="Cancel request" aria-label="Cancel request for ${escapeHtml(cmd.username)}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+    `;
+    whitelistListEl.appendChild(row);
+  }
+}
+
+subscribeWhitelist(() => {
+  if (currentDim === "whitelist") loadWhitelistPanel();
+});
+
+subscribeWhitelistCommands((payload) => {
+  if (payload.eventType === "UPDATE" && payload.new.status === "failed") {
+    const verb = payload.new.action === "remove" ? "remove" : "add";
+    toast(`Could not ${verb} "${payload.new.username}" - the command failed on the server.`, "error");
+  }
+  if (currentDim === "whitelist") loadWhitelistPanel();
+});
+
+$("#whitelistForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const input = $("#whitelistUsername");
+  const username = input.value.trim();
+  if (!username) return;
+  try {
+    await requestWhitelistAdd(username);
+    input.value = "";
+    toast("Requested - applies within a few seconds.", "success");
+    loadWhitelistPanel();
+  } catch (err) {
+    toast(err.message || "Could not request add.", "error");
+  }
+});
+
+whitelistListEl.addEventListener("click", async (e) => {
+  const removeBtn = e.target.closest(".whitelist-remove-btn");
+  const cancelBtn = e.target.closest(".whitelist-cancel-btn");
+
+  if (removeBtn) {
+    const ok = await confirmAction(`Remove "${removeBtn.dataset.username}" from the whitelist?`);
+    if (!ok) return;
+    try {
+      await requestWhitelistRemove(removeBtn.dataset.username);
+      toast("Requested - applies within a few seconds.", "success");
+      loadWhitelistPanel();
+    } catch (err) {
+      toast(err.message || "Could not request removal.", "error");
+    }
+    return;
+  }
+
+  if (cancelBtn) {
+    const ok = await confirmAction("Cancel this pending request?");
+    if (!ok) return;
+    try {
+      await cancelWhitelistCommand(cancelBtn.dataset.commandId);
+      toast("Request canceled.", "success");
+      loadWhitelistPanel();
+    } catch (err) {
+      toast(err.message || "Could not cancel request.", "error");
+    }
+  }
+});
 
 document.querySelectorAll(".server-copy").forEach((button) => {
   button.addEventListener("click", () => {
     const value = $("#" + button.dataset.copySource).textContent;
     copyTextToClipboard(value, button);
   });
-});
-
-$("#serverSaveBtn").addEventListener("click", async () => {
-  const msg = $("#serverSaveMsg");
-  msg.textContent = "";
-  msg.className = "form-msg";
-  try {
-    await setServerInfo("hostname", $("#serverHostnameInput").value.trim());
-    await setServerInfo("ip", $("#serverIpInput").value.trim());
-    msg.textContent = "Saved.";
-    msg.className = "form-msg success";
-    await loadServerPanel();
-  } catch (err) {
-    msg.textContent = err.message || "Could not save.";
-  }
 });
 
 // ---------------------------------------------------------------------------
@@ -1492,7 +2041,6 @@ function buildLogDetailsPanel(log) {
   const snapshot = isUpdate ? null : log.changes;
   let fields = LOG_DETAIL_FIELDS[log.entity_type] || [];
   if (isUpdate) {
-    // Not editable, so they can't have changed — no point showing them in an edit's before/after.
     fields = fields.filter((field) => field.key !== "created_by_username" && field.key !== "created_at");
   }
 
@@ -1621,15 +2169,49 @@ function renderLogs() {
     return true;
   });
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / LOGS_PER_PAGE));
+  logsCurrentPage = Math.min(Math.max(1, logsCurrentPage), totalPages);
+  const pageItems = filtered.slice((logsCurrentPage - 1) * LOGS_PER_PAGE, logsCurrentPage * LOGS_PER_PAGE);
+
   logsListEl.innerHTML = "";
   logsEmptyEl.hidden = filtered.length !== 0;
 
   const frag = document.createDocumentFragment();
-  for (const log of filtered) {
+  for (const log of pageItems) {
     frag.appendChild(buildLogEntry(log));
   }
   logsListEl.appendChild(frag);
+
+  renderLogsPagination(totalPages, filtered.length);
 }
+
+const LOGS_PER_PAGE = 20;
+let logsCurrentPage = 1;
+
+function renderLogsPagination(totalPages, totalCount) {
+  logsPaginationEl.hidden = totalCount === 0;
+  logsPageInputEl.value = logsCurrentPage;
+  logsPageInputEl.max = totalPages;
+  logsPageTotalEl.textContent = totalPages;
+  logsFirstPageBtn.disabled = logsCurrentPage <= 1;
+  logsPrevPageBtn.disabled = logsCurrentPage <= 1;
+  logsNextPageBtn.disabled = logsCurrentPage >= totalPages;
+  logsLastPageBtn.disabled = logsCurrentPage >= totalPages;
+}
+
+function goToLogsPage(page) {
+  logsCurrentPage = page;
+  renderLogs();
+}
+
+logsFirstPageBtn.addEventListener("click", () => goToLogsPage(1));
+logsPrevPageBtn.addEventListener("click", () => goToLogsPage(logsCurrentPage - 1));
+logsNextPageBtn.addEventListener("click", () => goToLogsPage(logsCurrentPage + 1));
+logsLastPageBtn.addEventListener("click", () => goToLogsPage(Number(logsPageInputEl.max) || 1));
+logsPageInputEl.addEventListener("change", () => {
+  const page = Math.round(Number(logsPageInputEl.value));
+  goToLogsPage(Number.isFinite(page) && page > 0 ? page : 1);
+});
 
 function buildLogEntry(log) {
   const item = document.createElement("div");
@@ -1644,11 +2226,17 @@ function buildLogEntry(log) {
 
   const summary = document.createElement("div");
   summary.className = "log-entry-summary";
-  const actionLabel = LOG_ACTION_LABELS[log.action] || log.action;
-  const entityLabel = log.entity_type === "waypoint" ? "waypoint" : "category";
-  const dimColor = log.dimension ? DIM_COLORS[log.dimension] : null;
-  const dimBadge = log.dimension ? ` <span class="log-entry-dim" style="--dim-badge-color: ${dimColor || "var(--text-muted)"}">${escapeHtml(DIM_LABELS[log.dimension] || log.dimension)}</span>` : "";
-  summary.innerHTML = `<span class="log-entry-user">${escapeHtml(log.username || "Unknown user")}</span> ${actionLabel} ${entityLabel} <span class="log-entry-name">"${escapeHtml(log.entity_name || "Unnamed")}"</span>${dimBadge}`;
+  if (log.entity_type === "whitelist") {
+    const verb = log.action === "delete" ? "removed" : "added";
+    const prep = log.action === "delete" ? "from" : "to";
+    summary.innerHTML = `<span class="log-entry-user">${escapeHtml(log.username || "Unknown user")}</span> ${verb} <span class="log-entry-user">${escapeHtml(log.entity_name || "unknown")}</span> ${prep} the whitelist`;
+  } else {
+    const actionLabel = LOG_ACTION_LABELS[log.action] || log.action;
+    const entityLabel = log.entity_type === "waypoint" ? "waypoint" : "category";
+    const dimColor = log.dimension ? DIM_COLORS[log.dimension] : null;
+    const dimBadge = log.dimension ? ` <span class="log-entry-dim" style="--dim-badge-color: ${dimColor || "var(--text-muted)"}">${escapeHtml(DIM_LABELS[log.dimension] || log.dimension)}</span>` : "";
+    summary.innerHTML = `<span class="log-entry-user">${escapeHtml(log.username || "Unknown user")}</span> ${actionLabel} ${entityLabel} <span class="log-entry-name">"${escapeHtml(log.entity_name || "Unnamed")}"</span>${dimBadge}`;
+  }
 
   const meta = document.createElement("div");
   meta.className = "log-entry-meta";
@@ -1678,21 +2266,24 @@ function buildLogEntry(log) {
     entryActions.appendChild(jumpBtn);
   }
 
-  const detailsPanel = buildLogDetailsPanel(log);
-  const detailsToggleBtn = document.createElement("button");
-  detailsToggleBtn.type = "button";
-  detailsToggleBtn.className = "log-entry-details-toggle";
-  detailsToggleBtn.innerHTML = `<i class="fa-solid fa-chevron-down" aria-hidden="true"></i> Details`;
-  detailsToggleBtn.addEventListener("click", (event) => {
-    event.stopPropagation();
-    const willOpen = !detailsPanel.classList.contains("is-open");
-    detailsPanel.classList.toggle("is-open", willOpen);
-    detailsToggleBtn.classList.toggle("is-open", willOpen);
-  });
-  entryActions.appendChild(detailsToggleBtn);
-
-  body.appendChild(entryActions);
-  body.appendChild(detailsPanel);
+  if (log.entity_type !== "whitelist") {
+    const detailsPanel = buildLogDetailsPanel(log);
+    const detailsToggleBtn = document.createElement("button");
+    detailsToggleBtn.type = "button";
+    detailsToggleBtn.className = "log-entry-details-toggle";
+    detailsToggleBtn.innerHTML = `<i class="fa-solid fa-chevron-down" aria-hidden="true"></i> Details`;
+    detailsToggleBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const willOpen = !detailsPanel.classList.contains("is-open");
+      detailsPanel.classList.toggle("is-open", willOpen);
+      detailsToggleBtn.classList.toggle("is-open", willOpen);
+    });
+    entryActions.appendChild(detailsToggleBtn);
+    body.appendChild(entryActions);
+    body.appendChild(detailsPanel);
+  } else {
+    body.appendChild(entryActions);
+  }
 
   item.append(icon, body);
   return item;
@@ -1710,7 +2301,7 @@ async function jumpToLogWaypoint(log) {
 }
 
 function updateLogDimensionFilterVisibility() {
-  const hideDimension = logEntityFilterEl.value === "category";
+  const hideDimension = logEntityFilterEl.value === "category" || logEntityFilterEl.value === "whitelist";
   logDimensionFilterEl.hidden = hideDimension;
   if (hideDimension && logDimensionFilterEl.value) {
     logDimensionFilterEl.value = "";
@@ -1723,6 +2314,7 @@ function updateLogsFiltersDot() {
 }
 
 function applyLogFilterChange() {
+  logsCurrentPage = 1;
   updateLogsFiltersDot();
   renderLogs();
 }
@@ -1737,7 +2329,10 @@ logsFiltersToggleBtn.addEventListener("click", () => {
 let logFilterDebounce = null;
 logSearchEl.addEventListener("input", () => {
   window.clearTimeout(logFilterDebounce);
-  logFilterDebounce = window.setTimeout(renderLogs, 150);
+  logFilterDebounce = window.setTimeout(() => {
+    logsCurrentPage = 1;
+    renderLogs();
+  }, 150);
 });
 logEntityFilterEl.addEventListener("change", () => {
   updateLogDimensionFilterVisibility();

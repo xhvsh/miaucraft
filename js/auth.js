@@ -48,6 +48,7 @@ export function can(action) {
     case "editServerInfo":
     case "editAnyWaypoint":
     case "manageCategories":
+    case "manageWhitelist":
       return r === "owner";
     default:
       return false;

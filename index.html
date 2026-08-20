@@ -25,9 +25,17 @@
               <i class="fa-solid fa-tags" aria-hidden="true"></i>
               <span class="dim-tab-label">Categories</span>
             </button>
-            <button class="dim-tab dim-tab--server" data-dim="server" hidden>
+            <button class="dim-tab dim-tab--whitelist" data-dim="whitelist" hidden>
+              <i class="fa-solid fa-list-check" aria-hidden="true"></i>
+              <span class="dim-tab-label">Whitelist</span>
+            </button>
+            <button class="dim-tab dim-tab--server" data-dim="server">
               <i class="fa-solid fa-server" aria-hidden="true"></i>
-              <span class="dim-tab-label">Server</span>
+              <span class="dim-tab-label">Server Info</span>
+            </button>
+            <button class="dim-tab dim-tab--leaderboards" data-dim="leaderboards">
+              <i class="fa-solid fa-trophy" aria-hidden="true"></i>
+              <span class="dim-tab-label">Leaderboards</span>
             </button>
             <button class="dim-tab dim-tab--logs" data-dim="logs" hidden>
               <i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i>
@@ -52,7 +60,9 @@
               <option value="nether">Nether</option>
               <option value="end">End</option>
               <option value="categories" id="dimSelectCategories" hidden>Categories</option>
-              <option value="server" id="dimSelectServer" hidden>Server</option>
+              <option value="whitelist" id="dimSelectWhitelist" hidden>Whitelist</option>
+              <option value="server">Server Info</option>
+              <option value="leaderboards">Leaderboards</option>
               <option value="logs" id="dimSelectLogs" hidden>Logs</option>
               <option value="settings">Settings</option>
             </select>
@@ -95,7 +105,16 @@
 
         <section class="server-panel" id="serverPanel" hidden>
           <div class="server-card">
-            <h2>Server</h2>
+            <h2>Server Info</h2>
+            <div class="server-offline-notice" id="serverOfflineNotice" hidden><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> Server is offline</div>
+            <div class="server-field">
+              <span class="server-field-label">TPS</span>
+              <span class="server-field-value" id="serverTps">—</span>
+            </div>
+            <div class="server-field">
+              <span class="server-field-label">Uptime</span>
+              <span class="server-field-value" id="serverUptime">—</span>
+            </div>
             <div class="server-field">
               <span class="server-field-label">Hostname</span>
               <span class="server-field-value" id="serverHostname">Not set</span>
@@ -108,21 +127,29 @@
             </div>
             <div class="server-field">
               <span class="server-field-label">Version</span>
-              <span class="server-field-value" id="serverVersion">—</span>
+              <span class="server-field-value" id="serverVersion">Java 1.21.11</span>
             </div>
-            <div class="server-edit" id="serverEdit" hidden>
-              <h3>Edit</h3>
-              <label>
-                Hostname
-                <input type="text" id="serverHostnameInput" autocomplete="off" />
-              </label>
-              <label>
-                Numeric IP
-                <input type="text" id="serverIpInput" autocomplete="off" />
-              </label>
-              <button class="btn btn-primary" id="serverSaveBtn" type="button">Save</button>
-              <span class="form-msg" id="serverSaveMsg"></span>
+          </div>
+
+          <div class="players-tab-card">
+            <h2>Players</h2>
+            <div class="players-list" id="playersList"></div>
+            <div class="players-empty" id="playersEmpty" hidden>No players have joined yet.</div>
+          </div>
+        </section>
+
+        <section class="leaderboards-tab-panel" id="leaderboardsTabPanel" hidden>
+          <div class="leaderboards-tab-card">
+            <h2>Leaderboards</h2>
+            <div class="leaderboard-stat-chips" id="leaderboardStatChips"></div>
+            <div class="leaderboard-custom-row" id="leaderboardCustomRow" hidden>
+              <input type="text" id="leaderboardCustomInput" list="leaderboardStatKeysList" placeholder="Search a statistic..." autocomplete="off" />
+              <datalist id="leaderboardStatKeysList"></datalist>
             </div>
+            <div class="leaderboard-stat-title" id="leaderboardStatTitle"></div>
+            <div class="leaderboard-list" id="leaderboardList"></div>
+            <div class="leaderboard-empty" id="leaderboardEmpty" hidden>No data yet for this statistic.</div>
+            <div class="leaderboard-loading" id="leaderboardLoading" hidden>Loading…</div>
           </div>
         </section>
 
@@ -149,8 +176,19 @@
                 <button class="btn btn-primary" type="submit" id="catSubmitBtn">Add category</button>
                 <button class="btn btn-ghost" id="catCancelEditBtn" type="button" hidden>Cancel</button>
               </div>
-              <span class="form-msg" id="categoryMsg"></span>
             </form>
+          </div>
+        </section>
+
+        <section class="whitelist-tab-panel" id="whitelistTabPanel" hidden>
+          <div class="whitelist-tab-card">
+            <h2>Whitelist</h2>
+            <form class="whitelist-form" id="whitelistForm">
+              <input type="text" id="whitelistUsername" placeholder="Minecraft username" maxlength="16" autocomplete="off" required />
+              <button class="btn btn-primary" type="submit">Add</button>
+            </form>
+            <div class="whitelist-list" id="whitelistList"></div>
+            <div class="whitelist-empty" id="whitelistEmpty" hidden>Whitelist is empty.</div>
           </div>
         </section>
 
@@ -173,6 +211,7 @@
                   <option value="">All types</option>
                   <option value="waypoint">Waypoint</option>
                   <option value="category">Category</option>
+                  <option value="whitelist">Whitelist</option>
                 </select>
                 <select class="settings-select" id="logUserFilter" aria-label="Filter by user">
                   <option value="">All users</option>
@@ -194,6 +233,13 @@
             <div class="logs-list" id="logsList"></div>
             <div class="logs-empty" id="logsEmpty" hidden>No logs match your filters.</div>
             <div class="logs-loading" id="logsLoading" hidden>Loading logs…</div>
+            <div class="logs-pagination" id="logsPagination" hidden>
+              <button class="logs-page-btn" id="logsFirstPageBtn" type="button" aria-label="First page" title="First page"><i class="fa-solid fa-angles-left" aria-hidden="true"></i></button>
+              <button class="logs-page-btn" id="logsPrevPageBtn" type="button" aria-label="Previous page" title="Previous page"><i class="fa-solid fa-angle-left" aria-hidden="true"></i></button>
+              <span class="logs-page-indicator"> Page <input type="number" id="logsPageInput" min="1" value="1" aria-label="Page number" /> of <span id="logsPageTotal">1</span> </span>
+              <button class="logs-page-btn" id="logsNextPageBtn" type="button" aria-label="Next page" title="Next page"><i class="fa-solid fa-angle-right" aria-hidden="true"></i></button>
+              <button class="logs-page-btn" id="logsLastPageBtn" type="button" aria-label="Last page" title="Last page"><i class="fa-solid fa-angles-right" aria-hidden="true"></i></button>
+            </div>
           </div>
         </section>
 
@@ -266,7 +312,6 @@
             </span>
           </label>
           <button class="btn btn-primary" type="submit">Sign in</button>
-          <span class="form-msg" id="loginMsg"></span>
         </form>
 
         <form class="modal-form" id="registerForm" hidden>
@@ -293,7 +338,6 @@
             <input type="text" id="registerCode" autocomplete="off" required />
           </label>
           <button class="btn btn-primary" type="submit">Create account</button>
-          <span class="form-msg" id="registerMsg"></span>
         </form>
       </div>
     </div>
@@ -360,7 +404,6 @@
               <i class="fa-solid fa-trash" aria-hidden="true"></i>
             </button>
           </div>
-          <span class="form-msg" id="waypointMsg"></span>
         </form>
       </div>
     </div>

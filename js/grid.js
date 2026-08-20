@@ -6,6 +6,11 @@ const PIN_HIT_RADIUS = 20;
 const PIN_HIT_RADIUS_TOUCH = 28;
 const PIN_ICON_HEIGHT = 24;
 const TOUCH_TAP_MOVE_THRESHOLD = 10;
+const PLAYER_ANIM_DURATION_MS = 1000; // glide duration for live position updates (arrive every ~2s server-side)
+
+function easeOutCubic(t) {
+  return 1 - Math.pow(1 - t, 3);
+}
 
 function pickSpacing(scale) {
   for (const s of NICE_SPACINGS) {
@@ -36,6 +41,10 @@ export class Grid {
     this.scale = 0.5; // screen px per block
 
     this.waypoints = [];
+    this.players = [];
+    this.playerHeadCache = new Map(); // username -> HTMLImageElement
+    this.playerAnimations = new Map(); // player id -> {username, fromX, fromZ, toX, toZ, startTime, duration}
+    this._playerAnimFrame = null;
     this.hoveredWaypoint = null;
 
     this._dragging = false;
@@ -74,6 +83,92 @@ export class Grid {
   setWaypoints(waypoints) {
     this.waypoints = waypoints;
     this.draw();
+  }
+
+  setPlayers(players) {
+    this.players = players;
+    const now = performance.now();
+    const incomingIds = new Set();
+
+    for (const player of players) {
+      incomingIds.add(player.id);
+
+      if (!this.playerHeadCache.has(player.username)) {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = () => this.draw();
+        img.src = `https://mc-heads.net/avatar/${encodeURIComponent(player.username)}/64`;
+        this.playerHeadCache.set(player.username, img);
+      }
+
+      const prev = this.playerAnimations.get(player.id);
+      if (!prev) {
+        // BRANCH 1: new player, never animated before
+        this.playerAnimations.set(player.id, {
+          username: player.username,
+          afk: player.afk, // <-- ADD THIS LINE
+          fromX: player.x,
+          fromZ: player.z,
+          toX: player.x,
+          toZ: player.z,
+          startTime: now,
+          duration: 0,
+        });
+        continue;
+      }
+
+      // BRANCH 2: player already had an animation running - glide from
+      // their current visual position to the new target
+      const t = prev.duration > 0 ? Math.min(1, (now - prev.startTime) / prev.duration) : 1;
+      const eased = easeOutCubic(t);
+      const currentX = prev.fromX + (prev.toX - prev.fromX) * eased;
+      const currentZ = prev.fromZ + (prev.toZ - prev.fromZ) * eased;
+
+      this.playerAnimations.set(player.id, {
+        username: player.username,
+        afk: player.afk, // <-- ADD THIS LINE
+        fromX: currentX,
+        fromZ: currentZ,
+        toX: player.x,
+        toZ: player.z,
+        startTime: now,
+        duration: PLAYER_ANIM_DURATION_MS,
+      });
+    }
+
+    for (const id of [...this.playerAnimations.keys()]) {
+      if (!incomingIds.has(id)) this.playerAnimations.delete(id);
+    }
+
+    this._ensurePlayerAnimationLoop();
+    this.draw();
+  }
+
+  _currentPlayerPositions() {
+    const now = performance.now();
+    const positions = [];
+    for (const anim of this.playerAnimations.values()) {
+      const t = anim.duration > 0 ? Math.min(1, (now - anim.startTime) / anim.duration) : 1;
+      const eased = easeOutCubic(t);
+      positions.push({
+        username: anim.username,
+        afk: anim.afk, // <-- ADD THIS
+        x: anim.fromX + (anim.toX - anim.fromX) * eased,
+        z: anim.fromZ + (anim.toZ - anim.fromZ) * eased,
+      });
+    }
+    return positions;
+  }
+
+  _ensurePlayerAnimationLoop() {
+    if (this._playerAnimFrame) return;
+    const step = () => {
+      this.draw();
+      const now = performance.now();
+      const stillAnimating = [...this.playerAnimations.values()].some((a) => now - a.startTime < a.duration);
+      this._playerAnimFrame = stillAnimating ? requestAnimationFrame(step) : null;
+    };
+    this._playerAnimFrame = requestAnimationFrame(step);
   }
 
   recenter() {
@@ -465,6 +560,44 @@ export class Grid {
       ctx.textAlign = "left";
       ctx.textBaseline = "top";
       ctx.fillText(this.hoveredWaypoint.name, labelX + paddingX, labelY + paddingY);
+      ctx.restore();
+    }
+
+    // live player markers - square head icon w/ white outline, username
+    // below, distinct from the waypoint pin icon above
+    const HEAD_SIZE = 24;
+    for (const player of this._currentPlayerPositions()) {
+      const p = this.worldToScreen(player.x, player.z);
+      if (p.x < -30 || p.x > w + 30 || p.y < -30 || p.y > h + 30) continue;
+
+      const img = this.playerHeadCache.get(player.username);
+      const left = p.x - HEAD_SIZE / 2;
+      const top = p.y - HEAD_SIZE / 2;
+      ctx.save();
+      if (player.afk) ctx.globalAlpha = 0.5;
+      if (img && img.complete && img.naturalWidth > 0) {
+        ctx.drawImage(img, left, top, HEAD_SIZE, HEAD_SIZE);
+      } else {
+        ctx.fillStyle = "#4ade80";
+        ctx.fillRect(left, top, HEAD_SIZE, HEAD_SIZE);
+      }
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = "#ffffff";
+      ctx.strokeRect(left + 0.5, top + 0.5, HEAD_SIZE - 1, HEAD_SIZE - 1);
+      ctx.restore();
+
+      const label = player.afk ? `${player.username} (AFK)` : player.username;
+
+      const HEAD_RADIUS = HEAD_SIZE / 2;
+      ctx.save();
+      ctx.font = "11px 'Inter', system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      ctx.strokeStyle = "rgba(10, 10, 15, 0.9)";
+      ctx.lineWidth = 3;
+      ctx.strokeText(label, p.x, p.y + HEAD_RADIUS + 4);
+      ctx.fillStyle = "rgba(232, 230, 240, 0.95)";
+      ctx.fillText(label, p.x, p.y + HEAD_RADIUS + 4);
       ctx.restore();
     }
   }
