@@ -1660,9 +1660,11 @@ input[type="number"] {
 }
 
 .leaderboard-chip {
+  display: inline-flex;
   align-items: center;
   gap: 7px;
   appearance: none;
+  flex: 0 1 auto;
   border: 1px solid var(--border);
   background: transparent;
   color: var(--text-muted);
@@ -1672,6 +1674,7 @@ input[type="number"] {
   padding: 7px 11px;
   border-radius: 7px;
   cursor: pointer;
+  white-space: nowrap;
   transition:
     color 0.15s,
     background 0.15s,
