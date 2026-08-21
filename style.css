@@ -642,6 +642,8 @@ input {
   gap: 20px;
   padding: 60px 20px;
   overflow-y: auto;
+  padding-bottom: 100px !important;
+  background: red !important;
 }
 
 .server-card {
