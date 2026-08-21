@@ -3156,7 +3156,7 @@ input.stat-picker-input:focus-visible {
   }
 
   .waypoint-list {
-    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+    padding-bottom: 20px;
   }
 
   .server-panel,
@@ -3166,7 +3166,7 @@ input.stat-picker-input:focus-visible {
   .whitelist-tab-panel,
   .logs-tab-panel,
   .settings-tab-panel {
-    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+    padding-bottom: 20px;
     padding-top: 20px;
   }
 
