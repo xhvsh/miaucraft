@@ -3156,7 +3156,7 @@ input.stat-picker-input:focus-visible {
   }
 
   .waypoint-list {
-    padding-bottom: 50px;
+    padding-bottom: 100px;
   }
 
   .server-panel,
@@ -3166,7 +3166,7 @@ input.stat-picker-input:focus-visible {
   .whitelist-tab-panel,
   .logs-tab-panel,
   .settings-tab-panel {
-    padding-bottom: 50px;
+    padding-bottom: 100px;
     padding-top: 20px;
   }
 
