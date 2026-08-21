@@ -1,8 +1,5 @@
 import { supabase } from "./supabaseClient.js";
 
-// Set to "test" locally (after running 002_test_schema.sql) to develop
-// against isolated tables without touching production data or needing a
-// second Supabase project. Leave as "public" for the real deployment.
 const SCHEMA = "public";
 
 const db = (table) => (SCHEMA === "public" ? supabase.from(table) : supabase.schema(SCHEMA).from(table));
@@ -73,6 +70,18 @@ export async function listStatKeys() {
   }
 
   return allKeys;
+}
+
+// Sums every "*_CM" distance stat per player server-side (WALK_ONE_CM,
+// SPRINT_ONE_CM, AVIATE_ONE_CM, BOAT_ONE_CM, etc.) via the distance_leaderboard
+// RPC, rather than a single stat_key lookup. Shaped to match listPlayerStats's
+// row shape ({ stat_value, players: { username } }) so it drops straight into
+// the existing leaderboard row renderer.
+export async function listDistanceLeaderboard(limit = 10) {
+  const query = SCHEMA === "public" ? supabase.rpc("distance_leaderboard", { limit_count: limit }) : supabase.schema(SCHEMA).rpc("distance_leaderboard", { limit_count: limit });
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data ?? []).map((row) => ({ stat_value: row.stat_value, players: { username: row.username } }));
 }
 
 // ---------------------------------------------------------------------------

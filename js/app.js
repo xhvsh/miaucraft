@@ -1,7 +1,7 @@
 import * as Auth from "./auth.js";
 import { Grid } from "./grid.js";
 import { listWaypoints, createWaypoint, updateWaypoint, deleteWaypoint, getServerInfo, listCategories, createCategory, updateCategory, deleteCategory, listLogs } from "./waypoints.js";
-import { listPlayers, subscribePlayers, listLivePositions, subscribeLivePositions, getServerStatus, subscribeServerStatus, listWhitelist, subscribeWhitelist, requestWhitelistAdd, requestWhitelistRemove, listPendingWhitelistCommands, subscribeWhitelistCommands, cancelWhitelistCommand, listPlayerStats, listStatKeys } from "./live.js";
+import { listPlayers, subscribePlayers, listLivePositions, subscribeLivePositions, getServerStatus, subscribeServerStatus, listWhitelist, subscribeWhitelist, requestWhitelistAdd, requestWhitelistRemove, listPendingWhitelistCommands, subscribeWhitelistCommands, cancelWhitelistCommand, listPlayerStats, listStatKeys, listDistanceLeaderboard } from "./live.js";
 
 const DIM_COLORS = {
   overworld: "#4ade80",
@@ -154,7 +154,6 @@ const logsPageTotalEl = $("#logsPageTotal");
 
 const leaderboardsTabPanel = $("#leaderboardsTabPanel");
 const leaderboardStatChipsEl = $("#leaderboardStatChips");
-const leaderboardCustomRowEl = $("#leaderboardCustomRow");
 const leaderboardCustomInputEl = $("#leaderboardCustomInput");
 const leaderboardStatTitleEl = $("#leaderboardStatTitle");
 const statPickerEl = $("#statPicker");
@@ -1450,13 +1449,17 @@ $("#waypointForm").addEventListener("submit", async (e) => {
 // ---------------------------------------------------------------------------
 
 const PRESET_STATS = [
-  { id: "damage_dealt", label: "Damage Dealt", keys: ["DAMAGE_DEALT"], format: "damage" },
-  { id: "elytra_distance", label: "Elytra Distance", keys: ["AVIATE_ONE_CM"], format: "distance" },
+  // aggregateCm: true sums every "*_CM" stat (WALK_ONE_CM, SPRINT_ONE_CM,
+  // AVIATE_ONE_CM, BOAT_ONE_CM, etc.) via the distance_leaderboard RPC,
+  // instead of pointing at one specific movement-type stat key.
+  { id: "distance_traveled", label: "Distance Traveled", aggregateCm: true, format: "distance" },
   { id: "jumps", label: "Jumps", keys: ["JUMP"], format: "count" },
   { id: "mob_kills", label: "Mob Kills", keys: ["MOB_KILLS_TOTAL", "MOB_KILLS"], format: "count" },
   { id: "time_played", label: "Time Played", keys: ["PLAY_ONE_MINUTE", "TIME_PLAYED"], format: "time" },
+  { id: "player_deaths", label: "Deaths", keys: ["DEATHS"], format: "count" },
+  { id: "shulker_boxes_opened", label: "Shulker Boxes Opened", keys: ["SHULKER_BOX_OPENED"], format: "count" },
+  { id: "crafting_table_interactions", label: "Crafting Table Interactions", keys: ["CRAFTING_TABLE_INTERACTION"], format: "count" },
   { id: "blocks_mined", label: "Blocks Mined", keys: ["BLOCKS_MINED_TOTAL"], format: "count" },
-  { id: "piglin_kills", label: "Piglin Kills", keys: ["KILL_ENTITY:ZOMBIFIED_PIGLIN", "KILL_ENTITY:ZOMBIE_PIGMAN"], format: "count" },
 ];
 
 // Bukkit/Minecraft statistic key -> human-readable name, matching the
@@ -1525,26 +1528,21 @@ function renderLeaderboardChips() {
     chip.addEventListener("click", () => selectLeaderboardStat(stat.id));
     leaderboardStatChipsEl.appendChild(chip);
   }
-  const customChip = document.createElement("button");
-  customChip.type = "button";
-  customChip.className = "leaderboard-chip leaderboard-chip--custom";
-  customChip.dataset.active = String(activeLeaderboardStatId === "custom");
-  customChip.innerHTML = `<span>Custom</span>`;
-  customChip.addEventListener("click", () => selectLeaderboardStat("custom"));
-  leaderboardStatChipsEl.appendChild(customChip);
+  // The "Custom" option is the always-visible search chip (#statPicker)
+  // rather than a discrete pill here - just keep its active styling in sync.
+  statPickerEl.dataset.active = String(activeLeaderboardStatId === "custom");
 }
 
 async function selectLeaderboardStat(id) {
   activeLeaderboardStatId = id;
   renderLeaderboardChips();
-  leaderboardCustomRowEl.hidden = id !== "custom";
 
   if (id === "custom") {
     await ensureStatKeysLoaded();
     const key = leaderboardCustomInputEl.value.trim();
     if (key) {
       leaderboardStatTitleEl.textContent = getStatDisplayName(key);
-      loadLeaderboard([key], "count");
+      loadLeaderboard(() => listPlayerStats([key], 10), "count");
     } else {
       leaderboardStatTitleEl.textContent = "";
       leaderboardListEl.innerHTML = "";
@@ -1557,7 +1555,11 @@ async function selectLeaderboardStat(id) {
   const preset = PRESET_STATS.find((s) => s.id === id);
   if (preset) {
     leaderboardStatTitleEl.textContent = "";
-    loadLeaderboard(preset.keys, preset.format);
+    if (preset.aggregateCm) {
+      loadLeaderboard(() => listDistanceLeaderboard(10), preset.format);
+    } else {
+      loadLeaderboard(() => listPlayerStats(preset.keys, 10), preset.format);
+    }
   }
 }
 
@@ -1565,7 +1567,17 @@ async function ensureStatKeysLoaded() {
   if (statKeysLoaded) return;
   try {
     const keys = await listStatKeys();
-    allStatKeys = keys.map((k) => ({ key: k.stat_key, name: getStatDisplayName(k.stat_key) }));
+    allStatKeys = keys.map((k) => {
+      const name = getStatDisplayName(k.stat_key);
+      // Search blob includes both the friendly name AND the raw key (with
+      // separators turned into spaces) because they don't share vocabulary -
+      // e.g. USE_ITEM maps to the label "Used", so "used: diamond leggings"
+      // alone doesn't contain "item" and wouldn't match someone searching
+      // "use item". Folding the raw key in fixes that without changing the
+      // display label itself.
+      const search = `${name} ${k.stat_key.replace(/[_:]/g, " ")}`.toLowerCase();
+      return { key: k.stat_key, name, search };
+    });
     allStatKeys.sort((a, b) => a.name.localeCompare(b.name));
     statKeysLoaded = true;
   } catch (err) {
@@ -1581,16 +1593,43 @@ async function ensureStatKeysLoaded() {
 
 const STAT_PICKER_RENDER_LIMIT = 50;
 
-function highlightMatch(text, query) {
-  if (!query) return escapeHtml(text);
-  const idx = text.toLowerCase().indexOf(query);
-  if (idx === -1) return escapeHtml(text);
-  return `${escapeHtml(text.slice(0, idx))}<mark>${escapeHtml(text.slice(idx, idx + query.length))}</mark>${escapeHtml(text.slice(idx + query.length))}`;
+function highlightMatch(text, tokens) {
+  if (!tokens.length) return escapeHtml(text);
+  // Highlight every position where any single token matches, not just one
+  // exact phrase - matches the AND-of-tokens search logic above.
+  const ranges = [];
+  const lower = text.toLowerCase();
+  for (const t of tokens) {
+    let from = 0;
+    let idx;
+    while ((idx = lower.indexOf(t, from)) !== -1) {
+      ranges.push([idx, idx + t.length]);
+      from = idx + t.length;
+    }
+  }
+  if (ranges.length === 0) return escapeHtml(text);
+  ranges.sort((a, b) => a[0] - b[0]);
+  const merged = [ranges[0]];
+  for (const [start, end] of ranges.slice(1)) {
+    const last = merged[merged.length - 1];
+    if (start <= last[1]) last[1] = Math.max(last[1], end);
+    else merged.push([start, end]);
+  }
+  let result = "";
+  let cursor = 0;
+  for (const [start, end] of merged) {
+    result += escapeHtml(text.slice(cursor, start));
+    result += `<mark>${escapeHtml(text.slice(start, end))}</mark>`;
+    cursor = end;
+  }
+  result += escapeHtml(text.slice(cursor));
+  return result;
 }
 
 function renderStatPickerOptions(rawQuery) {
   const query = rawQuery.trim().toLowerCase();
-  const matches = query ? allStatKeys.filter((s) => s.key.toLowerCase().includes(query) || s.name.toLowerCase().includes(query)) : allStatKeys;
+  const tokens = query.split(/\s+/).filter(Boolean);
+  const matches = tokens.length === 0 ? allStatKeys : allStatKeys.filter((s) => tokens.every((t) => s.search.includes(t)));
 
   statPickerMenuEl.innerHTML = "";
   statPickerHighlighted = -1;
@@ -1611,7 +1650,7 @@ function renderStatPickerOptions(rawQuery) {
     opt.setAttribute("role", "option");
     opt.dataset.index = String(idx);
     opt.dataset.key = s.key;
-    opt.innerHTML = highlightMatch(s.name, query);
+    opt.innerHTML = highlightMatch(s.name, tokens);
     // mousedown (not click) fires before the input's blur, so the menu
     // doesn't close itself before the selection is registered.
     opt.addEventListener("mousedown", (e) => {
@@ -1657,13 +1696,26 @@ function selectStatKey(key, name) {
   leaderboardCustomInputEl.value = key;
   closeStatPicker();
   leaderboardStatTitleEl.textContent = name;
-  loadLeaderboard([key], "count");
+  loadLeaderboard(() => listPlayerStats([key], 10), "count");
 }
 
 leaderboardCustomInputEl.addEventListener("focus", async () => {
+  // Focusing the search chip *is* choosing "Custom" - it's no longer a
+  // separate pill you have to click first.
+  if (activeLeaderboardStatId !== "custom") {
+    activeLeaderboardStatId = "custom";
+    renderLeaderboardChips();
+    leaderboardStatTitleEl.textContent = leaderboardCustomInputEl.value.trim() ? getStatDisplayName(leaderboardCustomInputEl.value.trim()) : "";
+  }
   await ensureStatKeysLoaded();
   renderStatPickerOptions(leaderboardCustomInputEl.value);
   openStatPicker();
+});
+
+// Clicking anywhere in the chip (icon, padding) focuses the input, so the
+// whole bar acts as the control, not just the text itself.
+statPickerEl.addEventListener("click", (e) => {
+  if (e.target !== leaderboardCustomInputEl) leaderboardCustomInputEl.focus();
 });
 
 leaderboardCustomInputEl.addEventListener("input", () => {
@@ -1680,7 +1732,7 @@ leaderboardCustomInputEl.addEventListener("input", () => {
       return;
     }
     leaderboardStatTitleEl.textContent = getStatDisplayName(key);
-    loadLeaderboard([key], "count");
+    loadLeaderboard(() => listPlayerStats([key], 10), "count");
   }, 250);
 });
 
@@ -1721,13 +1773,13 @@ document.addEventListener("click", (e) => {
   closeStatPicker();
 });
 
-async function loadLeaderboard(candidateKeys, format) {
+async function loadLeaderboard(fetchRows, format) {
   leaderboardLoadingEl.hidden = false;
   leaderboardEmptyEl.hidden = true;
   leaderboardListEl.innerHTML = "";
   let rows = [];
   try {
-    rows = await listPlayerStats(candidateKeys, 10);
+    rows = await fetchRows();
   } catch (err) {
     console.error(err);
     rows = [];
@@ -1911,11 +1963,17 @@ function nextTickDelay() {
 // Players list (shown inside the Server panel)
 // ---------------------------------------------------------------------------
 
+let playersRequestId = 0;
+
 async function loadPlayersPanel() {
+  const requestId = ++playersRequestId;
   try {
-    lastPlayers = await listPlayers();
+    const players = await listPlayers();
+    if (requestId !== playersRequestId) return; // a newer request already started
+    lastPlayers = players;
     renderPlayersList(lastPlayers);
   } catch (err) {
+    if (requestId !== playersRequestId) return;
     console.error(err);
     lastPlayers = [];
     playersListEl.innerHTML = "";

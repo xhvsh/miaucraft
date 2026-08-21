@@ -142,11 +142,12 @@
           <div class="leaderboards-tab-card">
             <h2>Leaderboards</h2>
             <div class="leaderboard-stat-chips" id="leaderboardStatChips"></div>
-            <div class="leaderboard-custom-row" id="leaderboardCustomRow" hidden>
-              <div class="stat-picker" id="statPicker">
-                <input type="text" id="leaderboardCustomInput" class="stat-picker-input" placeholder="Search a statistic..." autocomplete="off" role="combobox" aria-expanded="false" aria-controls="statPickerMenu" aria-autocomplete="list" />
-                <div class="stat-picker-menu" id="statPickerMenu" role="listbox" hidden></div>
+            <div class="stat-picker" id="statPicker" data-active="false">
+              <div class="leaderboard-custom-chip">
+                <span class="leaderboard-custom-chip-label">Custom</span>
+                <input type="text" id="leaderboardCustomInput" class="stat-picker-input" placeholder="Search any statistic…" autocomplete="off" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-controls="statPickerMenu" aria-autocomplete="list" />
               </div>
+              <div class="stat-picker-menu" id="statPickerMenu" role="listbox" hidden></div>
             </div>
             <div class="leaderboard-stat-title" id="leaderboardStatTitle"></div>
             <div class="leaderboard-list" id="leaderboardList"></div>
