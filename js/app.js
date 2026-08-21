@@ -1950,6 +1950,7 @@ function nextTickDelay() {
   let delay = 60000; // default: recheck every minute (covers uptime ticking)
   for (const p of lastPlayers) {
     if (p.online) continue;
+    if (isResetArtifact(p.last_seen)) continue; // unknown/fake timestamp - doesn't need fast polling
     const ageSec = (Date.now() - new Date(p.last_seen).getTime()) / 1000;
     if (ageSec < 60) delay = Math.min(delay, 1000);
     else if (ageSec < 3600) delay = Math.min(delay, 60000);
@@ -1982,9 +1983,35 @@ async function loadPlayersPanel() {
   }
 }
 
+// A server update on 2026-08-20 reset every player's first_seen/last_seen to
+// the moment of the update itself, so those timestamps carry no real
+// information. Treat anything within +/-5min of that instant as "unknown"
+// rather than showing a (misleadingly recent-looking) fake last-seen time.
+const RESET_ARTIFACT_TIME = new Date("2026-08-20T19:37:58.589292Z").getTime();
+const RESET_ARTIFACT_WINDOW_MS = 5 * 60 * 1000;
+
+function isResetArtifact(value) {
+  if (!value) return false;
+  const t = new Date(value).getTime();
+  if (Number.isNaN(t)) return false;
+  return Math.abs(t - RESET_ARTIFACT_TIME) <= RESET_ARTIFACT_WINDOW_MS;
+}
+
 function sortPlayers(players) {
   const online = players.filter((p) => p.online).sort((a, b) => a.username.localeCompare(b.username, undefined, { sensitivity: "base" }));
-  const offline = players.filter((p) => !p.online).sort((a, b) => new Date(b.last_seen) - new Date(a.last_seen));
+  const offline = players
+    .filter((p) => !p.online)
+    .sort((a, b) => {
+      // Players whose last_seen is a reset artifact have an unknown real
+      // last-seen time - sort them after everyone with a genuine timestamp,
+      // rather than letting the fake (recent-looking) reset time place them
+      // near the top.
+      const aReset = isResetArtifact(a.last_seen);
+      const bReset = isResetArtifact(b.last_seen);
+      if (aReset !== bReset) return aReset ? 1 : -1;
+      if (aReset && bReset) return a.username.localeCompare(b.username, undefined, { sensitivity: "base" });
+      return new Date(b.last_seen) - new Date(a.last_seen);
+    });
   return [...online, ...offline];
 }
 
@@ -2014,7 +2041,11 @@ function renderPlayersList(players) {
     }
 
     const badgeText = p.online ? "Online" : "Offline";
-    const tooltipAttr = p.online ? "" : ` data-tooltip="Last seen ${escapeHtml(formatRelativeTime(p.last_seen))} (${escapeHtml(formatAbsoluteTime(p.last_seen))})"`;
+    let tooltipAttr = "";
+    if (!p.online) {
+      const lastSeenText = isResetArtifact(p.last_seen) ? "Last seen a long time ago" : `Last seen ${formatRelativeTime(p.last_seen)} (${formatAbsoluteTime(p.last_seen)})`;
+      tooltipAttr = ` data-tooltip="${escapeHtml(lastSeenText)}"`;
+    }
 
     row.innerHTML = `
       <img class="players-avatar" src="https://mc-heads.net/avatar/${encodeURIComponent(p.username)}/64" alt="" width="32" height="32" />
