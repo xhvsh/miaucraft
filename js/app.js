@@ -157,7 +157,8 @@ const leaderboardStatChipsEl = $("#leaderboardStatChips");
 const leaderboardCustomRowEl = $("#leaderboardCustomRow");
 const leaderboardCustomInputEl = $("#leaderboardCustomInput");
 const leaderboardStatTitleEl = $("#leaderboardStatTitle");
-const leaderboardStatKeysListEl = $("#leaderboardStatKeysList");
+const statPickerEl = $("#statPicker");
+const statPickerMenuEl = $("#statPickerMenu");
 const leaderboardListEl = $("#leaderboardList");
 const leaderboardEmptyEl = $("#leaderboardEmpty");
 const leaderboardLoadingEl = $("#leaderboardLoading");
@@ -1504,7 +1505,9 @@ function getStatDisplayName(key) {
 
 let activeLeaderboardStatId = PRESET_STATS[0].id;
 let statKeysLoaded = false;
+let allStatKeys = []; // [{ key, name }], populated once from listStatKeys()
 let leaderboardCustomDebounce = null;
+let statPickerHighlighted = -1;
 
 function loadLeaderboardsTab() {
   renderLeaderboardChips();
@@ -1550,6 +1553,7 @@ async function selectLeaderboardStat(id) {
     return;
   }
 
+  closeStatPicker();
   const preset = PRESET_STATS.find((s) => s.id === id);
   if (preset) {
     leaderboardStatTitleEl.textContent = "";
@@ -1561,16 +1565,111 @@ async function ensureStatKeysLoaded() {
   if (statKeysLoaded) return;
   try {
     const keys = await listStatKeys();
-    leaderboardStatKeysListEl.innerHTML = keys
-      .map((k) => `<option value="${escapeHtml(k.stat_key)}" label="${escapeHtml(getStatDisplayName(k.stat_key))}">${escapeHtml(getStatDisplayName(k.stat_key))}</option>`)
-      .join("");
+    allStatKeys = keys.map((k) => ({ key: k.stat_key, name: getStatDisplayName(k.stat_key) }));
+    allStatKeys.sort((a, b) => a.name.localeCompare(b.name));
     statKeysLoaded = true;
   } catch (err) {
     console.error(err);
   }
 }
 
+// ---------------------------------------------------------------------------
+// Custom stat picker (replaces a native <input list> + <datalist>, which
+// silently caps out and stops matching once there are hundreds/thousands of
+// options - we now have 1000+ stat keys after adding item stats).
+// ---------------------------------------------------------------------------
+
+const STAT_PICKER_RENDER_LIMIT = 50;
+
+function highlightMatch(text, query) {
+  if (!query) return escapeHtml(text);
+  const idx = text.toLowerCase().indexOf(query);
+  if (idx === -1) return escapeHtml(text);
+  return `${escapeHtml(text.slice(0, idx))}<mark>${escapeHtml(text.slice(idx, idx + query.length))}</mark>${escapeHtml(text.slice(idx + query.length))}`;
+}
+
+function renderStatPickerOptions(rawQuery) {
+  const query = rawQuery.trim().toLowerCase();
+  const matches = query ? allStatKeys.filter((s) => s.key.toLowerCase().includes(query) || s.name.toLowerCase().includes(query)) : allStatKeys;
+
+  statPickerMenuEl.innerHTML = "";
+  statPickerHighlighted = -1;
+
+  if (matches.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "stat-picker-empty";
+    empty.textContent = statKeysLoaded ? "No matching statistic." : "Loading statistics...";
+    statPickerMenuEl.appendChild(empty);
+    return;
+  }
+
+  const shown = matches.slice(0, STAT_PICKER_RENDER_LIMIT);
+  shown.forEach((s, idx) => {
+    const opt = document.createElement("button");
+    opt.type = "button";
+    opt.className = "stat-picker-option";
+    opt.setAttribute("role", "option");
+    opt.dataset.index = String(idx);
+    opt.dataset.key = s.key;
+    opt.innerHTML = highlightMatch(s.name, query);
+    // mousedown (not click) fires before the input's blur, so the menu
+    // doesn't close itself before the selection is registered.
+    opt.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      selectStatKey(s.key, s.name);
+    });
+    statPickerMenuEl.appendChild(opt);
+  });
+
+  if (matches.length > STAT_PICKER_RENDER_LIMIT) {
+    const more = document.createElement("div");
+    more.className = "stat-picker-more";
+    more.textContent = `+${matches.length - STAT_PICKER_RENDER_LIMIT} more - keep typing to narrow down`;
+    statPickerMenuEl.appendChild(more);
+  }
+}
+
+function statPickerOptionEls() {
+  return Array.from(statPickerMenuEl.querySelectorAll(".stat-picker-option"));
+}
+
+function updateStatPickerHighlight() {
+  const options = statPickerOptionEls();
+  options.forEach((opt, idx) => {
+    const active = idx === statPickerHighlighted;
+    opt.dataset.highlighted = String(active);
+    if (active) opt.scrollIntoView({ block: "nearest" });
+  });
+}
+
+function openStatPicker() {
+  statPickerMenuEl.hidden = false;
+  leaderboardCustomInputEl.setAttribute("aria-expanded", "true");
+}
+
+function closeStatPicker() {
+  statPickerMenuEl.hidden = true;
+  leaderboardCustomInputEl.setAttribute("aria-expanded", "false");
+  statPickerHighlighted = -1;
+}
+
+function selectStatKey(key, name) {
+  leaderboardCustomInputEl.value = key;
+  closeStatPicker();
+  leaderboardStatTitleEl.textContent = name;
+  loadLeaderboard([key], "count");
+}
+
+leaderboardCustomInputEl.addEventListener("focus", async () => {
+  await ensureStatKeysLoaded();
+  renderStatPickerOptions(leaderboardCustomInputEl.value);
+  openStatPicker();
+});
+
 leaderboardCustomInputEl.addEventListener("input", () => {
+  renderStatPickerOptions(leaderboardCustomInputEl.value);
+  openStatPicker();
+
   clearTimeout(leaderboardCustomDebounce);
   leaderboardCustomDebounce = setTimeout(() => {
     const key = leaderboardCustomInputEl.value.trim();
@@ -1583,6 +1682,43 @@ leaderboardCustomInputEl.addEventListener("input", () => {
     leaderboardStatTitleEl.textContent = getStatDisplayName(key);
     loadLeaderboard([key], "count");
   }, 250);
+});
+
+leaderboardCustomInputEl.addEventListener("keydown", (e) => {
+  if (statPickerMenuEl.hidden) {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      renderStatPickerOptions(leaderboardCustomInputEl.value);
+      openStatPicker();
+    }
+    return;
+  }
+
+  const options = statPickerOptionEls();
+  if (e.key === "ArrowDown") {
+    e.preventDefault();
+    if (options.length === 0) return;
+    statPickerHighlighted = Math.min(statPickerHighlighted + 1, options.length - 1);
+    updateStatPickerHighlight();
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    if (options.length === 0) return;
+    statPickerHighlighted = Math.max(statPickerHighlighted - 1, 0);
+    updateStatPickerHighlight();
+  } else if (e.key === "Enter") {
+    if (statPickerHighlighted >= 0 && options[statPickerHighlighted]) {
+      e.preventDefault();
+      const opt = options[statPickerHighlighted];
+      const match = allStatKeys.find((s) => s.key === opt.dataset.key);
+      selectStatKey(opt.dataset.key, match ? match.name : opt.dataset.key);
+    }
+  } else if (e.key === "Escape") {
+    closeStatPicker();
+  }
+});
+
+document.addEventListener("click", (e) => {
+  if (statPickerEl.contains(e.target)) return;
+  closeStatPicker();
 });
 
 async function loadLeaderboard(candidateKeys, format) {

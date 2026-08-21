@@ -1,5 +1,8 @@
 import { supabase } from "./supabaseClient.js";
 
+// Set to "test" locally (after running 002_test_schema.sql) to develop
+// against isolated tables without touching production data or needing a
+// second Supabase project. Leave as "public" for the real deployment.
 const SCHEMA = "public";
 
 const db = (table) => (SCHEMA === "public" ? supabase.from(table) : supabase.schema(SCHEMA).from(table));
@@ -9,6 +12,8 @@ const db = (table) => (SCHEMA === "public" ? supabase.from(table) : supabase.sch
 // ---------------------------------------------------------------------------
 
 export async function listPlayers() {
+  // Hidden covers both merged duplicate accounts (see merged_into) and
+  // manually-hidden accounts like "test".
   const { data, error } = await db("players").select("*").eq("hidden", false);
   if (error) throw error;
   return data;
@@ -47,9 +52,27 @@ export async function listPlayerStats(statKeys, limit = 10) {
 }
 
 export async function listStatKeys() {
-  const { data, error } = await (SCHEMA === "public" ? supabase.rpc("list_stat_keys") : supabase.schema(SCHEMA).rpc("list_stat_keys"));
-  if (error) throw error;
-  return data ?? [];
+  // Supabase/PostgREST caps rows returned per request (commonly 1000) unless
+  // paginated. With 1000+ distinct stat_key values now, an unpaginated call
+  // silently truncates alphabetically - e.g. PICKUP/USE_ITEM sort late enough
+  // to fall past the cutoff after all the MINE_BLOCK/BREAK_ITEM/CRAFT_ITEM
+  // rows ahead of them. Page through with .range() until a page comes back
+  // short, so we always get the full set regardless of the project's cap.
+  const pageSize = 1000;
+  let allKeys = [];
+  let from = 0;
+
+  while (true) {
+    const query = SCHEMA === "public" ? supabase.rpc("list_stat_keys") : supabase.schema(SCHEMA).rpc("list_stat_keys");
+    const { data, error } = await query.range(from, from + pageSize - 1);
+    if (error) throw error;
+    const page = data ?? [];
+    allKeys = allKeys.concat(page);
+    if (page.length < pageSize) break;
+    from += pageSize;
+  }
+
+  return allKeys;
 }
 
 // ---------------------------------------------------------------------------

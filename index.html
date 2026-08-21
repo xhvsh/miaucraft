@@ -143,8 +143,10 @@
             <h2>Leaderboards</h2>
             <div class="leaderboard-stat-chips" id="leaderboardStatChips"></div>
             <div class="leaderboard-custom-row" id="leaderboardCustomRow" hidden>
-              <input type="text" id="leaderboardCustomInput" list="leaderboardStatKeysList" placeholder="Search a statistic..." autocomplete="off" />
-              <datalist id="leaderboardStatKeysList"></datalist>
+              <div class="stat-picker" id="statPicker">
+                <input type="text" id="leaderboardCustomInput" class="stat-picker-input" placeholder="Search a statistic..." autocomplete="off" role="combobox" aria-expanded="false" aria-controls="statPickerMenu" aria-autocomplete="list" />
+                <div class="stat-picker-menu" id="statPickerMenu" role="listbox" hidden></div>
+              </div>
             </div>
             <div class="leaderboard-stat-title" id="leaderboardStatTitle"></div>
             <div class="leaderboard-list" id="leaderboardList"></div>
