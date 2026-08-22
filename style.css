@@ -2643,6 +2643,24 @@ input.stat-picker-input:focus-visible {
   line-height: 1.4;
 }
 
+.settings-row-hint[hidden] {
+  display: none;
+}
+.settings-row-hint {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.75em;
+  font-style: italic;
+  opacity: 0.65;
+  color: var(--dim-server);
+  font-weight: 700;
+  font-size: 13px;
+}
+.settings-row-hint--error {
+  color: #e5484d;
+  opacity: 0.9;
+}
+
 .settings-select {
   flex-shrink: 0;
   appearance: none;

@@ -1,7 +1,7 @@
 import * as Auth from "./auth.js";
 import { Grid } from "./grid.js";
 import { listWaypoints, createWaypoint, updateWaypoint, deleteWaypoint, getServerInfo, listCategories, createCategory, updateCategory, deleteCategory, listLogs } from "./waypoints.js";
-import { listPlayers, subscribePlayers, listLivePositions, subscribeLivePositions, getServerStatus, subscribeServerStatus, listWhitelist, subscribeWhitelist, requestWhitelistAdd, requestWhitelistRemove, listPendingWhitelistCommands, subscribeWhitelistCommands, cancelWhitelistCommand, listPlayerStats, listStatKeys, listDistanceLeaderboard } from "./live.js";
+import { listPlayers, subscribePlayers, listLivePositions, subscribeLivePositions, getServerStatus, subscribeServerStatus, listWhitelist, subscribeWhitelist, requestWhitelistAdd, requestWhitelistRemove, listPendingWhitelistCommands, subscribeWhitelistCommands, cancelWhitelistCommand, listPlayerStats, listStatKeys, listDistanceLeaderboard, getPlayerByUsername, setLiveTracking } from "./live.js";
 
 const DIM_COLORS = {
   overworld: "#4ade80",
@@ -129,6 +129,9 @@ const settingsTabPanel = $("#settingsTabPanel");
 const settingHideFilteredEl = $("#settingHideFiltered");
 const settingCopyFormatEl = $("#settingCopyFormat");
 const settingShowConversionEl = $("#settingShowConversion");
+const settingDisableLiveTrackingEl = $("#settingDisableLiveTracking");
+const settingLiveTrackingAuthHintEl = $("#settingLiveTrackingAuthHint");
+const settingLiveTrackingErrorHintEl = $("#settingLiveTrackingErrorHint");
 
 const logsTab = dimTabs.querySelector('[data-dim="logs"]');
 const dimSelectLogsOption = $("#dimSelectLogs");
@@ -298,6 +301,7 @@ Auth.onAuthChange((state) => {
   dimSelectCategoriesOption.hidden = !Auth.can("manageCategories");
   dimSelectLogsOption.hidden = !state.session;
   dimSelectWhitelistOption.hidden = !Auth.can("manageWhitelist");
+  refreshLiveTrackingSetting();
   if (currentDim === "server") loadServerPanel();
   loadCurrentView();
 });
@@ -782,6 +786,73 @@ settingShowConversionEl.addEventListener("change", () => {
   saveSettings();
   renderSidebar();
   if (openTooltipWaypoint) showTooltip(openTooltipWaypoint);
+});
+
+// Unlike the settings above, this one is NOT part of `settings`/localStorage -
+// it's a real per-account column (players.live_tracking_enabled), so it has
+// to reflect whatever the database says, on whichever device/browser the
+// player logs in from.
+//
+// profiles.id (state.profile.id) is the auth user id, not players.id - the
+// only link between the two is the username - so we resolve the actual
+// player row once here and hang onto its id for the change handler below.
+let liveTrackingPlayerId = null;
+
+async function refreshLiveTrackingSetting() {
+  const state = Auth.getState();
+  liveTrackingPlayerId = null;
+  settingLiveTrackingErrorHintEl.hidden = true;
+  if (!state.session || !state.profile) {
+    settingDisableLiveTrackingEl.checked = false;
+    settingDisableLiveTrackingEl.disabled = true;
+    settingLiveTrackingAuthHintEl.hidden = false;
+    return;
+  }
+
+  settingLiveTrackingAuthHintEl.hidden = true;
+  try {
+    const player = await getPlayerByUsername(state.profile.username);
+    if (!player) {
+      settingDisableLiveTrackingEl.checked = false;
+      settingDisableLiveTrackingEl.disabled = true;
+      settingLiveTrackingErrorHintEl.textContent = `No player row found for username "${state.profile.username}".`;
+      settingLiveTrackingErrorHintEl.hidden = false;
+      return;
+    }
+    liveTrackingPlayerId = player.id;
+    settingDisableLiveTrackingEl.checked = !player.live_tracking_enabled;
+    settingDisableLiveTrackingEl.disabled = false;
+  } catch (err) {
+    console.error(err);
+    settingDisableLiveTrackingEl.disabled = true;
+    settingLiveTrackingErrorHintEl.textContent = err.message || "Could not load this setting.";
+    settingLiveTrackingErrorHintEl.hidden = false;
+    toast(err.message || "Could not load live tracking setting.", "error");
+  }
+}
+
+settingDisableLiveTrackingEl.addEventListener("change", async () => {
+  if (!liveTrackingPlayerId) {
+    // Shouldn't be reachable (checkbox is disabled whenever this is unset),
+    // but if it happens, don't fail silently - revert and say why.
+    settingDisableLiveTrackingEl.checked = !settingDisableLiveTrackingEl.checked;
+    toast("Could not update live tracking - your player row wasn't found.", "error");
+    return;
+  }
+
+  const wantsDisabled = settingDisableLiveTrackingEl.checked;
+  settingDisableLiveTrackingEl.disabled = true;
+  try {
+    await setLiveTracking(liveTrackingPlayerId, !wantsDisabled);
+  } catch (err) {
+    console.error(err);
+    settingDisableLiveTrackingEl.checked = !wantsDisabled; // revert on failure
+    settingLiveTrackingErrorHintEl.textContent = err.message || "Could not update live tracking.";
+    settingLiveTrackingErrorHintEl.hidden = false;
+    toast(err.message || "Could not update live tracking.", "error");
+  } finally {
+    settingDisableLiveTrackingEl.disabled = false;
+  }
 });
 
 async function loadWaypointsForDim(dim) {
@@ -1487,24 +1558,65 @@ const STAT_NAME_OVERRIDES = {
   RAID_WIN: "Raids Won", RECORD_PLAYED: "Records Played", SLEEP_IN_BED: "Times Slept",
 };
 
+// Some raw stat_key rows have inconsistent whitespace around "_"/":" (e.g.
+// "MINE_BLOCK: CACTUS_FLOWER" vs "MINE_BLOCK:CACTUS_FLOWER"), and some newer
+// entity/item names come through mashed together with no separator at all
+// (e.g. "FireworkRocket", "HappyGhast"). Inserting a boundary at every
+// lower->upper letter transition before splitting on /[_\s]+/ handles both:
+// underscore/space runs collapse to one gap, and camelCase joins get one too
+// - so the same stat always renders as one consistently-spaced label.
 function titleCaseStatKey(str) {
-  return str.toLowerCase().split("_").filter(Boolean).map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+  return str
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .toLowerCase()
+    .split(/[_\s]+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
 }
 
 function getStatDisplayName(key) {
   if (!key) return "";
-  if (STAT_NAME_OVERRIDES[key]) return STAT_NAME_OVERRIDES[key];
-  if (key.endsWith("_ONE_CM")) {
-    const base = key.slice(0, -"_ONE_CM".length);
-    return `Distance ${CM_DISTANCE_LABELS[base] || titleCaseStatKey(base)}`;
+  const trimmedKey = key.trim();
+  if (STAT_NAME_OVERRIDES[trimmedKey]) return STAT_NAME_OVERRIDES[trimmedKey];
+  if (trimmedKey.endsWith("_ONE_CM")) {
+    const base = trimmedKey.slice(0, -"_ONE_CM".length);
+    // Known movement types already read as verbs ("Walked", "Sprinted"), so
+    // "Distance Walked" is correct as-is. Anything not in that table is a
+    // mount/vehicle name (e.g. a newly-added mob like Happy Ghast), which
+    // reads as a noun - "Distance by Happy Ghast" - not "Distance Happy Ghast".
+    if (CM_DISTANCE_LABELS[base]) return `Distance ${CM_DISTANCE_LABELS[base]}`;
+    return `Distance by ${titleCaseStatKey(base)}`;
   }
-  if (key.includes(":")) {
-    const [prefix, suffix] = key.split(":");
+  if (trimmedKey.includes(":")) {
+    // Trim each side of the ":" too, so a stray space after the colon on
+    // some rows doesn't leak into the suffix and break titleCaseStatKey's
+    // capitalization (that stray leading space was the actual cause of
+    // "Used: Beef" vs "Used:Beef"-looking inconsistencies).
+    const [prefix, suffix] = trimmedKey.split(":").map((p) => p.trim());
     const label = STAT_PREFIX_LABELS[prefix] || titleCaseStatKey(prefix);
-    return `${label}: ${titleCaseStatKey(suffix)}`;
+    // No colon in the final label - "Broken Diamond Sword", not
+    // "Broken: Diamond Sword".
+    return `${label} ${titleCaseStatKey(suffix)}`;
   }
-  return titleCaseStatKey(key);
+  return titleCaseStatKey(trimmedKey);
 }
+
+// Extra search terms for items whose common Minecraft nickname doesn't
+// appear anywhere in the raw stat key - e.g. cooked beef is universally
+// called "steak" in-game/community slang, so searching "steak" should still
+// surface "Used: Cooked Beef". Add more entries here as needed; `match` is
+// checked as a substring against the raw (uppercased) stat key.
+const STAT_ALIAS_TERMS = [
+  { match: "COOKED_BEEF", terms: ["steak"] },
+  { match: "COOKED_PORKCHOP", terms: ["cooked pork"] },
+  { match: "ENCHANTED_GOLDEN_APPLE", terms: ["notch apple", "gapple", "napple"] },
+  { match: "GOLDEN_APPLE", terms: ["gapple"] },
+  { match: "EXPERIENCE_BOTTLE", terms: ["xp bottle", "xp"] },
+  { match: "ENDER_PEARL", terms: ["pearl"] },
+  { match: "NETHER_STAR", terms: ["star"] },
+];
 
 let activeLeaderboardStatId = PRESET_STATS[0].id;
 let statKeysLoaded = false;
@@ -1568,15 +1680,22 @@ async function ensureStatKeysLoaded() {
   try {
     const keys = await listStatKeys();
     allStatKeys = keys.map((k) => {
-      const name = getStatDisplayName(k.stat_key);
-      // Search blob includes both the friendly name AND the raw key (with
-      // separators turned into spaces) because they don't share vocabulary -
-      // e.g. USE_ITEM maps to the label "Used", so "used: diamond leggings"
-      // alone doesn't contain "item" and wouldn't match someone searching
-      // "use item". Folding the raw key in fixes that without changing the
-      // display label itself.
-      const search = `${name} ${k.stat_key.replace(/[_:]/g, " ")}`.toLowerCase();
-      return { key: k.stat_key, name, search };
+      const rawKey = k.stat_key.trim();
+      const name = getStatDisplayName(rawKey);
+      // Search blob includes the friendly name, the raw key (separators
+      // collapsed to single spaces), and any known slang aliases (e.g.
+      // "steak" for COOKED_BEEF) - they don't share vocabulary, e.g. USE_ITEM
+      // maps to the label "Used", so "used: diamond leggings" alone doesn't
+      // contain "item" and wouldn't match someone searching "use item".
+      const aliasTerms = STAT_ALIAS_TERMS.filter((a) => rawKey.toUpperCase().includes(a.match)).flatMap((a) => a.terms);
+      const rawWords = rawKey.replace(/[_:\s]+/g, " ").trim();
+      const search = `${name} ${rawWords} ${aliasTerms.join(" ")}`.toLowerCase();
+      // A whitespace-stripped copy too, so typing "cactusflower" (no space)
+      // still matches a name like "Cactus Flower", and so rows with a stray
+      // space after ":" or "_" (see titleCaseStatKey above) can't produce a
+      // search blob that differs from an otherwise-identical row.
+      const searchCompact = search.replace(/[^a-z0-9]/g, "");
+      return { key: k.stat_key, name, search, searchCompact };
     });
     allStatKeys.sort((a, b) => a.name.localeCompare(b.name));
     statKeysLoaded = true;
@@ -1629,7 +1748,10 @@ function highlightMatch(text, tokens) {
 function renderStatPickerOptions(rawQuery) {
   const query = rawQuery.trim().toLowerCase();
   const tokens = query.split(/\s+/).filter(Boolean);
-  const matches = tokens.length === 0 ? allStatKeys : allStatKeys.filter((s) => tokens.every((t) => s.search.includes(t)));
+  const matches =
+    tokens.length === 0
+      ? allStatKeys
+      : allStatKeys.filter((s) => tokens.every((t) => s.search.includes(t) || s.searchCompact.includes(t.replace(/[^a-z0-9]/g, ""))));
 
   statPickerMenuEl.innerHTML = "";
   statPickerHighlighted = -1;
@@ -1891,6 +2013,7 @@ function renderServerStatus(status) {
   if (offline) {
     $("#serverTps").textContent = "—";
     $("#serverUptime").textContent = "—";
+    $("#serverDays").textContent = "—";
     $("#serverOfflineNotice").innerHTML = status?.updated_at ? `<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> Server is offline - last online ${formatRelativeTime(status.updated_at)}` : `<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> Server is offline`;
     renderLivePins();
     return;
@@ -1905,6 +2028,7 @@ function renderServerStatus(status) {
   } else {
     $("#serverUptime").textContent = "—";
   }
+  $("#serverDays").textContent = status.days != null ? status.days : "—";
   renderLivePins();
 }
 

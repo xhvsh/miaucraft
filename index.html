@@ -116,6 +116,10 @@
               <span class="server-field-value" id="serverUptime">—</span>
             </div>
             <div class="server-field">
+              <span class="server-field-label">Days</span>
+              <span class="server-field-value" id="serverDays">—</span>
+            </div>
+            <div class="server-field">
               <span class="server-field-label">Hostname</span>
               <span class="server-field-value" id="serverHostname">Not set</span>
               <button class="server-copy coords-copy-btn" type="button" data-copy-source="serverHostname" title="Copy" aria-label="Copy" hidden><i class="fa-solid fa-copy" aria-hidden="true"></i></button>
@@ -281,6 +285,18 @@
               </div>
               <label class="switch">
                 <input type="checkbox" id="settingShowConversion" />
+                <span class="switch-track"><span class="switch-thumb"></span></span>
+              </label>
+            </div>
+            <div class="settings-row">
+              <div class="settings-row-text">
+                <span class="settings-row-label">Disable live tracking</span>
+                <span class="settings-row-desc">Hide your position from the live map. Might take a few seconds to change.</span>
+                <span class="settings-row-hint" id="settingLiveTrackingAuthHint">Log in to disable</span>
+                <span class="settings-row-hint settings-row-hint--error" id="settingLiveTrackingErrorHint" hidden></span>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="settingDisableLiveTracking" disabled />
                 <span class="switch-track"><span class="switch-thumb"></span></span>
               </label>
             </div>

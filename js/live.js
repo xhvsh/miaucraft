@@ -103,6 +103,42 @@ export function subscribeLivePositions(onChange) {
 }
 
 // ---------------------------------------------------------------------------
+// Live tracking opt-out (per-player)
+// ---------------------------------------------------------------------------
+
+// profiles.id (the logged-in account) and players.id are different id spaces
+// - the only link between an account and its player row is the username.
+// This is also why listAccountUsernamesLower() above works by username.
+// hidden=false excludes merged-away duplicate accounts (see players.hidden
+// above) - without it, a username with a merged history can match more than
+// one row and maybeSingle() throws "multiple rows returned".
+export async function getPlayerByUsername(username) {
+  const { data, error } = await db("players").select("id, live_tracking_enabled").ilike("username", username).eq("hidden", false).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+// Current value of a player's opt-out flag, read straight from the DB (never
+// cached in localStorage) so it can't drift from what the tracking plugin
+// itself is honoring server-side.
+export async function getLiveTrackingEnabled(playerId) {
+  const { data, error } = await db("players").select("live_tracking_enabled").eq("id", playerId).single();
+  if (error) throw error;
+  return data.live_tracking_enabled;
+}
+
+export async function setLiveTracking(playerId, enabled) {
+  // .select() forces Postgres to return the row(s) actually touched. If an
+  // RLS policy silently blocks the update, Supabase reports no error but
+  // matches zero rows - without .select() that looks identical to success.
+  const { data, error } = await db("players").update({ live_tracking_enabled: enabled }).eq("id", playerId).select("id");
+  if (error) throw error;
+  if (!data || data.length === 0) {
+    throw new Error("Update was blocked - check that a Row Level Security policy allows updating your own player row.");
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Server status (TPS / uptime / version - public, no connection info)
 // ---------------------------------------------------------------------------
 
