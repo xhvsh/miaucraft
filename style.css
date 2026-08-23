@@ -2039,12 +2039,31 @@ input.stat-picker-input:focus-visible {
   padding: 24px;
 }
 
-.players-tab-card h2 {
+.players-tab-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
   margin: 0 0 18px;
+}
+
+.players-tab-card h2 {
+  margin: 0;
   font-family: var(--font-mono);
   font-size: 14px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
+}
+
+.players-online-count {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.players-online-count.has-online {
+  color: #4ade80;
 }
 
 .players-list {

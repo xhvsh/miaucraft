@@ -120,6 +120,7 @@ const categoriesListEl = $("#categoriesList");
 
 const playersListEl = $("#playersList");
 const playersEmptyEl = $("#playersEmpty");
+const playersOnlineCountEl = $("#playersOnlineCount");
 
 const whitelistTab = dimTabs.querySelector('[data-dim="whitelist"]');
 const whitelistTabPanel = $("#whitelistTabPanel");
@@ -2279,6 +2280,8 @@ async function loadPlayersPanel() {
     playersListEl.innerHTML = "";
     playersEmptyEl.hidden = false;
     playersEmptyEl.textContent = "Could not load players.";
+    playersOnlineCountEl.textContent = "";
+    playersOnlineCountEl.classList.remove("has-online");
   }
 }
 
@@ -2326,6 +2329,10 @@ function renderPlayersList(players) {
   playersListEl.innerHTML = "";
   playersEmptyEl.hidden = sorted.length > 0;
   playersEmptyEl.textContent = "No players have joined yet.";
+
+  const onlineCount = players.filter((p) => p.online).length;
+  playersOnlineCountEl.textContent = `${onlineCount} online`;
+  playersOnlineCountEl.classList.toggle("has-online", onlineCount > 0);
   for (const p of sorted) {
     const row = document.createElement("div");
     row.className = "players-row";
