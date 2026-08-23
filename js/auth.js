@@ -69,6 +69,13 @@ async function loadProfile(userId) {
   return data;
 }
 
+async function withFreshIdentities(session) {
+  if (!session) return session;
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data?.user) return session;
+  return { ...session, user: data.user };
+}
+
 const OAUTH_INTENT_KEY = "miaucraft-oauth-intent";
 
 async function handlePostOAuthSignIn(session) {
@@ -87,7 +94,7 @@ async function handlePostOAuthSignIn(session) {
 
 export async function init() {
   const { data } = await supabase.auth.getSession();
-  state.session = data.session ?? null;
+  state.session = await withFreshIdentities(data.session ?? null);
   state.profile = state.session ? await loadProfile(state.session.user.id) : null;
   state.ready = true;
   emit();
@@ -108,8 +115,8 @@ export async function init() {
         return;
       }
     }
-    state.session = session;
-    state.profile = session ? await loadProfile(session.user.id) : null;
+    state.session = await withFreshIdentities(session);
+    state.profile = state.session ? await loadProfile(state.session.user.id) : null;
     emit();
   });
 }
