@@ -111,6 +111,7 @@ const serverPanel = $("#serverPanel");
 const pinTooltip = $("#pinTooltip");
 
 const authModal = $("#authModal");
+const changePasswordModal = $("#changePasswordModal");
 const waypointModal = $("#waypointModal");
 
 const categoriesTab = dimTabs.querySelector('[data-dim="categories"]');
@@ -130,7 +131,6 @@ const settingHideFilteredEl = $("#settingHideFiltered");
 const settingCopyFormatEl = $("#settingCopyFormat");
 const settingShowConversionEl = $("#settingShowConversion");
 const settingDisableLiveTrackingEl = $("#settingDisableLiveTracking");
-const settingLiveTrackingAuthHintEl = $("#settingLiveTrackingAuthHint");
 const settingLiveTrackingErrorHintEl = $("#settingLiveTrackingErrorHint");
 
 const logsTab = dimTabs.querySelector('[data-dim="logs"]');
@@ -284,6 +284,15 @@ grid.onViewChange = () => {
 // Auth-driven UI
 // ---------------------------------------------------------------------------
 
+const settingsAuthOnlyEl = $("#settingsAuthOnly");
+const settingsLoginFooterEl = $("#settingsLoginFooter");
+
+function updateSettingsAuthVisibility() {
+  const loggedIn = Auth.isLoggedIn();
+  settingsAuthOnlyEl.hidden = !loggedIn;
+  settingsLoginFooterEl.hidden = loggedIn;
+}
+
 Auth.onAuthChange((state) => {
   renderAuthArea();
   categoriesTab.hidden = !Auth.can("manageCategories");
@@ -302,8 +311,19 @@ Auth.onAuthChange((state) => {
   dimSelectLogsOption.hidden = !state.session;
   dimSelectWhitelistOption.hidden = !Auth.can("manageWhitelist");
   refreshLiveTrackingSetting();
+  renderDiscordSetting();
+  updateSettingsAuthVisibility();
   if (currentDim === "server") loadServerPanel();
   loadCurrentView();
+});
+
+Auth.onAuthError((message) => {
+  toast(message, "error");
+});
+
+Auth.onPasswordRecovery(() => {
+  toast("Set a new password to finish resetting it.", "info");
+  openChangePasswordModal();
 });
 
 function renderAuthArea() {
@@ -805,11 +825,9 @@ async function refreshLiveTrackingSetting() {
   if (!state.session || !state.profile) {
     settingDisableLiveTrackingEl.checked = false;
     settingDisableLiveTrackingEl.disabled = true;
-    settingLiveTrackingAuthHintEl.hidden = false;
     return;
   }
 
-  settingLiveTrackingAuthHintEl.hidden = true;
   try {
     const player = await getPlayerByUsername(state.profile.username);
     if (!player) {
@@ -1289,6 +1307,63 @@ function closeOnBackdropClick(backdrop, close) {
 
 closeOnBackdropClick(authModal, closeAuthModal);
 
+// ---------------------------------------------------------------------------
+// Change password modal
+// ---------------------------------------------------------------------------
+
+function openChangePasswordModal() {
+  changePasswordModal.hidden = false;
+}
+function closeChangePasswordModal() {
+  changePasswordModal.hidden = true;
+  $("#changePasswordForm").reset();
+  changePasswordModal.querySelectorAll("[data-password-toggle]").forEach((button) => {
+    const input = document.getElementById(button.dataset.passwordToggle);
+    input.type = "password";
+    button.innerHTML = '<i class="fa-solid fa-eye" aria-hidden="true"></i>';
+    button.setAttribute("aria-label", "Show password");
+    button.setAttribute("aria-pressed", "false");
+  });
+}
+closeOnBackdropClick(changePasswordModal, closeChangePasswordModal);
+
+$("#changePasswordBtn").addEventListener("click", openChangePasswordModal);
+
+$("#changePasswordForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const newPassword = $("#newPassword").value;
+  const repeat = $("#newPasswordRepeat").value;
+  if (newPassword !== repeat) {
+    toast("Passwords don't match.", "error");
+    return;
+  }
+  try {
+    await Auth.updatePassword(newPassword);
+    closeChangePasswordModal();
+    toast("Password updated.");
+  } catch (err) {
+    toast(err.message || "Could not update password.", "error");
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Delete account
+// ---------------------------------------------------------------------------
+
+$("#deleteAccountBtn").addEventListener("click", async () => {
+  const confirmed = await confirmAction(
+    "This permanently deletes your account and everything tied to it. This can't be undone.",
+    { title: "Delete your account?", confirmLabel: "Delete account" }
+  );
+  if (!confirmed) return;
+  try {
+    await Auth.deleteAccount();
+    toast("Account deleted.");
+  } catch (err) {
+    toast(err.message || "Could not delete account.", "error");
+  }
+});
+
 waypointSearchEl.addEventListener("input", renderSidebar);
 
 document.addEventListener("keydown", (e) => {
@@ -1302,6 +1377,7 @@ document.addEventListener("keydown", (e) => {
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
   if (!authModal.hidden) closeAuthModal();
+  if (!changePasswordModal.hidden) closeChangePasswordModal();
   if (!pinTooltip.hidden) hideTooltip();
 });
 
@@ -1343,7 +1419,7 @@ function consumeSharedAccessCodeLink() {
   });
 }
 
-authModal.querySelectorAll("[data-password-toggle]").forEach((button) => {
+document.querySelectorAll("[data-password-toggle]").forEach((button) => {
   button.addEventListener("click", () => {
     const input = document.getElementById(button.dataset.passwordToggle);
     const showing = input.type === "text";
@@ -1363,6 +1439,94 @@ $("#loginForm").addEventListener("submit", async (e) => {
     toast(err.message || "Could not sign in.", "error");
   }
 });
+
+$("#discordLoginBtn").addEventListener("click", async () => {
+  try {
+    await Auth.loginWithDiscord();
+  } catch (err) {
+    toast(err.message || "Could not start Discord sign-in.", "error");
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Settings — Discord linking
+// ---------------------------------------------------------------------------
+
+const settingDiscordActionEl = $("#settingDiscordAction");
+
+function renderDiscordSetting() {
+  settingDiscordActionEl.innerHTML = "";
+  if (!Auth.isLoggedIn()) {
+    const hint = document.createElement("span");
+    hint.className = "settings-row-hint";
+    hint.textContent = "Log in to link";
+    settingDiscordActionEl.appendChild(hint);
+    return;
+  }
+
+  const identity = Auth.discordIdentity();
+  if (!identity) {
+    const linkBtn = document.createElement("button");
+    linkBtn.className = "btn btn-discord";
+    linkBtn.type = "button";
+    linkBtn.innerHTML = `<i class="fa-brands fa-discord" aria-hidden="true"></i> Link Discord`;
+    linkBtn.addEventListener("click", async () => {
+      linkBtn.disabled = true;
+      try {
+        await Auth.linkDiscord();
+      } catch (err) {
+        toast(err.message || "Could not link Discord.", "error");
+        linkBtn.disabled = false;
+      }
+    });
+    settingDiscordActionEl.appendChild(linkBtn);
+    return;
+  }
+
+  const data = identity.identity_data || {};
+  const discordUsername = (data.user_name || data.name || data.full_name || "Unknown").replace(/#0$/, "");
+  const discordId = data.provider_id || data.sub || identity.id || "?";
+
+  const wrap = document.createElement("div");
+  wrap.className = "discord-linked";
+
+  const label = document.createElement("span");
+  label.className = "discord-linked-label";
+
+  const nameSpan = document.createElement("span");
+  nameSpan.className = "discord-linked-name";
+  nameSpan.textContent = discordUsername;
+
+  const idSpan = document.createElement("span");
+  idSpan.className = "discord-linked-id";
+  idSpan.textContent = `{${discordId}}`;
+
+  label.innerHTML = `<i class="fa-brands fa-discord" aria-hidden="true"></i> `;
+  label.append(nameSpan, " ", idSpan);
+
+  const unlinkBtn = document.createElement("button");
+  unlinkBtn.className = "btn btn-danger";
+  unlinkBtn.type = "button";
+  unlinkBtn.textContent = "Unlink";
+  unlinkBtn.addEventListener("click", async () => {
+    const confirmed = await confirmAction("Unlink your Discord account? You'll need your username and password to sign in.", {
+      confirmLabel: "Unlink",
+    });
+    if (!confirmed) return;
+    unlinkBtn.disabled = true;
+    try {
+      await Auth.unlinkDiscord();
+      toast("Discord account unlinked.");
+      renderDiscordSetting();
+    } catch (err) {
+      toast(err.message || "Could not unlink Discord.", "error");
+      unlinkBtn.disabled = false;
+    }
+  });
+
+  wrap.append(label, unlinkBtn);
+  settingDiscordActionEl.appendChild(wrap);
+}
 
 $("#registerForm").addEventListener("submit", async (e) => {
   e.preventDefault();

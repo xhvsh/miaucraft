@@ -288,21 +288,76 @@
                 <span class="switch-track"><span class="switch-thumb"></span></span>
               </label>
             </div>
-            <div class="settings-row">
-              <div class="settings-row-text">
-                <span class="settings-row-label">Disable live tracking</span>
-                <span class="settings-row-desc">Hide your position from the live map. Might take a few seconds to change.</span>
-                <span class="settings-row-hint" id="settingLiveTrackingAuthHint">Log in to disable</span>
-                <span class="settings-row-hint settings-row-hint--error" id="settingLiveTrackingErrorHint" hidden></span>
+
+            <div id="settingsAuthOnly" hidden>
+              <div class="settings-row">
+                <div class="settings-row-text">
+                  <span class="settings-row-label">Disable live tracking</span>
+                  <span class="settings-row-desc">Hide your position from the live map. Might take a few seconds to change.</span>
+                  <span class="settings-row-hint settings-row-hint--error" id="settingLiveTrackingErrorHint" hidden></span>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="settingDisableLiveTracking" disabled />
+                  <span class="switch-track"><span class="switch-thumb"></span></span>
+                </label>
               </div>
-              <label class="switch">
-                <input type="checkbox" id="settingDisableLiveTracking" disabled />
-                <span class="switch-track"><span class="switch-thumb"></span></span>
-              </label>
+              <div class="settings-row">
+                <div class="settings-row-text">
+                  <span class="settings-row-label">Discord account</span>
+                  <span class="settings-row-desc" id="settingDiscordDesc">Sign in without a password, reset via bot.</span>
+                </div>
+                <div id="settingDiscordAction"></div>
+              </div>
+              <div class="settings-row">
+                <div class="settings-row-text">
+                  <span class="settings-row-label">Change password</span>
+                  <span class="settings-row-desc">Set a new password for your account.</span>
+                </div>
+                <button class="btn btn-ghost" type="button" id="changePasswordBtn">Change password</button>
+              </div>
+              <div class="settings-row">
+                <div class="settings-row-text">
+                  <span class="settings-row-label">Delete account</span>
+                  <span class="settings-row-desc">Permanently removes your account and its data. Cannot be undone.</span>
+                </div>
+                <button class="btn btn-danger" type="button" id="deleteAccountBtn">Delete account</button>
+              </div>
             </div>
+
+            <p class="settings-login-footer" id="settingsLoginFooter">
+              <i class="fa-solid fa-lock" aria-hidden="true"></i> Log in to see more settings (live tracking, Discord linking).
+            </p>
           </div>
         </section>
       </main>
+    </div>
+
+    <!-- Change password modal -->
+    <div class="modal-backdrop" id="changePasswordModal" hidden>
+      <div class="modal auth-modal-card">
+        <div class="auth-modal-header">
+          <span class="auth-kicker">Miaucraft</span>
+          <h2>Change password</h2>
+          <p>Choose a new password for your account.</p>
+        </div>
+        <form class="modal-form" id="changePasswordForm">
+          <label>
+            New password
+            <span class="password-field">
+              <input type="password" id="newPassword" autocomplete="new-password" required />
+              <button class="password-toggle" type="button" data-password-toggle="newPassword" aria-label="Show password" aria-pressed="false"><i class="fa-solid fa-eye" aria-hidden="true"></i></button>
+            </span>
+          </label>
+          <label>
+            Repeat new password
+            <span class="password-field">
+              <input type="password" id="newPasswordRepeat" autocomplete="new-password" required />
+              <button class="password-toggle" type="button" data-password-toggle="newPasswordRepeat" aria-label="Show password" aria-pressed="false"><i class="fa-solid fa-eye" aria-hidden="true"></i></button>
+            </span>
+          </label>
+          <button class="btn btn-primary" type="submit">Update password</button>
+        </form>
+      </div>
     </div>
 
     <!-- Auth modal -->
@@ -331,6 +386,9 @@
             </span>
           </label>
           <button class="btn btn-primary" type="submit">Sign in</button>
+          <button class="btn btn-discord" type="button" id="discordLoginBtn">
+            <i class="fa-brands fa-discord" aria-hidden="true"></i> Continue with Discord
+          </button>
         </form>
 
         <form class="modal-form" id="registerForm" hidden>

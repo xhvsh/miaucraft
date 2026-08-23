@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient.js";
-import { REGISTER_FUNCTION_URL, SUPABASE_ANON_KEY } from "./config.js";
+import { REGISTER_FUNCTION_URL, DELETE_ACCOUNT_FUNCTION_URL, SUPABASE_ANON_KEY } from "./config.js";
 
 // Username-only accounts: Supabase Auth needs *an* email under the hood, so
 // we derive one deterministically and never surface it anywhere.
@@ -71,6 +71,28 @@ async function loadProfile(userId) {
   return data;
 }
 
+// Set right before redirecting out for a Discord *sign-in* attempt (not a
+// link-from-settings attempt), so we know, once we're bounced back, whether
+// to apply the "must already be linked" check below.
+const OAUTH_INTENT_KEY = "miaucraft-oauth-intent";
+
+async function handlePostOAuthSignIn(session) {
+  const intent = sessionStorage.getItem(OAUTH_INTENT_KEY);
+  sessionStorage.removeItem(OAUTH_INTENT_KEY);
+  if (intent !== "login") return true; // not a discord-login attempt, nothing to check
+
+  const profile = await loadProfile(session.user.id);
+  if (profile) return true;
+
+  // Discord OAuth created/used an auth user with no matching Miaucraft
+  // profile, meaning this Discord account was never linked from Settings.
+  // Refuse the session.
+  await supabase.auth.signOut();
+  throw new Error(
+    "This Discord account isn't linked to a Miaucraft account. Sign in with your username and password first, then link Discord from Settings."
+  );
+}
+
 export async function init() {
   const { data } = await supabase.auth.getSession();
   state.session = data.session ?? null;
@@ -78,11 +100,44 @@ export async function init() {
   state.ready = true;
   emit();
 
-  supabase.auth.onAuthStateChange(async (_event, session) => {
+  supabase.auth.onAuthStateChange(async (event, session) => {
+    if (event === "PASSWORD_RECOVERY") {
+      emitPasswordRecovery();
+    }
+    if (event === "SIGNED_IN" && session) {
+      try {
+        await handlePostOAuthSignIn(session);
+      } catch (err) {
+        console.error(err);
+        emitAuthError(err.message);
+        state.session = null;
+        state.profile = null;
+        emit();
+        return;
+      }
+    }
     state.session = session;
     state.profile = session ? await loadProfile(session.user.id) : null;
     emit();
   });
+}
+
+const errorListeners = new Set();
+export function onAuthError(cb) {
+  errorListeners.add(cb);
+  return () => errorListeners.delete(cb);
+}
+function emitAuthError(message) {
+  for (const cb of errorListeners) cb(message);
+}
+
+const passwordRecoveryListeners = new Set();
+export function onPasswordRecovery(cb) {
+  passwordRecoveryListeners.add(cb);
+  return () => passwordRecoveryListeners.delete(cb);
+}
+function emitPasswordRecovery() {
+  for (const cb of passwordRecoveryListeners) cb();
 }
 
 export async function login(username, password) {
@@ -120,4 +175,74 @@ export async function register(username, password, accessCode) {
 
 export async function logout() {
   await supabase.auth.signOut();
+}
+
+export async function updatePassword(newPassword) {
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) throw new Error(error.message);
+}
+
+export async function deleteAccount() {
+  const token = state.session?.access_token;
+  if (!token) throw new Error("Not logged in.");
+
+  const res = await fetch(DELETE_ACCOUNT_FUNCTION_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(body.error || "Failed to delete account.");
+  }
+
+  await supabase.auth.signOut();
+}
+
+// ---------------------------------------------------------------------------
+// Discord
+// ---------------------------------------------------------------------------
+
+export function discordIdentity() {
+  return state.session?.user?.identities?.find((i) => i.provider === "discord") ?? null;
+}
+
+export async function loginWithDiscord() {
+  sessionStorage.setItem(OAUTH_INTENT_KEY, "login");
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: "discord",
+    options: { redirectTo: window.location.origin },
+  });
+  if (error) {
+    sessionStorage.removeItem(OAUTH_INTENT_KEY);
+    throw new Error(error.message);
+  }
+}
+
+export async function linkDiscord() {
+  const { error } = await supabase.auth.linkIdentity({
+    provider: "discord",
+    options: { redirectTo: window.location.origin },
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function unlinkDiscord() {
+  const { data, error: listError } = await supabase.auth.getUserIdentities();
+  if (listError) throw new Error(listError.message);
+  const identity = data?.identities?.find((i) => i.provider === "discord");
+  if (!identity) throw new Error("No linked Discord account.");
+  const { error } = await supabase.auth.unlinkIdentity(identity);
+  if (error) throw new Error(error.message);
+
+  // unlinkIdentity doesn't push an auth state change; refresh locally.
+  const { data: userData } = await supabase.auth.getUser();
+  if (state.session && userData?.user) {
+    state.session = { ...state.session, user: userData.user };
+    emit();
+  }
 }
