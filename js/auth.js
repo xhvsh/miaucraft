@@ -1,8 +1,6 @@
 import { supabase } from "./supabaseClient.js";
 import { REGISTER_FUNCTION_URL, DELETE_ACCOUNT_FUNCTION_URL, SUPABASE_ANON_KEY } from "./config.js";
 
-// Username-only accounts: Supabase Auth needs *an* email under the hood, so
-// we derive one deterministically and never surface it anywhere.
 function emailFor(username) {
   return `${username.trim().toLowerCase()}@miaucraft.internal`;
 }
@@ -71,22 +69,16 @@ async function loadProfile(userId) {
   return data;
 }
 
-// Set right before redirecting out for a Discord *sign-in* attempt (not a
-// link-from-settings attempt), so we know, once we're bounced back, whether
-// to apply the "must already be linked" check below.
 const OAUTH_INTENT_KEY = "miaucraft-oauth-intent";
 
 async function handlePostOAuthSignIn(session) {
   const intent = sessionStorage.getItem(OAUTH_INTENT_KEY);
   sessionStorage.removeItem(OAUTH_INTENT_KEY);
-  if (intent !== "login") return true; // not a discord-login attempt, nothing to check
+  if (intent !== "login") return true;
 
   const profile = await loadProfile(session.user.id);
   if (profile) return true;
 
-  // Discord OAuth created/used an auth user with no matching Miaucraft
-  // profile, meaning this Discord account was never linked from Settings.
-  // Refuse the session.
   await supabase.auth.signOut();
   throw new Error(
     "This Discord account isn't linked to a Miaucraft account. Sign in with your username and password first, then link Discord from Settings."
@@ -207,7 +199,10 @@ export async function deleteAccount() {
 // Discord
 // ---------------------------------------------------------------------------
 
+let discordForcedUnlinked = false;
+
 export function discordIdentity() {
+  if (discordForcedUnlinked) return null;
   return state.session?.user?.identities?.find((i) => i.provider === "discord") ?? null;
 }
 
@@ -224,6 +219,7 @@ export async function loginWithDiscord() {
 }
 
 export async function linkDiscord() {
+  discordForcedUnlinked = false;
   const { error } = await supabase.auth.linkIdentity({
     provider: "discord",
     options: { redirectTo: window.location.origin },
@@ -239,10 +235,8 @@ export async function unlinkDiscord() {
   const { error } = await supabase.auth.unlinkIdentity(identity);
   if (error) throw new Error(error.message);
 
-  // unlinkIdentity doesn't push an auth state change, and re-fetching via
-  // getUser()/getSession() right after can still return a stale cached
-  // identities array. The unlink itself already succeeded (no error above),
-  // so update local state directly instead of trusting an immediate re-fetch.
+  discordForcedUnlinked = true;
+
   if (state.session?.user) {
     state.session = {
       ...state.session,
@@ -251,6 +245,6 @@ export async function unlinkDiscord() {
         identities: (state.session.user.identities || []).filter((i) => i.provider !== "discord"),
       },
     };
-    emit();
   }
+  emit();
 }
