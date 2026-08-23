@@ -2170,12 +2170,19 @@ function isStatusStale(status) {
   return Date.now() - new Date(status.updated_at).getTime() > STATUS_STALE_MS;
 }
 
+function getTpsClass(tps) {
+  if (tps >= 18) return "tps-good";
+  if (tps >= 15) return "tps-warn";
+  return "tps-bad";
+}
+
 function renderServerStatus(status) {
   const offline = isStatusStale(status);
   $("#serverOfflineNotice").hidden = !offline;
 
   if (offline) {
     $("#serverTps").textContent = "—";
+    $("#serverTps").classList.remove("tps-good", "tps-warn", "tps-bad");
     $("#serverUptime").textContent = "—";
     $("#serverDays").textContent = "—";
     $("#serverOfflineNotice").innerHTML = status?.updated_at ? `<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> Server is offline - last online ${formatRelativeTime(status.updated_at)}` : `<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> Server is offline`;
@@ -2185,6 +2192,10 @@ function renderServerStatus(status) {
 
   const tps = status.tps_1m != null ? status.tps_1m.toFixed(1) : "—";
   $("#serverTps").textContent = tps;
+  $("#serverTps").classList.remove("tps-good", "tps-warn", "tps-bad");
+  if (status.tps_1m != null) {
+    $("#serverTps").classList.add(getTpsClass(status.tps_1m));
+  }
 
   if (status.started_at) {
     const ms = Date.now() - new Date(status.started_at).getTime();

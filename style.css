@@ -15,6 +15,9 @@
   --accent-soft-2: rgba(167, 139, 250, 0.22);
   --danger: #f87171;
   --danger-soft: rgba(248, 113, 113, 0.12);
+  --tps-good: #4ade80;
+  --tps-warn: #fb923c;
+  --tps-bad: #f87171;
 
   --dim-overworld: #4ade80;
   --dim-nether: #f87171;
@@ -678,6 +681,18 @@ input {
   font-family: var(--font-mono);
   color: var(--accent);
   font-size: 13.5px;
+}
+
+.server-field-value.tps-good {
+  color: var(--tps-good);
+}
+
+.server-field-value.tps-warn {
+  color: var(--tps-warn);
+}
+
+.server-field-value.tps-bad {
+  color: var(--tps-bad);
 }
 
 .server-field-value.ip-blur {
