@@ -239,10 +239,18 @@ export async function unlinkDiscord() {
   const { error } = await supabase.auth.unlinkIdentity(identity);
   if (error) throw new Error(error.message);
 
-  // unlinkIdentity doesn't push an auth state change; refresh locally.
-  const { data: userData } = await supabase.auth.getUser();
-  if (state.session && userData?.user) {
-    state.session = { ...state.session, user: userData.user };
+  // unlinkIdentity doesn't push an auth state change, and re-fetching via
+  // getUser()/getSession() right after can still return a stale cached
+  // identities array. The unlink itself already succeeded (no error above),
+  // so update local state directly instead of trusting an immediate re-fetch.
+  if (state.session?.user) {
+    state.session = {
+      ...state.session,
+      user: {
+        ...state.session.user,
+        identities: (state.session.user.identities || []).filter((i) => i.provider !== "discord"),
+      },
+    };
     emit();
   }
 }
