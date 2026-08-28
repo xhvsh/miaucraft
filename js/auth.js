@@ -10,7 +10,7 @@ const listeners = new Set();
 const state = {
   ready: false,
   session: null,
-  profile: null, // { id, username, role }
+  profile: null,
 };
 
 function emit() {
@@ -32,7 +32,6 @@ export function isLoggedIn() {
 }
 
 export function role() {
-  // guest by default
   return state.profile?.role ?? "guest";
 }
 
@@ -87,9 +86,7 @@ async function handlePostOAuthSignIn(session) {
   if (profile) return true;
 
   await supabase.auth.signOut();
-  throw new Error(
-    "This Discord account isn't linked to a Miaucraft account. Sign in with your username and password first, then link Discord from Settings."
-  );
+  throw new Error("This Discord account isn't linked to a Miaucraft account. Sign in with your username and password first, then link Discord from Settings.");
 }
 
 export async function init() {
@@ -202,9 +199,7 @@ export async function deleteAccount() {
   await supabase.auth.signOut();
 }
 
-// ---------------------------------------------------------------------------
-// Discord
-// ---------------------------------------------------------------------------
+// discord handling
 
 let discordForcedUnlinked = false;
 

@@ -1,7 +1,9 @@
 import * as Auth from "./auth.js";
 import { Grid } from "./grid.js";
-import { listWaypoints, createWaypoint, updateWaypoint, deleteWaypoint, getServerInfo, listCategories, createCategory, updateCategory, deleteCategory, listLogs } from "./waypoints.js";
+import { listWaypoints, createWaypoint, updateWaypoint, deleteWaypoint, getServerInfo, listCategories, createCategory, updateCategory, deleteCategory, listLogs, categoryIconClass, sanitizeIconClass, DEFAULT_CATEGORY_ICON_CLASS } from "./waypoints.js";
 import { listPlayers, subscribePlayers, listLivePositions, subscribeLivePositions, getServerStatus, subscribeServerStatus, listWhitelist, subscribeWhitelist, requestWhitelistAdd, requestWhitelistRemove, listPendingWhitelistCommands, subscribeWhitelistCommands, cancelWhitelistCommand, listPlayerStats, listStatKeys, listDistanceLeaderboard, getPlayerByUsername, setLiveTracking } from "./live.js";
+import { PRESET_STATS, getStatDisplayName, formatStatValue } from "./statPresets.js";
+import { openProfilePanel } from "./profile.js";
 
 const DIM_COLORS = {
   overworld: "#4ade80",
@@ -10,13 +12,10 @@ const DIM_COLORS = {
 };
 const DIM_LABELS = { overworld: "Overworld", nether: "Nether", end: "End" };
 
-// ---------------------------------------------------------------------------
-// Elements
-// ---------------------------------------------------------------------------
+// elements
 
 const $ = (sel) => document.querySelector(sel);
 
-// Custom confirm/alert dialog, replacing native confirm()/alert() popups.
 function showConfirmDialog({ title = "Are you sure?", message = "", confirmLabel = "Confirm", danger = true, alertOnly = false } = {}) {
   return new Promise((resolve) => {
     const modal = $("#confirmModal");
@@ -173,9 +172,7 @@ const sidebarToggleBtn = $("#sidebarToggleBtn");
 const sidebarCloseBtn = $("#sidebarCloseBtn");
 const sidebarScrim = $("#sidebarScrim");
 
-// ---------------------------------------------------------------------------
-// Settings (persisted to localStorage)
-// ---------------------------------------------------------------------------
+// settings (local storage)
 
 const SETTINGS_STORAGE_KEY = "miaucraft-settings";
 const DEFAULT_SETTINGS = {
@@ -204,19 +201,15 @@ function loadSettings() {
 function saveSettings() {
   try {
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
-  } catch {
-    // localStorage unavailable (private browsing, disabled, etc) - ignore
-  }
+  } catch {}
 }
 
-function formatCoordsForCopy(x, y, z) {
+export function formatCoordsForCopy(x, y, z) {
   const formatter = COORD_COPY_FORMATS[settings.copyFormat] || COORD_COPY_FORMATS.labeled;
   return formatter(x, y !== null && y !== undefined ? y : null, z);
 }
 
-// ---------------------------------------------------------------------------
-// State
-// ---------------------------------------------------------------------------
+// state
 
 let settings = loadSettings();
 let currentDim = "overworld";
@@ -224,7 +217,7 @@ let currentWaypoints = [];
 let openTooltipWaypoint = null;
 let tooltipPointerStartedInside = false;
 let categories = [];
-let categoryFilter = null; // null = all, "__none__" = uncategorized, or a category id
+let categoryFilter = null;
 let editingCategory = null;
 const grid = new Grid($("#gridContainer"), { dimensionColor: DIM_COLORS.overworld });
 
@@ -281,9 +274,7 @@ grid.onViewChange = () => {
   if (openTooltipWaypoint && !pinTooltip.hidden) positionTooltip(openTooltipWaypoint);
 };
 
-// ---------------------------------------------------------------------------
-// Auth-driven UI
-// ---------------------------------------------------------------------------
+// auth drived ui
 
 const settingsAuthOnlyEl = $("#settingsAuthOnly");
 const settingsLoginFooterEl = $("#settingsLoginFooter");
@@ -366,40 +357,7 @@ function renderAuthArea() {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Categories
-// ---------------------------------------------------------------------------
-
-const DEFAULT_CATEGORY_ICON_CLASS = "fa-solid fa-hashtag";
-
-// The icon field now accepts a full Font Awesome class string, e.g.
-// "fa-solid fa-hashtag" or "fa-brands fa-fort-awesome". Users can type it
-// with or without the "fa-" prefixes and with or without the style token;
-// missing pieces get filled in sensibly.
-function sanitizeIconClass(raw) {
-  const tokens = (raw || "")
-    .trim()
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((t) => t.replace(/[^a-z0-9-]/g, ""))
-    .filter(Boolean)
-    .map((t) => (t.startsWith("fa-") ? t : `fa-${t}`));
-
-  if (tokens.length === 0) return DEFAULT_CATEGORY_ICON_CLASS;
-  if (tokens.length === 1) return `fa-solid ${tokens[0]}`;
-  return tokens.join(" ");
-}
-
-// Categories saved before this field accepted full class strings only have
-// a bare icon name stored (e.g. "wheat-awn"). Resolve either format to a
-// ready-to-use class string.
-function categoryIconClass(rawIcon) {
-  const value = (rawIcon || "").trim();
-  if (!value) return DEFAULT_CATEGORY_ICON_CLASS;
-  if (value.includes("fa-")) return sanitizeIconClass(value);
-  return `fa-solid fa-${value.toLowerCase().replace(/[^a-z0-9-]/g, "")}`;
-}
+// categories
 
 function updateCategoryIconPreview() {
   const iconClass = sanitizeIconClass($("#catIcon").value);
@@ -694,9 +652,7 @@ $("#catCancelEditBtn").addEventListener("click", resetCategoryForm);
 $("#catIcon").addEventListener("input", updateCategoryIconPreview);
 $("#catColor").addEventListener("input", updateCategoryIconPreview);
 
-// ---------------------------------------------------------------------------
-// Dimension tabs
-// ---------------------------------------------------------------------------
+// dimension tab
 
 dimTabs.addEventListener("click", (e) => {
   const btn = e.target.closest(".dim-tab");
@@ -724,26 +680,26 @@ function switchDimension(dim) {
   }
 
   if (dim === "server" || dim === "categories" || dim === "settings" || dim === "logs" || dim === "whitelist" || dim === "leaderboards") {
-  gridPanel.hidden = true;
-  sidebarEl.hidden = true;
-  sidebarToggleBtn.hidden = true;
-  serverPanel.hidden = dim !== "server";
-  categoriesTabPanel.hidden = dim !== "categories";
-  settingsTabPanel.hidden = dim !== "settings";
-  logsTabPanel.hidden = dim !== "logs";
-  whitelistTabPanel.hidden = dim !== "whitelist";
-  leaderboardsTabPanel.hidden = dim !== "leaderboards";
-  if (dim === "server") loadServerPanel();
-  else {
-    stopServerTicker();
-    if (dim === "categories") loadCategories();
-    else if (dim === "logs") loadLogs();
-    else if (dim === "whitelist") loadWhitelistPanel();
-    else if (dim === "leaderboards") loadLeaderboardsTab();
-    else updateSettingsUI();
+    gridPanel.hidden = true;
+    sidebarEl.hidden = true;
+    sidebarToggleBtn.hidden = true;
+    serverPanel.hidden = dim !== "server";
+    categoriesTabPanel.hidden = dim !== "categories";
+    settingsTabPanel.hidden = dim !== "settings";
+    logsTabPanel.hidden = dim !== "logs";
+    whitelistTabPanel.hidden = dim !== "whitelist";
+    leaderboardsTabPanel.hidden = dim !== "leaderboards";
+    if (dim === "server") loadServerPanel();
+    else {
+      stopServerTicker();
+      if (dim === "categories") loadCategories();
+      else if (dim === "logs") loadLogs();
+      else if (dim === "whitelist") loadWhitelistPanel();
+      else if (dim === "leaderboards") loadLeaderboardsTab();
+      else updateSettingsUI();
+    }
+    return;
   }
-  return;
-}
 
   stopServerTicker();
   gridPanel.hidden = false;
@@ -779,9 +735,7 @@ async function loadCurrentView() {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Settings tab
-// ---------------------------------------------------------------------------
+// settings tab
 
 function updateSettingsUI() {
   settingHideFilteredEl.checked = settings.hideFilteredWaypoints;
@@ -809,14 +763,6 @@ settingShowConversionEl.addEventListener("change", () => {
   if (openTooltipWaypoint) showTooltip(openTooltipWaypoint);
 });
 
-// Unlike the settings above, this one is NOT part of `settings`/localStorage -
-// it's a real per-account column (players.live_tracking_enabled), so it has
-// to reflect whatever the database says, on whichever device/browser the
-// player logs in from.
-//
-// profiles.id (state.profile.id) is the auth user id, not players.id - the
-// only link between the two is the username - so we resolve the actual
-// player row once here and hang onto its id for the change handler below.
 let liveTrackingPlayerId = null;
 
 async function refreshLiveTrackingSetting() {
@@ -852,8 +798,6 @@ async function refreshLiveTrackingSetting() {
 
 settingDisableLiveTrackingEl.addEventListener("change", async () => {
   if (!liveTrackingPlayerId) {
-    // Shouldn't be reachable (checkbox is disabled whenever this is unset),
-    // but if it happens, don't fail silently - revert and say why.
     settingDisableLiveTrackingEl.checked = !settingDisableLiveTrackingEl.checked;
     toast("Could not update live tracking - your player row wasn't found.", "error");
     return;
@@ -885,9 +829,7 @@ async function loadWaypointsForDim(dim) {
   renderSidebar();
 }
 
-// ---------------------------------------------------------------------------
-// Sidebar
-// ---------------------------------------------------------------------------
+// sidebar
 
 function matchesCategoryFilter(wp) {
   if (categoryFilter === null) return true;
@@ -1031,9 +973,7 @@ async function handleDelete(wp) {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Pin tooltip (view-only)
-// ---------------------------------------------------------------------------
+// pin tooltip
 
 function showTooltip(wp) {
   openTooltipWaypoint = wp;
@@ -1097,16 +1037,7 @@ function positionTooltip(wp) {
   const p = grid.worldToScreen(wp.x, wp.z);
   const tw = pinTooltip.offsetWidth;
   const th = pinTooltip.offsetHeight;
-  // The marker icon is drawn above its coordinate point (~24px tall) with a
-  // soft glow on top of that, so the gap has to clear the whole icon, not
-  // just its tip, or the tooltip ends up covering the waypoint it describes.
   const gap = 40;
-
-  // Always anchor centered above the pin's tip, connected by a CSS arrow
-  // (see .pin-tooltip::after). This keeps the tooltip glued to the actual
-  // waypoint at all times instead of jumping to a different side/corner
-  // when it would run past a screen edge - it may run past the edge, and
-  // that's fine, since staying attached to the pin matters more.
   const left = p.x - tw / 2;
   const top = p.y - th - gap;
 
@@ -1169,8 +1100,6 @@ function appendDimensionConversion(container, wp, className) {
   container.appendChild(converted);
 }
 
-// A tiny opt-in hook for one-off waypoints that have their own reference image.
-// Add more entries here (exact waypoint name -> image path) as needed.
 const SPECIAL_WAYPOINT_IMAGES = {
   "Blehh Cat": "/img/blehh-map.png",
 };
@@ -1231,9 +1160,7 @@ document.addEventListener("click", (e) => {
   tooltipPointerStartedInside = false;
 });
 
-// ---------------------------------------------------------------------------
-// Mobile sidebar drawer
-// ---------------------------------------------------------------------------
+// mobile sidebar
 
 function openSidebarDrawer() {
   sidebarEl.classList.add("sidebar--open");
@@ -1261,17 +1188,13 @@ mobileMediaQuery.addEventListener("change", (e) => {
   if (!e.matches) closeSidebarDrawer();
 });
 
-// ---------------------------------------------------------------------------
-// Grid zoom controls
-// ---------------------------------------------------------------------------
+// zoom controls
 
 $("#zoomInBtn").addEventListener("click", () => grid.zoomBy(1.4));
 $("#zoomOutBtn").addEventListener("click", () => grid.zoomBy(1 / 1.4));
 $("#recenterBtn").addEventListener("click", () => grid.recenter());
 
-// ---------------------------------------------------------------------------
-// Auth modal
-// ---------------------------------------------------------------------------
+// auth
 
 function openAuthModal(tab) {
   if (Auth.isLoggedIn()) return;
@@ -1308,9 +1231,57 @@ function closeOnBackdropClick(backdrop, close) {
 
 closeOnBackdropClick(authModal, closeAuthModal);
 
-// ---------------------------------------------------------------------------
-// Change password modal
-// ---------------------------------------------------------------------------
+// player profile modal
+
+const profileModal = $("#profileModal");
+
+function openProfileModal(username) {
+  profileModal.hidden = false;
+  $("#profileLoading").hidden = false;
+  $("#profileNotFound").hidden = true;
+  $("#profileContent").hidden = true;
+  $("#profileTopBadges").hidden = true;
+  $("#profileTopBadges").innerHTML = "";
+  $("#profilePlaytime").hidden = true;
+  openProfilePanel(username);
+}
+
+function closeProfileModal() {
+  profileModal.hidden = true;
+}
+
+closeOnBackdropClick(profileModal, closeProfileModal);
+
+window.addEventListener("miaucraft:open-leaderboard", (e) => {
+  const { id, key } = e.detail || {};
+  if (id && PRESET_STATS.some((s) => s.id === id)) {
+    closeProfileModal();
+    activeLeaderboardStatId = id;
+    switchDimension("leaderboards");
+    return;
+  }
+  if (key) {
+    closeProfileModal();
+    activeLeaderboardStatId = "custom";
+    leaderboardCustomInputEl.value = key;
+    switchDimension("leaderboards");
+  }
+});
+
+window.addEventListener("miaucraft:jump-to-waypoint", async (e) => {
+  const { id, dimension } = e.detail || {};
+  if (!id || !dimension) return;
+  closeProfileModal();
+  switchDimension(dimension);
+  await loadWaypointsForDim(dimension);
+  const wp = currentWaypoints.find((w) => w.id === id);
+  if (!wp) return;
+  grid.jumpTo(wp.x, wp.z);
+  showTooltip(wp);
+  if (mobileMediaQuery.matches) closeSidebarDrawer();
+});
+
+// change password
 
 function openChangePasswordModal() {
   changePasswordModal.hidden = false;
@@ -1347,15 +1318,10 @@ $("#changePasswordForm").addEventListener("submit", async (e) => {
   }
 });
 
-// ---------------------------------------------------------------------------
-// Delete account
-// ---------------------------------------------------------------------------
+// delete account
 
 $("#deleteAccountBtn").addEventListener("click", async () => {
-  const confirmed = await confirmAction(
-    "This permanently deletes your account and everything tied to it. This can't be undone.",
-    { title: "Delete your account?", confirmLabel: "Delete account" }
-  );
+  const confirmed = await confirmAction("This permanently deletes your account and everything tied to it. This can't be undone.", { title: "Delete your account?", confirmLabel: "Delete account" });
   if (!confirmed) return;
   try {
     await Auth.deleteAccount();
@@ -1379,6 +1345,7 @@ document.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
   if (!authModal.hidden) closeAuthModal();
   if (!changePasswordModal.hidden) closeChangePasswordModal();
+  if (!profileModal.hidden) closeProfileModal();
   if (!pinTooltip.hidden) hideTooltip();
 });
 
@@ -1397,9 +1364,7 @@ authModal.querySelectorAll(".modal-tab").forEach((btn) => {
   btn.addEventListener("click", () => setAuthTab(btn.dataset.authtab));
 });
 
-// ---------------------------------------------------------------------------
-// Shared access-code links: /c/MIAU-xxxx-xxxx-xxxx
-// ---------------------------------------------------------------------------
+// access code link
 
 const DEFAULT_REGISTER_CODE_LABEL = "Access code (contact xhvsh if you need one)";
 
@@ -1418,6 +1383,26 @@ function consumeSharedAccessCodeLink() {
     $("#registerCode").disabled = true;
     $("#registerCodeLabel").textContent = "Code loaded from link";
   });
+}
+
+// leaderboard link
+
+function consumeLeaderboardDeepLink() {
+  const params = new URLSearchParams(window.location.search);
+  const id = params.get("leaderboard");
+  if (!id) return;
+  window.history.replaceState({}, "", "/");
+  if (!PRESET_STATS.some((s) => s.id === id)) return;
+  activeLeaderboardStatId = id;
+  switchDimension("leaderboards");
+}
+
+function consumeProfileLink() {
+  const match = window.location.pathname.match(/^\/p\/([^/]+)\/?$/);
+  if (!match) return;
+  const username = decodeURIComponent(match[1]);
+  window.history.replaceState({}, "", "/");
+  openProfileModal(username);
 }
 
 document.querySelectorAll("[data-password-toggle]").forEach((button) => {
@@ -1449,9 +1434,7 @@ $("#discordLoginBtn").addEventListener("click", async () => {
   }
 });
 
-// ---------------------------------------------------------------------------
-// Settings — Discord linking
-// ---------------------------------------------------------------------------
+// settings - discord linking
 
 const settingDiscordActionEl = $("#settingDiscordAction");
 
@@ -1494,16 +1477,20 @@ function renderDiscordSetting() {
   const label = document.createElement("span");
   label.className = "discord-linked-label";
 
+  const nameLine = document.createElement("span");
+  nameLine.className = "discord-linked-name-line";
+  nameLine.innerHTML = `<i class="fa-brands fa-discord" aria-hidden="true"></i> `;
+
   const nameSpan = document.createElement("span");
   nameSpan.className = "discord-linked-name";
   nameSpan.textContent = discordUsername;
+  nameLine.appendChild(nameSpan);
 
   const idSpan = document.createElement("span");
   idSpan.className = "discord-linked-id";
   idSpan.textContent = `{${discordId}}`;
 
-  label.innerHTML = `<i class="fa-brands fa-discord" aria-hidden="true"></i> `;
-  label.append(nameSpan, " ", idSpan);
+  label.append(nameLine, idSpan);
 
   const unlinkBtn = document.createElement("button");
   unlinkBtn.className = "btn btn-danger";
@@ -1549,9 +1536,7 @@ $("#registerForm").addEventListener("submit", async (e) => {
   }
 });
 
-// ---------------------------------------------------------------------------
-// Waypoint modal
-// ---------------------------------------------------------------------------
+// waypoint modal
 
 let editingWaypoint = null;
 
@@ -1680,99 +1665,8 @@ $("#waypointForm").addEventListener("submit", async (e) => {
   }
 });
 
-// ---------------------------------------------------------------------------
-// Leaderboards (public - no auth required)
-// ---------------------------------------------------------------------------
+// leaderboards
 
-const PRESET_STATS = [
-  // aggregateCm: true sums every "*_CM" stat (WALK_ONE_CM, SPRINT_ONE_CM,
-  // AVIATE_ONE_CM, BOAT_ONE_CM, etc.) via the distance_leaderboard RPC,
-  // instead of pointing at one specific movement-type stat key.
-  { id: "distance_traveled", label: "Distance Traveled", aggregateCm: true, format: "distance" },
-  { id: "jumps", label: "Jumps", keys: ["JUMP"], format: "count" },
-  { id: "mob_kills", label: "Mob Kills", keys: ["MOB_KILLS_TOTAL", "MOB_KILLS"], format: "count" },
-  { id: "time_played", label: "Time Played", keys: ["PLAY_ONE_MINUTE", "TIME_PLAYED"], format: "time" },
-  { id: "player_deaths", label: "Deaths", keys: ["DEATHS"], format: "count" },
-  { id: "shulker_boxes_opened", label: "Shulker Boxes Opened", keys: ["SHULKER_BOX_OPENED"], format: "count" },
-  { id: "crafting_table_interactions", label: "Crafting Table Interactions", keys: ["CRAFTING_TABLE_INTERACTION"], format: "count" },
-  { id: "blocks_mined", label: "Blocks Mined", keys: ["BLOCKS_MINED_TOTAL"], format: "count" },
-];
-
-// Bukkit/Minecraft statistic key -> human-readable name, matching the
-// vanilla stat menu naming as closely as practical.
-const CM_DISTANCE_LABELS = {
-  WALK: "Walked", SPRINT: "Sprinted", CROUCH: "Crouched", FLY: "Flown", AVIATE: "Flown (Elytra)",
-  CLIMB: "Climbed", FALL: "Fallen", SWIM: "Swum", DIVE: "Dove", BOAT: "Boated",
-  HORSE: "Ridden (Horse)", MINECART: "Ridden (Minecart)", PIG: "Ridden (Pig)", STRIDER: "Ridden (Strider)",
-  WALK_ON_WATER: "Walked on Water", WALK_UNDER_WATER: "Walked Underwater",
-};
-const STAT_PREFIX_LABELS = {
-  KILL_ENTITY: "Kills", ENTITY_KILLED_BY: "Killed By", MINE_BLOCK: "Mined", USE_ITEM: "Used",
-  BREAK_ITEM: "Broken", CRAFT_ITEM: "Crafted", DROP: "Dropped", PICKUP: "Picked Up",
-};
-const STAT_NAME_OVERRIDES = {
-  PLAY_ONE_MINUTE: "Time Played", TIME_PLAYED: "Time Played", CHEST_OPENED: "Chests Opened",
-  BLOCKS_MINED_TOTAL: "Blocks Mined", LEAVE_GAME: "Times Left Game",
-  TALKED_TO_VILLAGER: "Talked to Villager", DROP_COUNT: "Items Dropped",
-  MOB_KILLS_TOTAL: "Mob Kills", MOB_KILLS: "Mob Kills", TOTAL_WORLD_TIME: "Time in World",
-  TRADED_WITH_VILLAGER: "Villager Trades", DAMAGE_DEALT: "Damage Dealt", DAMAGE_TAKEN: "Damage Taken",
-  SNEAK_TIME: "Time Sneaking", TIME_SINCE_REST: "Time Since Rest", TIME_SINCE_DEATH: "Time Since Death",
-  JUMP: "Jumps", DEATHS: "Deaths", PLAYER_KILLS: "Player Kills", FISH_CAUGHT: "Fish Caught",
-  ANIMALS_BRED: "Animals Bred", BELL_RING: "Bells Rung", CAKE_SLICES_EATEN: "Cake Slices Eaten",
-  ENCHANT_ITEM: "Items Enchanted", FLOWER_POTTED: "Flowers Potted", RAID_TRIGGER: "Raids Triggered",
-  RAID_WIN: "Raids Won", RECORD_PLAYED: "Records Played", SLEEP_IN_BED: "Times Slept",
-};
-
-// Some raw stat_key rows have inconsistent whitespace around "_"/":" (e.g.
-// "MINE_BLOCK: CACTUS_FLOWER" vs "MINE_BLOCK:CACTUS_FLOWER"), and some newer
-// entity/item names come through mashed together with no separator at all
-// (e.g. "FireworkRocket", "HappyGhast"). Inserting a boundary at every
-// lower->upper letter transition before splitting on /[_\s]+/ handles both:
-// underscore/space runs collapse to one gap, and camelCase joins get one too
-// - so the same stat always renders as one consistently-spaced label.
-function titleCaseStatKey(str) {
-  return str
-    .trim()
-    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
-    .toLowerCase()
-    .split(/[_\s]+/)
-    .filter(Boolean)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
-}
-
-function getStatDisplayName(key) {
-  if (!key) return "";
-  const trimmedKey = key.trim();
-  if (STAT_NAME_OVERRIDES[trimmedKey]) return STAT_NAME_OVERRIDES[trimmedKey];
-  if (trimmedKey.endsWith("_ONE_CM")) {
-    const base = trimmedKey.slice(0, -"_ONE_CM".length);
-    // Known movement types already read as verbs ("Walked", "Sprinted"), so
-    // "Distance Walked" is correct as-is. Anything not in that table is a
-    // mount/vehicle name (e.g. a newly-added mob like Happy Ghast), which
-    // reads as a noun - "Distance by Happy Ghast" - not "Distance Happy Ghast".
-    if (CM_DISTANCE_LABELS[base]) return `Distance ${CM_DISTANCE_LABELS[base]}`;
-    return `Distance by ${titleCaseStatKey(base)}`;
-  }
-  if (trimmedKey.includes(":")) {
-    // Trim each side of the ":" too, so a stray space after the colon on
-    // some rows doesn't leak into the suffix and break titleCaseStatKey's
-    // capitalization (that stray leading space was the actual cause of
-    // "Used: Beef" vs "Used:Beef"-looking inconsistencies).
-    const [prefix, suffix] = trimmedKey.split(":").map((p) => p.trim());
-    const label = STAT_PREFIX_LABELS[prefix] || titleCaseStatKey(prefix);
-    // No colon in the final label - "Broken Diamond Sword", not
-    // "Broken: Diamond Sword".
-    return `${label} ${titleCaseStatKey(suffix)}`;
-  }
-  return titleCaseStatKey(trimmedKey);
-}
-
-// Extra search terms for items whose common Minecraft nickname doesn't
-// appear anywhere in the raw stat key - e.g. cooked beef is universally
-// called "steak" in-game/community slang, so searching "steak" should still
-// surface "Used: Cooked Beef". Add more entries here as needed; `match` is
-// checked as a substring against the raw (uppercased) stat key.
 const STAT_ALIAS_TERMS = [
   { match: "COOKED_BEEF", terms: ["steak"] },
   { match: "COOKED_PORKCHOP", terms: ["cooked pork"] },
@@ -1785,7 +1679,7 @@ const STAT_ALIAS_TERMS = [
 
 let activeLeaderboardStatId = PRESET_STATS[0].id;
 let statKeysLoaded = false;
-let allStatKeys = []; // [{ key, name }], populated once from listStatKeys()
+let allStatKeys = [];
 let leaderboardCustomDebounce = null;
 let statPickerHighlighted = -1;
 
@@ -1805,8 +1699,6 @@ function renderLeaderboardChips() {
     chip.addEventListener("click", () => selectLeaderboardStat(stat.id));
     leaderboardStatChipsEl.appendChild(chip);
   }
-  // The "Custom" option is the always-visible search chip (#statPicker)
-  // rather than a discrete pill here - just keep its active styling in sync.
   statPickerEl.dataset.active = String(activeLeaderboardStatId === "custom");
 }
 
@@ -1847,18 +1739,9 @@ async function ensureStatKeysLoaded() {
     allStatKeys = keys.map((k) => {
       const rawKey = k.stat_key.trim();
       const name = getStatDisplayName(rawKey);
-      // Search blob includes the friendly name, the raw key (separators
-      // collapsed to single spaces), and any known slang aliases (e.g.
-      // "steak" for COOKED_BEEF) - they don't share vocabulary, e.g. USE_ITEM
-      // maps to the label "Used", so "used: diamond leggings" alone doesn't
-      // contain "item" and wouldn't match someone searching "use item".
       const aliasTerms = STAT_ALIAS_TERMS.filter((a) => rawKey.toUpperCase().includes(a.match)).flatMap((a) => a.terms);
       const rawWords = rawKey.replace(/[_:\s]+/g, " ").trim();
       const search = `${name} ${rawWords} ${aliasTerms.join(" ")}`.toLowerCase();
-      // A whitespace-stripped copy too, so typing "cactusflower" (no space)
-      // still matches a name like "Cactus Flower", and so rows with a stray
-      // space after ":" or "_" (see titleCaseStatKey above) can't produce a
-      // search blob that differs from an otherwise-identical row.
       const searchCompact = search.replace(/[^a-z0-9]/g, "");
       return { key: k.stat_key, name, search, searchCompact };
     });
@@ -1869,18 +1752,12 @@ async function ensureStatKeysLoaded() {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Custom stat picker (replaces a native <input list> + <datalist>, which
-// silently caps out and stops matching once there are hundreds/thousands of
-// options - we now have 1000+ stat keys after adding item stats).
-// ---------------------------------------------------------------------------
+// custom stat picker
 
 const STAT_PICKER_RENDER_LIMIT = 50;
 
 function highlightMatch(text, tokens) {
   if (!tokens.length) return escapeHtml(text);
-  // Highlight every position where any single token matches, not just one
-  // exact phrase - matches the AND-of-tokens search logic above.
   const ranges = [];
   const lower = text.toLowerCase();
   for (const t of tokens) {
@@ -1913,10 +1790,7 @@ function highlightMatch(text, tokens) {
 function renderStatPickerOptions(rawQuery) {
   const query = rawQuery.trim().toLowerCase();
   const tokens = query.split(/\s+/).filter(Boolean);
-  const matches =
-    tokens.length === 0
-      ? allStatKeys
-      : allStatKeys.filter((s) => tokens.every((t) => s.search.includes(t) || s.searchCompact.includes(t.replace(/[^a-z0-9]/g, ""))));
+  const matches = tokens.length === 0 ? allStatKeys : allStatKeys.filter((s) => tokens.every((t) => s.search.includes(t) || s.searchCompact.includes(t.replace(/[^a-z0-9]/g, ""))));
 
   statPickerMenuEl.innerHTML = "";
   statPickerHighlighted = -1;
@@ -1938,8 +1812,6 @@ function renderStatPickerOptions(rawQuery) {
     opt.dataset.index = String(idx);
     opt.dataset.key = s.key;
     opt.innerHTML = highlightMatch(s.name, tokens);
-    // mousedown (not click) fires before the input's blur, so the menu
-    // doesn't close itself before the selection is registered.
     opt.addEventListener("mousedown", (e) => {
       e.preventDefault();
       selectStatKey(s.key, s.name);
@@ -1987,8 +1859,6 @@ function selectStatKey(key, name) {
 }
 
 leaderboardCustomInputEl.addEventListener("focus", async () => {
-  // Focusing the search chip *is* choosing "Custom" - it's no longer a
-  // separate pill you have to click first.
   if (activeLeaderboardStatId !== "custom") {
     activeLeaderboardStatId = "custom";
     renderLeaderboardChips();
@@ -1999,8 +1869,6 @@ leaderboardCustomInputEl.addEventListener("focus", async () => {
   openStatPicker();
 });
 
-// Clicking anywhere in the chip (icon, padding) focuses the input, so the
-// whole bar acts as the control, not just the text itself.
 statPickerEl.addEventListener("click", (e) => {
   if (e.target !== leaderboardCustomInputEl) leaderboardCustomInputEl.focus();
 });
@@ -2060,7 +1928,11 @@ document.addEventListener("click", (e) => {
   closeStatPicker();
 });
 
+let leaderboardRequestId = 0;
+
 async function loadLeaderboard(fetchRows, format) {
+  const requestId = ++leaderboardRequestId;
+
   leaderboardLoadingEl.hidden = false;
   leaderboardEmptyEl.hidden = true;
   leaderboardListEl.innerHTML = "";
@@ -2071,6 +1943,9 @@ async function loadLeaderboard(fetchRows, format) {
     console.error(err);
     rows = [];
   }
+
+  if (requestId !== leaderboardRequestId) return;
+
   leaderboardLoadingEl.hidden = true;
   leaderboardEmptyEl.hidden = rows.length > 0;
   rows.forEach((row, index) => {
@@ -2086,36 +1961,20 @@ function buildLeaderboardRow(row, rank, format) {
   item.innerHTML = `
     <span class="leaderboard-rank">${rank}</span>
     <img class="leaderboard-avatar" src="https://mc-heads.net/avatar/${encodeURIComponent(username)}/64" alt="" width="28" height="28" />
-    <span class="leaderboard-username">${escapeHtml(username)}</span>
+    <button class="leaderboard-username" type="button" data-username="${escapeHtml(username)}">${escapeHtml(username)}</button>
     <span class="leaderboard-value">${escapeHtml(formatStatValue(format, row.stat_value))}</span>
   `;
   return item;
 }
 
-function formatStatValue(format, value) {
-  const n = Number(value) || 0;
-  switch (format) {
-    case "distance":
-      return `${(n / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })} blocks`;
-    case "time": {
-      const totalSeconds = n / 20;
-      const hours = Math.floor(totalSeconds / 3600);
-      const minutes = Math.floor((totalSeconds % 3600) / 60);
-      return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
-    }
-    case "damage":
-      return `${(n / 10).toLocaleString(undefined, { maximumFractionDigits: 1 })} HP`;
-    case "count":
-    default:
-      return n.toLocaleString();
-  }
-}
+leaderboardListEl.addEventListener("click", (e) => {
+  const nameBtn = e.target.closest(".leaderboard-username");
+  if (nameBtn) openProfileModal(nameBtn.dataset.username);
+});
 
-// ---------------------------------------------------------------------------
-// Server panel
-// ---------------------------------------------------------------------------
+// server panel
 
-const STATUS_STALE_MS = 30000; // 3x the plugin's default 10s report interval
+const STATUS_STALE_MS = 30000;
 let lastServerStatus = null;
 let lastPlayers = [];
 let tickTimer = null;
@@ -2124,7 +1983,7 @@ function setServerConnectionField(id, text, shouldBlur) {
   const el = $("#" + id);
   el.textContent = text;
   el.classList.toggle("ip-blur", shouldBlur);
-  el.classList.remove("is-revealed"); // always re-blur on a fresh load/reload
+  el.classList.remove("is-revealed");
 }
 
 document.addEventListener("click", (e) => {
@@ -2225,10 +2084,6 @@ subscribeServerStatus((payload) => {
   if (currentDim === "server") renderServerStatus(lastServerStatus);
 });
 
-// Keeps "last seen"/uptime/offline text current without needing a refresh.
-// Re-checks on a self-adjusting delay: fast (1s) while anything shown is
-// under a minute old, backing off to a minute/hour/day once it's older, so
-// there's no busy-polling once nothing visible is about to change text.
 function startServerTicker() {
   stopServerTicker();
   tickTimer = setTimeout(tick, nextTickDelay());
@@ -2247,10 +2102,10 @@ function tick() {
 }
 
 function nextTickDelay() {
-  let delay = 60000; // default: recheck every minute (covers uptime ticking)
+  let delay = 60000;
   for (const p of lastPlayers) {
     if (p.online) continue;
-    if (isResetArtifact(p.last_seen)) continue; // unknown/fake timestamp - doesn't need fast polling
+    if (isResetArtifact(p.last_seen)) continue;
     const ageSec = (Date.now() - new Date(p.last_seen).getTime()) / 1000;
     if (ageSec < 60) delay = Math.min(delay, 1000);
     else if (ageSec < 3600) delay = Math.min(delay, 60000);
@@ -2260,9 +2115,7 @@ function nextTickDelay() {
   return delay;
 }
 
-// ---------------------------------------------------------------------------
-// Players list (shown inside the Server panel)
-// ---------------------------------------------------------------------------
+// player list
 
 let playersRequestId = 0;
 
@@ -2285,10 +2138,6 @@ async function loadPlayersPanel() {
   }
 }
 
-// A server update on 2026-08-20 reset every player's first_seen/last_seen to
-// the moment of the update itself, so those timestamps carry no real
-// information. Treat anything within +/-5min of that instant as "unknown"
-// rather than showing a (misleadingly recent-looking) fake last-seen time.
 const RESET_ARTIFACT_TIME = new Date("2026-08-20T19:37:58.589292Z").getTime();
 const RESET_ARTIFACT_WINDOW_MS = 5 * 60 * 1000;
 
@@ -2304,10 +2153,6 @@ function sortPlayers(players) {
   const offline = players
     .filter((p) => !p.online)
     .sort((a, b) => {
-      // Players whose last_seen is a reset artifact have an unknown real
-      // last-seen time - sort them after everyone with a genuine timestamp,
-      // rather than letting the fake (recent-looking) reset time place them
-      // near the top.
       const aReset = isResetArtifact(a.last_seen);
       const bReset = isResetArtifact(b.last_seen);
       if (aReset !== bReset) return aReset ? 1 : -1;
@@ -2355,7 +2200,7 @@ function renderPlayersList(players) {
 
     row.innerHTML = `
       <img class="players-avatar" src="https://mc-heads.net/avatar/${encodeURIComponent(p.username)}/64" alt="" width="32" height="32" />
-      <span class="players-username">${escapeHtml(p.username)}</span>
+      <button class="players-username" type="button" data-username="${escapeHtml(p.username)}">${escapeHtml(p.username)}</button>
       ${dimBadge}
       ${afkBadge}
       <span class="players-badge ${p.online ? "online" : "offline"}"${tooltipAttr}>${badgeText}</span>
@@ -2364,9 +2209,12 @@ function renderPlayersList(players) {
   }
 }
 
-// Tap-to-toggle the offline badge's timestamp tooltip on touch devices
-// (desktop gets it for free via :hover in CSS).
 playersListEl.addEventListener("click", (e) => {
+  const nameBtn = e.target.closest(".players-username");
+  if (nameBtn) {
+    openProfileModal(nameBtn.dataset.username);
+    return;
+  }
   const badge = e.target.closest(".players-badge.offline, .players-badge.afk");
   document.querySelectorAll(".players-badge.show-tooltip").forEach((el) => {
     if (el !== badge) el.classList.remove("show-tooltip");
@@ -2378,11 +2226,7 @@ subscribePlayers(async () => {
   if (currentDim === "server") loadPlayersPanel();
 });
 
-// ---------------------------------------------------------------------------
-// Whitelist panel (owner-only; RLS enforces this server-side too). Reads a
-// read-only mirror of the server's real whitelist; add/remove go through a
-// request queue the plugin executes as real /whitelist commands.
-// ---------------------------------------------------------------------------
+// whitelist panel
 
 async function loadWhitelistPanel() {
   if (!Auth.can("manageWhitelist")) return;
@@ -2488,9 +2332,7 @@ document.querySelectorAll(".server-copy").forEach((button) => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Logs
-// ---------------------------------------------------------------------------
+// logs
 
 let allLogs = [];
 let deletedWaypointIds = new Set();
@@ -2633,8 +2475,6 @@ async function recreateCategoryFromLog(log) {
   $("#catName").focus();
 }
 
-// Instead of recreating the waypoint outright, jump to where it was and open the
-// "Add waypoint" form pre-filled with its old data, ready to review/edit before saving.
 async function recreateWaypointFromLog(log) {
   const snapshot = log.changes;
   if (!snapshot) return;
@@ -2873,9 +2713,7 @@ logUserFilterEl.addEventListener("change", applyLogFilterChange);
 logActionFilterEl.addEventListener("change", applyLogFilterChange);
 logDimensionFilterEl.addEventListener("change", applyLogFilterChange);
 
-// ---------------------------------------------------------------------------
-// Utilities
-// ---------------------------------------------------------------------------
+// utils
 
 function escapeHtml(str) {
   const div = document.createElement("div");
@@ -2883,12 +2721,12 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-// ---------------------------------------------------------------------------
-// Boot
-// ---------------------------------------------------------------------------
+// boot
 
 consumeSharedAccessCodeLink();
 renderAuthArea();
 switchDimension("overworld");
+consumeLeaderboardDeepLink();
+consumeProfileLink();
 loadCategories();
 Auth.init();

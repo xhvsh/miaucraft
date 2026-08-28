@@ -10,6 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Roboto+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <script src="https://kit.fontawesome.com/384138011e.js" crossorigin="anonymous"></script>
     <link rel="stylesheet" href="/style.css" />
+    <link rel="stylesheet" href="/profile.css" />
   </head>
   <body>
     <div id="app">
@@ -415,6 +416,86 @@
           </label>
           <button class="btn btn-primary" type="submit">Create account</button>
         </form>
+      </div>
+    </div>
+
+    <!-- Player profile modal -->
+    <div class="modal-backdrop" id="profileModal" hidden>
+      <div class="modal profile-modal-card">
+        <div class="profile-state" id="profileLoading">
+          <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>
+          <span>Loading profile...</span>
+        </div>
+
+        <div class="profile-state" id="profileNotFound" hidden>
+          <i class="fa-solid fa-user-slash" aria-hidden="true"></i>
+          <span>No player found with that username.</span>
+        </div>
+
+        <div class="profile-content" id="profileContent" hidden>
+          <section class="profile-header-card">
+            <img class="profile-skin" id="profileSkin" alt="" width="150" height="300" />
+
+            <div class="profile-header-info">
+              <div class="profile-title-row">
+                <h1 class="profile-username" id="profileUsername"></h1>
+                <span class="players-badge" id="profileOnlineBadge"></span>
+              </div>
+
+              <div class="profile-meta-row">
+                <span class="profile-meta-item" id="profileLastSeen"></span>
+                <span class="profile-meta-item profile-tracking-disabled" id="profileTrackingDisabled" hidden>
+                  <i class="fa-solid fa-location-slash" aria-hidden="true"></i>
+                  <span>Live tracking disabled</span>
+                </span>
+              </div>
+
+              <div class="profile-meta-item profile-playtime-line" id="profilePlaytime" hidden>
+                <i class="fa-solid fa-hourglass-half" aria-hidden="true"></i>
+                <span>Server playtime: </span><span class="profile-playtime-value"></span>
+              </div>
+
+              <div class="profile-top-badges" id="profileTopBadges" hidden></div>
+
+              <button class="btn btn-ghost profile-share-btn" type="button" id="profileShareBtn" title="Copy profile link" aria-label="Copy profile link">
+                <i class="fa-solid fa-link" aria-hidden="true"></i>
+              </button>
+            </div>
+          </section>
+
+          <section class="profile-card profile-tabs-card">
+            <div class="profile-main-tabs" id="profileMainTabs">
+              <button class="profile-main-tab" type="button" data-tab="stats" data-active="true">Stats</button>
+              <button class="profile-main-tab" type="button" data-tab="waypoints">Waypoints</button>
+            </div>
+
+            <div class="profile-tab-panel" id="profileStatsPanel" data-active="true">
+              <div class="profile-stats-toolbar">
+                <div class="profile-stat-search">
+                  <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                  <input type="text" id="profileStatSearch" placeholder="Search stats..." autocomplete="off" />
+                </div>
+                <div class="profile-stat-tabs" id="profileStatTabs">
+                  <button class="profile-stat-tab" type="button" data-tab="general" data-active="true">General</button>
+                  <button class="profile-stat-tab" type="button" data-tab="item">Item Stats</button>
+                  <button class="profile-stat-tab" type="button" data-tab="mob">Mob Stats</button>
+                </div>
+              </div>
+              <div class="profile-scroll-area" id="profileStatsScroll">
+                <div class="profile-stats-list" id="profileStatsGrid"></div>
+                <div class="profile-empty" id="profileStatsEmpty" hidden>No stats recorded yet.</div>
+                <div class="profile-empty" id="profileStatsNoMatch" hidden>No stats match "<span></span>".</div>
+              </div>
+            </div>
+
+            <div class="profile-tab-panel" id="profileWaypointsPanel" hidden>
+              <div class="profile-scroll-area" id="profileWaypointsScroll">
+                <div class="profile-waypoints-list" id="profileWaypointsList"></div>
+                <div class="profile-empty" id="profileWaypointsEmpty" hidden>No waypoints created yet.</div>
+              </div>
+            </div>
+          </section>
+        </div>
       </div>
     </div>
 

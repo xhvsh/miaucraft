@@ -67,9 +67,7 @@ input {
   outline-offset: 2px;
 }
 
-/* ---------------------------------------------------------------------- */
-/* Layout                                                                  */
-/* ---------------------------------------------------------------------- */
+/* layout */
 
 #app {
   display: flex;
@@ -394,7 +392,7 @@ input {
   font-size: 11px;
 }
 
-/* Sidebar ---------------------------------------------------------------- */
+/* sidebar */
 
 .sidebar {
   width: 300px;
@@ -633,7 +631,7 @@ input {
   line-height: 1.6;
 }
 
-/* Server panel ------------------------------------------------------------ */
+/* server panel */
 
 .server-panel {
   flex: 1;
@@ -725,7 +723,7 @@ input {
   font-weight: 500;
 }
 
-/* Buttons & forms ---------------------------------------------------------- */
+/* buttons and forms */
 
 .btn {
   border: 1px solid var(--border);
@@ -792,21 +790,36 @@ input {
 .discord-linked {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
-  flex-shrink: 0;
+  width: 100%;
 }
 
 .discord-linked-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  gap: 2px;
   font-size: 13px;
   color: var(--text);
   min-width: 0;
 }
 
+.discord-linked-name-line {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.discord-linked-name-line i {
+  flex-shrink: 0;
+}
+
 .discord-linked-name {
-  max-width: 110px;
+  max-width: 140px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -817,6 +830,10 @@ input {
   font-size: 12px;
   flex-shrink: 0;
   white-space: nowrap;
+}
+
+#settingDiscordAction {
+  width: 100%;
 }
 
 #settingsAuthOnly {
@@ -908,7 +925,7 @@ input[type="number"]:disabled {
   color: var(--accent);
 }
 
-/* Custom category picker (waypoint form) ------------------------------------ */
+/* custom category picker */
 
 .category-picker-field {
   position: relative;
@@ -1080,7 +1097,7 @@ input[type="color"] {
   color: var(--text-muted);
 }
 
-/* Toast notifications -------------------------------------------------------- */
+/* toast notifications */
 
 .toast-container {
   position: fixed;
@@ -1152,7 +1169,7 @@ input[type="color"] {
   color: var(--accent);
 }
 
-/* Modals -------------------------------------------------------------------- */
+/* modals */
 
 .modal-backdrop {
   position: fixed;
@@ -1276,8 +1293,6 @@ input[type="color"] {
 .modal-actions .btn {
   width: 100%;
 }
-
-/* Refined waypoint and account interface ---------------------------------- */
 
 .btn-signout {
   border-color: rgba(248, 113, 113, 0.55);
@@ -1670,7 +1685,7 @@ input[type="number"] {
   background: var(--danger);
 }
 
-/* Categories tab panel ------------------------------------------------------ */
+/* categories tab panel */
 
 .categories-tab-panel {
   flex: 1;
@@ -1705,7 +1720,7 @@ input[type="number"] {
   margin-bottom: 14px;
 }
 
-/* Leaderboards tab panel --------------------------------------------------- */
+/* leaderboards tab panel */
 
 .leaderboards-tab-panel {
   flex: 1;
@@ -1974,6 +1989,17 @@ input.stat-picker-input:focus-visible {
   font-size: 13px;
   font-weight: 600;
   color: var(--text);
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+}
+
+.leaderboard-username:hover {
+  color: var(--accent);
+  text-decoration: underline;
 }
 
 .leaderboard-value {
@@ -2019,7 +2045,7 @@ input.stat-picker-input:focus-visible {
   font-size: 13px;
 }
 
-/* Players tab panel ------------------------------------------------------- */
+/* players tab panel */
 
 .players-tab-panel {
   flex: 1;
@@ -2101,6 +2127,17 @@ input.stat-picker-input:focus-visible {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+}
+
+.players-username:hover {
+  color: var(--accent);
+  text-decoration: underline;
 }
 
 .players-dim-badge {
@@ -2185,7 +2222,7 @@ input.stat-picker-input:focus-visible {
   font-size: 13px;
 }
 
-/* Whitelist tab panel ------------------------------------------------------ */
+/* whitelist tab panel */
 
 .whitelist-tab-panel {
   flex: 1;
@@ -2293,7 +2330,7 @@ input.stat-picker-input:focus-visible {
   font-size: 13px;
 }
 
-/* Logs tab panel --------------------------------------------------------- */
+/* logs tab panel */
 
 .logs-tab-panel {
   flex: 1;
@@ -2683,7 +2720,7 @@ input.stat-picker-input:focus-visible {
   font-family: var(--font-mono);
 }
 
-/* Settings tab panel ---------------------------------------------------- */
+/* settings tab panel */
 
 .settings-tab-panel {
   flex: 1;
@@ -2952,7 +2989,7 @@ input.stat-picker-input:focus-visible {
   width: auto;
 }
 
-/* Category filter chips (sidebar) ------------------------------------------ */
+/* category filter chips on sidebar */
 
 .category-filter-row {
   display: flex;
@@ -3025,7 +3062,7 @@ input.stat-picker-input:focus-visible {
   border-color: var(--text-dim);
 }
 
-/* Category badge (waypoint cards & pin tooltip) ----------------------------- */
+/* category badge */
 
 .category-badge {
   --badge-color: var(--accent);
@@ -3066,7 +3103,7 @@ input.stat-picker-input:focus-visible {
   white-space: nowrap;
 }
 
-/* Mobile dimension dropdown -------------------------------------------------- */
+/* mobile dimension dropdown */
 
 .dim-select-wrap {
   --select-color: var(--accent);
@@ -3132,8 +3169,6 @@ input.stat-picker-input:focus-visible {
   pointer-events: none;
 }
 
-/* Individually colored options, echoing the desktop tab colors, so the
-   opened list reads as clearly as the tab bar does. */
 .dim-select option {
   background: var(--surface-2);
   color: var(--accent);
@@ -3153,7 +3188,7 @@ input.stat-picker-input:focus-visible {
   color: var(--dim-server);
 }
 
-/* Mobile sidebar drawer ------------------------------------------------------ */
+/* mobile sidebar drawer */
 
 .sidebar-toggle-btn {
   display: none;
@@ -3168,9 +3203,7 @@ input.stat-picker-input:focus-visible {
   display: none;
 }
 
-/* ---------------------------------------------------------------------- */
-/* Responsive                                                              */
-/* ---------------------------------------------------------------------- */
+/* responsive */
 
 @media (max-width: 1000px) {
   .server-panel {
@@ -3213,7 +3246,6 @@ input.stat-picker-input:focus-visible {
     margin-left: auto;
   }
 
-  /* Tabs are replaced by the dropdown in the bottom row on mobile. */
   .dim-tabs {
     display: none;
   }
@@ -3379,8 +3411,6 @@ input.stat-picker-input:focus-visible {
   }
 }
 
-/* Safety net: the [hidden] attribute must always win, no matter what
-   display value a component sets elsewhere (flex panels, modals, etc). */
 [hidden] {
   display: none !important;
 }

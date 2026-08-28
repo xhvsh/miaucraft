@@ -6,7 +6,7 @@ const PIN_HIT_RADIUS = 20;
 const PIN_HIT_RADIUS_TOUCH = 28;
 const PIN_ICON_HEIGHT = 24;
 const TOUCH_TAP_MOVE_THRESHOLD = 10;
-const PLAYER_ANIM_DURATION_MS = 1000; // glide duration for live position updates (arrive every ~2s server-side)
+const PLAYER_ANIM_DURATION_MS = 1000;
 
 function easeOutCubic(t) {
   return 1 - Math.pow(1 - t, 3);
@@ -35,15 +35,14 @@ export class Grid {
     this.readout.hidden = true;
     container.appendChild(this.readout);
 
-    // World coordinate currently at the screen center.
     this.centerX = 0;
     this.centerZ = 0;
-    this.scale = 0.5; // screen px per block
+    this.scale = 0.5;
 
     this.waypoints = [];
     this.players = [];
-    this.playerHeadCache = new Map(); // username -> HTMLImageElement
-    this.playerAnimations = new Map(); // player id -> {username, fromX, fromZ, toX, toZ, startTime, duration}
+    this.playerHeadCache = new Map();
+    this.playerAnimations = new Map();
     this._playerAnimFrame = null;
     this.hoveredWaypoint = null;
 
@@ -52,7 +51,7 @@ export class Grid {
     this._dragStart = null;
     this._dragOriginCenter = null;
 
-    this._touchMode = null; // null | "pan" | "pinch"
+    this._touchMode = null;
     this._touchMoved = false;
     this._touchDragStart = null;
     this._touchDragOriginCenter = null;
@@ -60,11 +59,11 @@ export class Grid {
     this._pinchStartScale = null;
     this._pinchWorldAtMid = null;
 
-    this.onEmptyRightClick = null; // (worldX, worldZ) => void
-    this.onEmptyClick = null; // () => void
-    this.onEmptyTap = null; // (worldX, worldZ) => void - mobile tap on blank space; falls back to onEmptyClick
-    this.onPinClick = null; // (waypoint) => void
-    this.onViewChange = null; // () => void
+    this.onEmptyRightClick = null;
+    this.onEmptyClick = null;
+    this.onEmptyTap = null;
+    this.onPinClick = null;
+    this.onViewChange = null;
     this._jumpAnimation = null;
 
     this._bind();
@@ -103,10 +102,9 @@ export class Grid {
 
       const prev = this.playerAnimations.get(player.id);
       if (!prev) {
-        // BRANCH 1: new player, never animated before
         this.playerAnimations.set(player.id, {
           username: player.username,
-          afk: player.afk, // <-- ADD THIS LINE
+          afk: player.afk,
           fromX: player.x,
           fromZ: player.z,
           toX: player.x,
@@ -117,8 +115,6 @@ export class Grid {
         continue;
       }
 
-      // BRANCH 2: player already had an animation running - glide from
-      // their current visual position to the new target
       const t = prev.duration > 0 ? Math.min(1, (now - prev.startTime) / prev.duration) : 1;
       const eased = easeOutCubic(t);
       const currentX = prev.fromX + (prev.toX - prev.fromX) * eased;
@@ -126,7 +122,7 @@ export class Grid {
 
       this.playerAnimations.set(player.id, {
         username: player.username,
-        afk: player.afk, // <-- ADD THIS LINE
+        afk: player.afk,
         fromX: currentX,
         fromZ: currentZ,
         toX: player.x,
@@ -285,7 +281,7 @@ export class Grid {
     });
 
     c.addEventListener("click", (e) => {
-      if (this._dragMoved) return; // was a pan, not a click
+      if (this._dragMoved) return;
       const rect = c.getBoundingClientRect();
       const sx = e.clientX - rect.left;
       const sy = e.clientY - rect.top;
@@ -329,7 +325,6 @@ export class Grid {
       { passive: false },
     );
 
-    // Touch: single-finger pan, two-finger pinch-zoom, tap to select/add.
     c.addEventListener(
       "touchstart",
       (e) => {
@@ -403,7 +398,7 @@ export class Grid {
         this.readout.hidden = true;
         if (e.touches.length === 0) {
           if (this._touchMode === "pan" && !this._touchMoved) {
-            e.preventDefault(); // swallow the tap so no synthetic click fires too
+            e.preventDefault();
             const t = e.changedTouches[0];
             const rect = c.getBoundingClientRect();
             const sx = t.clientX - rect.left;
@@ -421,8 +416,6 @@ export class Grid {
           this._touchMoved = false;
           this._pinchStartDist = null;
         } else if (e.touches.length === 1) {
-          // Lifted one finger out of a two-finger pinch: resume single-finger
-          // pan seamlessly from here, without treating it as a fresh tap.
           const t = e.touches[0];
           this._touchMode = "pan";
           this._touchMoved = true;
@@ -563,8 +556,7 @@ export class Grid {
       ctx.restore();
     }
 
-    // live player markers - square head icon w/ white outline, username
-    // below, distinct from the waypoint pin icon above
+    // live player markers
     const HEAD_SIZE = 24;
     for (const player of this._currentPlayerPositions()) {
       const p = this.worldToScreen(player.x, player.z);

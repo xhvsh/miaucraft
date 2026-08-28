@@ -1,9 +1,39 @@
 import { supabase } from "./supabaseClient.js";
 
+export const DEFAULT_CATEGORY_ICON_CLASS = "fa-solid fa-hashtag";
+
+export function sanitizeIconClass(raw) {
+  const tokens = (raw || "")
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((t) => t.replace(/[^a-z0-9-]/g, ""))
+    .filter(Boolean)
+    .map((t) => (t.startsWith("fa-") ? t : `fa-${t}`));
+
+  if (tokens.length === 0) return DEFAULT_CATEGORY_ICON_CLASS;
+  if (tokens.length === 1) return `fa-solid ${tokens[0]}`;
+  return tokens.join(" ");
+}
+
+export function categoryIconClass(rawIcon) {
+  const value = (rawIcon || "").trim();
+  if (!value) return DEFAULT_CATEGORY_ICON_CLASS;
+  if (value.includes("fa-")) return sanitizeIconClass(value);
+  return `fa-solid fa-${value.toLowerCase().replace(/[^a-z0-9-]/g, "")}`;
+}
+
 export async function listWaypoints(dimension) {
   const { data, error } = await supabase.from("waypoints").select("*").eq("dimension", dimension).order("created_at", { ascending: true });
   if (error) throw error;
   return data;
+}
+
+export async function listWaypointsByUsername(username) {
+  const { data, error } = await supabase.from("waypoints").select("*").ilike("created_by_username", username).order("created_at", { ascending: true });
+  if (error) throw error;
+  return data ?? [];
 }
 
 export async function createWaypoint(waypoint) {
