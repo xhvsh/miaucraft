@@ -41,10 +41,11 @@ export function can(action) {
     case "viewServerIp":
       return r !== "guest";
     case "addWaypoint":
-      return r === "owner" || r === "user";
+      return r === "owner" || r === "admin" || r === "user";
     case "editServerInfo":
     case "editAnyWaypoint":
     case "manageCategories":
+      return r === "owner" || r === "admin";
     case "manageWhitelist":
       return r === "owner";
     default:
@@ -54,7 +55,7 @@ export function can(action) {
 
 export function canEditWaypoint(waypoint) {
   const r = role();
-  if (r === "owner") return true;
+  if (r === "owner" || r === "admin") return true;
   if (r === "user") return waypoint.created_by === state.session?.user?.id;
   return false;
 }
