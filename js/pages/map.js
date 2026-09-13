@@ -11,7 +11,7 @@ const $ = (sel) => document.querySelector(sel);
 
 const DIM_COLORS = { overworld: "#6bbf8a", nether: "#e2685f", end: "#d9c775" };
 const DIM_LABELS = { overworld: "Overworld", nether: "Nether", end: "End" };
-const SPECIAL_WAYPOINT_IMAGES = { "Blehh Cat": "img/blehh-map.png" };
+const SPECIAL_WAYPOINT_IMAGES = { "Blehh Cat": "/img/blehh-map.png" };
 const STATUS_STALE_MS = 30000;
 
 await initNav("map");

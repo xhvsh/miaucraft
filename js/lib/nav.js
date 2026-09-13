@@ -36,7 +36,7 @@ function renderTopbar(pageId) {
   root.innerHTML = `
     <header class="topbar">
       <a class="brand" href="/">
-        <span class="brand-mark"><img src="img/icon.webp" alt="" width="26" height="26" /></span>
+        <span class="brand-mark"><img src="/img/icon.webp" alt="" width="26" height="26" /></span>
         MIAUCRAFT
       </a>
       <nav class="nav-primary" id="navPrimary" aria-label="Primary">
