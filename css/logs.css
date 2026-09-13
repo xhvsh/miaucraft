@@ -1,0 +1,261 @@
+.logs-container {
+  max-width: 960px;
+}
+
+/* Keep the page itself from ever scrolling: the card fills the viewport
+   height (minus nav and the bottom tab bar) and the list scrolls inside. */
+@media (min-width: 861px) {
+  .page-main--logs {
+    height: calc(100vh - var(--nav-h) - var(--safe-t));
+    height: calc(100svh - var(--nav-h) - var(--safe-t));
+  }
+  .page-main--logs .page-container {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: var(--space-8) var(--space-6) var(--space-8);
+  }
+}
+@media (max-width: 860px) {
+  .page-main--logs {
+    height: calc(100vh - var(--nav-h) - var(--safe-t) - var(--bottom-nav-h) - var(--safe-b));
+    height: calc(100svh - var(--nav-h) - var(--safe-t) - var(--bottom-nav-h) - var(--safe-b));
+  }
+  .page-main--logs .page-container {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding-top: var(--space-6);
+    padding-bottom: 0;
+  }
+}
+
+.logs-card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.logs-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+  flex-shrink: 0;
+}
+.logs-toolbar .search-field {
+  flex: 1;
+}
+.filters-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  display: inline-block;
+  margin-left: 4px;
+}
+.logs-filters {
+  display: none;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+  flex-shrink: 0;
+}
+.logs-filters.is-open {
+  display: flex;
+}
+.logs-filters .select-wrap {
+  min-width: 140px;
+  flex: 1;
+}
+.logs-filters select {
+  height: 36px;
+}
+
+.logs-list,
+#logsList {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-right: 4px;
+}
+.log-entry {
+  display: flex;
+  gap: var(--space-3);
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+#logsLoading .sk-row {
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+#logsLoading .sk-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+}
+.log-entry-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  background: var(--surface-3);
+  color: var(--text-dim);
+}
+.log-entry--create .log-entry-icon {
+  background: var(--success-soft);
+  color: var(--success);
+}
+.log-entry--delete .log-entry-icon {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.log-entry--update .log-entry-icon {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.log-entry-body {
+  flex: 1;
+  min-width: 0;
+}
+.log-entry-summary {
+  font-size: var(--fs-sm);
+}
+.log-entry-user {
+  font-weight: 700;
+}
+.log-entry-name {
+  font-weight: 600;
+}
+.log-entry-dim {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  border-radius: 4px;
+  color: var(--dim-badge-color, var(--text-muted));
+  border: 1px solid color-mix(in srgb, var(--dim-badge-color, var(--text-muted)) 30%, transparent);
+  background: color-mix(in srgb, var(--dim-badge-color, var(--text-muted)) 12%, transparent);
+}
+.log-entry-meta {
+  font-size: var(--fs-2xs);
+  color: var(--text-dim);
+  margin-top: 3px;
+}
+.log-entry-actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: 8px;
+}
+.log-entry-jump-btn,
+.log-entry-details-toggle {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 5px;
+}
+.log-entry-jump-btn:hover,
+.log-entry-details-toggle:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+.log-entry-jump-btn:disabled {
+  opacity: 0.4;
+}
+.log-entry-details-toggle i {
+  transition: transform var(--dur) var(--ease);
+}
+.log-entry-details-toggle.is-open i {
+  transform: rotate(180deg);
+}
+.log-entry-details {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height var(--dur-slow) var(--ease);
+}
+.log-entry-details.is-open {
+  max-height: 400px;
+}
+.log-entry-details-inner {
+  padding-top: 8px;
+}
+.log-detail-table {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.log-detail-row {
+  display: flex;
+  gap: var(--space-3);
+  font-size: var(--fs-2xs);
+}
+.log-detail-label {
+  width: 110px;
+  flex-shrink: 0;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+.log-detail-value {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+.log-detail-value--changed {
+  color: var(--text);
+}
+.log-detail-value-before {
+  text-decoration: line-through;
+  color: var(--text-dim);
+}
+.log-detail-actions {
+  margin-top: 8px;
+}
+.log-detail-restore-btn {
+  font-size: var(--fs-2xs);
+  height: 30px;
+}
+.logs-error {
+  color: var(--danger);
+  font-size: var(--fs-sm);
+  padding: var(--space-4);
+}
+
+.logs-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: var(--space-4);
+  flex-shrink: 0;
+}
+.logs-page-info {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+#logsPageInput {
+  width: 44px;
+  height: 32px;
+  text-align: center;
+  padding: 0;
+}

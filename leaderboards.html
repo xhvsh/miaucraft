@@ -1,0 +1,78 @@
+﻿<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Leaderboards - Miaucraft</title>
+    <meta name="description" content="Server-wide stat leaderboards for the Miaucraft SMP." />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" href="img/icon.webp" type="image/webp" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <script src="https://kit.fontawesome.com/384138011e.js" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="css/tokens.css" />
+    <link rel="stylesheet" href="css/base.css" />
+    <link rel="stylesheet" href="css/components.css" />
+    <link rel="stylesheet" href="css/nav.css" />
+    <link rel="stylesheet" href="css/leaderboards.css" />
+  </head>
+  <body data-page="leaderboards">
+    <a class="skip-link" href="#mainContent">Skip to content</a>
+    <div class="app-shell">
+      <div id="navRoot"></div>
+
+      <main class="page-main" id="mainContent">
+        <div class="page-container">
+          <div class="page-head">
+            <div>
+              <h1>Leaderboards</h1>
+              <p>Server-wide rankings across every tracked statistic.</p>
+            </div>
+          </div>
+
+          <div class="leaderboard-picker-row">
+            <div class="leaderboard-chips" id="leaderboardStatChips"></div>
+            <div class="stat-picker" id="statPicker">
+              <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+              <input type="text" id="leaderboardCustomInput" placeholder="Search any statistics…" autocomplete="off" role="combobox" aria-expanded="false" aria-haspopup="listbox" />
+              <div class="stat-picker-menu" id="statPickerMenu" role="listbox" hidden></div>
+            </div>
+          </div>
+
+          <div class="card leaderboard-card">
+            <h2 class="section-title" id="leaderboardStatTitle"></h2>
+            <div class="leaderboard-list" id="leaderboardList"></div>
+            <div class="skeleton-list" id="leaderboardLoading" hidden>
+              <div class="skeleton sk-row">
+                <span class="skeleton" style="width:22px;height:14px;border-radius:4px;flex-shrink:0"></span>
+                <span class="skeleton sk-avatar" style="width:28px;height:28px;border-radius:6px"></span>
+                <div class="sk-lines"><div class="skeleton sk-line" style="width:40%"></div></div>
+                <div class="skeleton sk-line" style="width:64px;height:14px;flex-shrink:0"></div>
+              </div>
+              <div class="skeleton sk-row">
+                <span class="skeleton" style="width:22px;height:14px;border-radius:4px;flex-shrink:0"></span>
+                <span class="skeleton sk-avatar" style="width:28px;height:28px;border-radius:6px"></span>
+                <div class="sk-lines"><div class="skeleton sk-line" style="width:46%"></div></div>
+                <div class="skeleton sk-line" style="width:64px;height:14px;flex-shrink:0"></div>
+              </div>
+              <div class="skeleton sk-row">
+                <span class="skeleton" style="width:22px;height:14px;border-radius:4px;flex-shrink:0"></span>
+                <span class="skeleton sk-avatar" style="width:28px;height:28px;border-radius:6px"></span>
+                <div class="sk-lines"><div class="skeleton sk-line" style="width:38%"></div></div>
+                <div class="skeleton sk-line" style="width:64px;height:14px;flex-shrink:0"></div>
+              </div>
+            </div>
+            <div class="empty-state" id="leaderboardEmpty" hidden>
+              <i class="fa-solid fa-ranking-star" aria-hidden="true"></i>
+              <span>No data yet for this statistic.</span>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+    <script type="module" src="js/pages/leaderboards.js"></script>
+  </body>
+</html>

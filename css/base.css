@@ -1,0 +1,213 @@
+* {
+  box-sizing: border-box;
+}
+
+/* Many components below set their own `display` (flex/grid/block) so they
+   render correctly when shown. Without this rule, a class like
+   `.modal-backdrop { display: flex }` - an author-stylesheet rule - beats
+   the browser's built-in `[hidden] { display: none }` at equal specificity,
+   so toggling the `hidden` attribute/property stops working the moment an
+   element also has a display rule. This makes `hidden` always win. */
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  height: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  color-scheme: dark;
+  scrollbar-gutter: stable;
+}
+html:has(body[data-page="map"]) {
+  scrollbar-gutter: auto;
+}
+
+a {
+  text-decoration: none;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: var(--fs-base);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none;
+}
+
+/* fixed grain overlay - breaks the flat-vector AI look */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.035;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse 900px 500px at 12% -10%, rgba(122, 99, 201, 0.1), transparent 60%), radial-gradient(ellipse 700px 500px at 100% 10%, rgba(122, 99, 201, 0.06), transparent 55%);
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0;
+  text-wrap: balance;
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+  color: inherit;
+  font-size: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+::selection {
+  background: var(--accent-soft-2);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: var(--radius-pill);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-dim);
+  background-clip: content-box;
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip-link {
+  position: fixed;
+  top: -100px;
+  left: var(--space-4);
+  z-index: 1000;
+  background: var(--accent);
+  color: #0c0810;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  transition: top var(--dur) var(--ease);
+}
+.skip-link:focus {
+  top: var(--space-4);
+}
+
+.app-shell {
+  position: relative;
+  z-index: 2;
+  min-height: 100vh;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+}
+
+.page-main {
+  flex: 1;
+  min-height: 0;
+}
+
+/* page container used by content (non-map) pages */
+.page-container {
+  max-width: var(--container);
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-5) calc(var(--space-8) + var(--bottom-nav-h) + var(--safe-b));
+}
+
+@media (min-width: 861px) {
+  .page-container {
+    padding: var(--space-8) var(--space-6) var(--space-8);
+  }
+}
+
+.page-head {
+  margin-bottom: var(--space-6);
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.page-head h1 {
+  font-size: var(--fs-2xl);
+}
+
+.page-head p {
+  color: var(--text-muted);
+  margin-top: var(--space-1);
+  font-size: var(--fs-sm);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+}

@@ -1,0 +1,194 @@
+﻿<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Admin - Miaucraft</title>
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" href="img/icon.webp" type="image/webp" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <script src="https://kit.fontawesome.com/384138011e.js" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="css/tokens.css" />
+    <link rel="stylesheet" href="css/base.css" />
+    <link rel="stylesheet" href="css/components.css" />
+    <link rel="stylesheet" href="css/nav.css" />
+    <link rel="stylesheet" href="css/admin.css" />
+  </head>
+  <body data-page="admin">
+    <a class="skip-link" href="#mainContent">Skip to content</a>
+    <div class="app-shell">
+      <div id="navRoot"></div>
+
+      <main class="page-main" id="mainContent">
+        <div class="page-container">
+          <div class="page-head">
+            <div>
+              <h1>Admin dashboard</h1>
+              <p>Whitelist, categories, and website accounts.</p>
+            </div>
+          </div>
+
+          <div class="empty-state" id="adminSignedOut" hidden>
+            <i class="fa-solid fa-lock" aria-hidden="true"></i>
+            <span>Sign in with an admin or owner account to view this page.</span>
+          </div>
+
+          <div class="empty-state" id="adminNoAccess" hidden>
+            <i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
+            <span>Admin or owner access is required for this page.</span>
+          </div>
+
+          <div id="adminBody" hidden>
+            <nav class="tabs" id="adminTabs">
+              <button class="tab" data-tab="whitelist" data-active="true">Whitelist</button>
+              <button class="tab" data-tab="users">Website users</button>
+              <button class="tab" data-tab="categories">Categories</button>
+            </nav>
+
+            <!-- Whitelist -->
+            <section class="admin-panel" id="adminWhitelistPanel">
+              <div class="admin-two-col">
+                <div class="card">
+                  <h2 class="section-title">Add to whitelist</h2>
+                  <form class="admin-inline-form" id="whitelistForm">
+                    <input type="text" id="whitelistUsername" placeholder="Minecraft username" required />
+                    <button class="btn btn-primary" type="submit">Add</button>
+                  </form>
+                  <p class="admin-hint">Changes are pushed to the live server's whitelist within a few seconds.</p>
+                </div>
+                <div class="card">
+                  <div class="admin-panel-head">
+                    <h2 class="section-title" style="margin-bottom:0">Whitelisted players</h2>
+                  </div>
+                  <div class="search-field admin-users-search" style="margin-bottom:var(--space-3)">
+                    <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                    <input type="search" id="whitelistSearch" placeholder="Search whitelist" aria-label="Search whitelist" />
+                  </div>
+                  <div class="whitelist-list" id="whitelistSkeleton">
+                    <div class="skeleton sk-whitelist-card">
+                      <span class="skeleton" style="width:48px;height:48px;border-radius:9px"></span>
+                      <span class="skeleton sk-line" style="width:58%"></span>
+                    </div>
+                    <div class="skeleton sk-whitelist-card">
+                      <span class="skeleton" style="width:48px;height:48px;border-radius:9px"></span>
+                      <span class="skeleton sk-line" style="width:66%"></span>
+                    </div>
+                    <div class="skeleton sk-whitelist-card">
+                      <span class="skeleton" style="width:48px;height:48px;border-radius:9px"></span>
+                      <span class="skeleton sk-line" style="width:52%"></span>
+                    </div>
+                    <div class="skeleton sk-whitelist-card">
+                      <span class="skeleton" style="width:48px;height:48px;border-radius:9px"></span>
+                      <span class="skeleton sk-line" style="width:61%"></span>
+                    </div>
+                  </div>
+                  <div class="whitelist-list" id="whitelistList"></div>
+                  <div class="empty-state" id="whitelistEmpty" hidden><i class="fa-solid fa-user-check" aria-hidden="true"></i><span>Nobody whitelisted yet.</span></div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Website users -->
+            <section class="admin-panel" id="adminUsersPanel" hidden>
+              <div class="card">
+                <div class="admin-panel-head">
+                  <h2 class="section-title" style="margin-bottom:0">Website accounts</h2>
+                  <div class="search-field admin-users-search">
+                    <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                    <input type="search" id="usersSearch" placeholder="Search accounts" aria-label="Search accounts" />
+                  </div>
+                </div>
+                <div class="admin-note" id="usersTableError" hidden>
+                  <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+                  <span></span>
+                </div>
+                <div class="users-table-wrap">
+                  <table class="users-table">
+                    <thead>
+                      <tr>
+                        <th>Player</th>
+                        <th>Role</th>
+                        <th>Joined</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody id="usersTableBody">
+                      <tr class="users-table-sk-row">
+                        <td><span class="skeleton sk-line" style="width:132px;height:13px"></span></td>
+                        <td><span class="skeleton sk-line" style="width:48px;height:13px"></span></td>
+                        <td><span class="skeleton sk-line" style="width:84px;height:13px"></span></td>
+                        <td></td>
+                      </tr>
+                      <tr class="users-table-sk-row">
+                        <td><span class="skeleton sk-line" style="width:116px;height:13px"></span></td>
+                        <td><span class="skeleton sk-line" style="width:56px;height:13px"></span></td>
+                        <td><span class="skeleton sk-line" style="width:76px;height:13px"></span></td>
+                        <td></td>
+                      </tr>
+                      <tr class="users-table-sk-row">
+                        <td><span class="skeleton sk-line" style="width:142px;height:13px"></span></td>
+                        <td><span class="skeleton sk-line" style="width:42px;height:13px"></span></td>
+                        <td><span class="skeleton sk-line" style="width:90px;height:13px"></span></td>
+                        <td></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="admin-hint">Revoking an account permanently deletes it and everything tied to it.</div>
+              </div>
+            </section>
+
+            <!-- Categories -->
+            <section class="admin-panel" id="adminCategoriesPanel" hidden>
+              <div class="admin-two-col">
+                <div class="card">
+                  <h2 class="section-title" id="categoryFormTitle">Add category</h2>
+                  <form class="modal-form" id="categoryForm">
+                    <input type="hidden" id="catId" />
+                    <div class="category-name-row">
+                      <div class="category-icon-preview" id="catIconPreview">
+                        <i class="fa-solid fa-hashtag" id="catIconPreviewGlyph" aria-hidden="true"></i>
+                      </div>
+                      <label>Name<input type="text" id="catName" maxlength="40" required /></label>
+                    </div>
+                    <div class="coord-row" style="grid-template-columns:1fr 1fr">
+                      <label>Color<span class="color-picker"><input type="color" id="catColor" value="#9683e0" /><span class="color-value" id="catColorValue">#9683E0</span></span></label>
+                      <label>Icon<input type="text" id="catIcon" placeholder="hashtag" /></label>
+                    </div>
+                    <div class="category-tag-preview">
+                      <span class="category-tag-preview-label">Tag preview</span>
+                      <span class="category-badge" id="catTagPreview" style="--badge-color:#9683e0"><i class="fa-solid fa-hashtag" aria-hidden="true"></i><span id="catTagPreviewName">Category</span></span>
+                    </div>
+                    <div class="modal-actions">
+                      <button class="btn btn-primary" type="submit" id="catSubmitBtn">Add category</button>
+                      <button class="btn btn-ghost" type="button" id="catCancelEditBtn" hidden>Cancel</button>
+                    </div>
+                  </form>
+                </div>
+                <div class="card">
+                  <h2 class="section-title">Categories</h2>
+                  <div class="skeleton-list" id="categoriesSkeleton">
+                    <div class="skeleton sk-row">
+                      <span class="skeleton sk-icon" style="width:34px;height:34px;border-radius:8px"></span>
+                      <div class="sk-lines"><div class="skeleton sk-line" style="width:44%"></div></div>
+                    </div>
+                    <div class="skeleton sk-row">
+                      <span class="skeleton sk-icon" style="width:34px;height:34px;border-radius:8px"></span>
+                      <div class="sk-lines"><div class="skeleton sk-line" style="width:52%"></div></div>
+                    </div>
+                  </div>
+                  <div class="categories-list" id="categoriesList"></div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+    <script type="module" src="js/pages/admin.js"></script>
+  </body>
+</html>

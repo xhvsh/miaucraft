@@ -20,7 +20,7 @@ function pickSpacing(scale) {
 }
 
 export class Grid {
-  constructor(container, { dimensionColor = "#a78bfa" } = {}) {
+  constructor(container, { dimensionColor = "#9683e0" } = {}) {
     this.container = container;
     this.dimensionColor = dimensionColor;
 
@@ -68,7 +68,18 @@ export class Grid {
 
     this._bind();
     this._resize();
-    new ResizeObserver(() => this._resize()).observe(container);
+    this._resizeRaf = null;
+    new ResizeObserver(() => {
+      // Coalesce rapid-fire observations (mobile browser chrome show/hide,
+      // sidebar drawer transitions, etc.) into at most one resize per frame,
+      // and never act on a transient zero-size reading - both used to cause
+      // the canvas to visibly flash/shrink mid-transition.
+      if (this._resizeRaf) return;
+      this._resizeRaf = requestAnimationFrame(() => {
+        this._resizeRaf = null;
+        this._resize();
+      });
+    }).observe(container);
     this._raf = requestAnimationFrame(() => this.draw());
     document.fonts?.ready.then(() => this.draw());
   }
@@ -197,9 +208,24 @@ export class Grid {
 
   _resize() {
     const rect = this.container.getBoundingClientRect();
+    // A transient 0×0 reading happens on some mobile browsers mid-transition
+    // (address bar hiding/showing, sidebar drawer animating). Acting on it
+    // would collapse the canvas to a 1px stub and "pop" back on the next
+    // real reading - visible as the map briefly shrinking. Just skip it and
+    // keep whatever we last drew at a valid size.
+    if (rect.width < 2 || rect.height < 2) return;
+
     const dpr = window.devicePixelRatio || 1;
-    this.canvas.width = Math.max(1, Math.round(rect.width * dpr));
-    this.canvas.height = Math.max(1, Math.round(rect.height * dpr));
+    const pixelWidth = Math.max(1, Math.round(rect.width * dpr));
+    const pixelHeight = Math.max(1, Math.round(rect.height * dpr));
+    // Setting canvas.width/height clears the canvas even when unchanged, so
+    // skip it when nothing actually moved (avoids needless clear+redraw
+    // churn while the ResizeObserver fires for unrelated reflows).
+    const sizeChanged = this.canvas.width !== pixelWidth || this.canvas.height !== pixelHeight;
+    if (sizeChanged) {
+      this.canvas.width = pixelWidth;
+      this.canvas.height = pixelHeight;
+    }
     this.canvas.style.width = `${rect.width}px`;
     this.canvas.style.height = `${rect.height}px`;
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -481,7 +507,7 @@ export class Grid {
       const sx = this.worldToScreen(x, 0).x;
       const isOrigin = x === 0;
       ctx.beginPath();
-      ctx.strokeStyle = isOrigin ? this.dimensionColor : "rgba(255, 255, 255, 0.06)";
+      ctx.strokeStyle = isOrigin ? this.dimensionColor : "rgba(255, 255, 255, 0.12)";
       ctx.globalAlpha = isOrigin ? 0.55 : 1;
       ctx.lineWidth = isOrigin ? 1.5 : 1;
       ctx.moveTo(sx + 0.5, 0);
@@ -489,7 +515,7 @@ export class Grid {
       ctx.stroke();
       ctx.globalAlpha = 1;
       if (x % spacing === 0) {
-        ctx.fillStyle = isOrigin ? this.dimensionColor : "rgba(200, 196, 224, 0.5)";
+        ctx.fillStyle = isOrigin ? this.dimensionColor : "rgba(200, 196, 224, 0.6)";
         ctx.globalAlpha = isOrigin ? 0.85 : 1;
         ctx.fillText(`x ${x}`, sx + 4, 14);
         ctx.globalAlpha = 1;
@@ -502,14 +528,14 @@ export class Grid {
       const sy = this.worldToScreen(0, z).y;
       const isOrigin = z === 0;
       ctx.beginPath();
-      ctx.strokeStyle = isOrigin ? this.dimensionColor : "rgba(255, 255, 255, 0.06)";
+      ctx.strokeStyle = isOrigin ? this.dimensionColor : "rgba(255, 255, 255, 0.12)";
       ctx.globalAlpha = isOrigin ? 0.55 : 1;
       ctx.lineWidth = isOrigin ? 1.5 : 1;
       ctx.moveTo(0, sy + 0.5);
       ctx.lineTo(w, sy + 0.5);
       ctx.stroke();
       ctx.globalAlpha = 1;
-      ctx.fillStyle = isOrigin ? this.dimensionColor : "rgba(200, 196, 224, 0.5)";
+      ctx.fillStyle = isOrigin ? this.dimensionColor : "rgba(200, 196, 224, 0.6)";
       ctx.globalAlpha = isOrigin ? 0.85 : 1;
       ctx.fillText(`z ${z}`, 4, sy - 4 < 10 ? sy + 14 : sy - 4);
       ctx.globalAlpha = 1;
@@ -524,8 +550,6 @@ export class Grid {
       const icon = "\uf3c5";
       ctx.save();
       ctx.fillStyle = color;
-      ctx.shadowColor = color;
-      ctx.shadowBlur = 16;
       ctx.font = "900 24px 'Font Awesome 6 Free'";
       ctx.textAlign = "center";
       ctx.textBaseline = "bottom";
@@ -540,7 +564,7 @@ export class Grid {
       const p = this.worldToScreen(this.hoveredWaypoint.x, this.hoveredWaypoint.z);
       const labelY = p.y + 8;
       ctx.save();
-      ctx.font = "12px 'Inter', system-ui, sans-serif";
+      ctx.font = "12px 'Manrope', system-ui, sans-serif";
       const labelWidth = ctx.measureText(this.hoveredWaypoint.name).width;
       const paddingX = 7;
       const paddingY = 4;
@@ -582,7 +606,7 @@ export class Grid {
 
       const HEAD_RADIUS = HEAD_SIZE / 2;
       ctx.save();
-      ctx.font = "11px 'Inter', system-ui, sans-serif";
+      ctx.font = "11px 'Manrope', system-ui, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
       ctx.strokeStyle = "rgba(10, 10, 15, 0.9)";

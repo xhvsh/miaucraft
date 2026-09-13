@@ -1,0 +1,34 @@
+.settings-container {
+  max-width: 640px;
+}
+.settings-container .card {
+  margin-bottom: var(--space-4);
+}
+.discord-linked {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.discord-linked-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: right;
+}
+.discord-linked-name-line {
+  font-weight: 700;
+  font-size: var(--fs-sm);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: flex-end;
+}
+.discord-linked-id {
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  color: var(--text-dim);
+}
+.settings-row-hint {
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+}

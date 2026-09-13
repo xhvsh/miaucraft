@@ -1,0 +1,97 @@
+:root {
+  /* surfaces - true near-black, warmed a hair so it isn't dead #000 */
+  --bg: #050506;
+  --bg-elev: #09090b;
+  --surface: #0e0e12;
+  --surface-2: #151519;
+  --surface-3: #1c1c22;
+  --border: #232328;
+  --border-strong: #2f2f37;
+  --border-hairline: #1a1a1f;
+
+  --text: #eeecf3;
+  --text-muted: #97929f;
+  --text-dim: #625e6a;
+
+  /* single accent family - desaturated iris/plum, not the stock #a78bfa/#7c3aed pairing */
+  --accent-h: 258;
+  --accent: #9683e0;
+  --accent-strong: #7a63c9;
+  --accent-dim: #5b4e91;
+  --accent-soft: rgba(150, 131, 224, 0.14);
+  --accent-soft-2: rgba(150, 131, 224, 0.26);
+  --accent-line: rgba(150, 131, 224, 0.4);
+
+  --danger: #e2685f;
+  --danger-soft: rgba(226, 104, 95, 0.14);
+  --danger-strong: #c74a41;
+  --success: #6bbf8a;
+  --success-soft: rgba(107, 191, 138, 0.14);
+  --warn: #d4a05a;
+  --warn-soft: rgba(212, 160, 90, 0.14);
+
+  --tps-good: #6bbf8a;
+  --tps-warn: #d4a05a;
+  --tps-bad: #e2685f;
+
+  --dim-overworld: #6bbf8a;
+  --dim-nether: #e2685f;
+  --dim-end: #d9c775;
+
+  /* type */
+  --font-display: "Space Grotesk", "Inter", system-ui, sans-serif;
+  --font-sans: "Manrope", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  --fs-2xs: 0.6875rem;
+  --fs-xs: 0.75rem;
+  --fs-sm: 0.8125rem;
+  --fs-base: 0.9375rem;
+  --fs-md: 1.0625rem;
+  --fs-lg: 1.25rem;
+  --fs-xl: 1.625rem;
+  --fs-2xl: 2.125rem;
+  --fs-3xl: 2.75rem;
+
+  /* radius - tighter on inner controls, softer on containers */
+  --radius-xs: 5px;
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 18px;
+  --radius-pill: 999px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 28px;
+  --space-7: 36px;
+  --space-8: 48px;
+
+  --container: 1280px;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.45);
+  --shadow: 0 8px 24px -6px rgba(10, 6, 20, 0.55), 0 2px 6px rgba(10, 6, 20, 0.35);
+  --shadow-lg: 0 24px 60px -12px rgba(12, 6, 24, 0.65), 0 8px 20px -6px rgba(12, 6, 24, 0.4);
+  --shadow-accent: 0 10px 30px -8px rgba(122, 99, 201, 0.35);
+
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-fast: 120ms;
+  --dur: 200ms;
+  --dur-slow: 340ms;
+
+  /* z-index scale */
+  --z-nav: 100;
+  --z-dropdown: 200;
+  --z-scrim: 300;
+  --z-modal: 400;
+  --z-toast: 500;
+  --z-tooltip: 600;
+
+  --nav-h: 60px;
+  --bottom-nav-h: 64px;
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
+}

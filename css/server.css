@@ -1,0 +1,204 @@
+.server-grid {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+@media (min-width: 861px) {
+  .server-grid {
+    /* the players column flexes to fill whatever's left, so wide screens
+       don't leave a huge empty gap next to the player list */
+    grid-template-columns: minmax(440px, 500px) minmax(380px, 1fr);
+  }
+}
+
+.server-left-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.server-offline-notice {
+  background: var(--warn-soft);
+  color: var(--warn);
+  border: 1px solid rgba(212, 160, 90, 0.3);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  margin-bottom: var(--space-4);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.server-stats-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4) var(--space-5);
+}
+.server-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.server-stat-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.server-stat-value {
+  font-family: var(--font-display);
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+@media (max-width: 480px) {
+  .server-stat-value {
+    font-size: var(--fs-xl);
+  }
+}
+#serverTps.tps-good {
+  color: var(--tps-good);
+}
+#serverTps.tps-warn {
+  color: var(--tps-warn);
+}
+#serverTps.tps-bad {
+  color: var(--tps-bad);
+}
+
+.server-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--border-hairline);
+}
+.server-field:last-of-type {
+  border-bottom: none;
+}
+.server-field-label {
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  font-weight: 600;
+  width: 84px;
+  flex-shrink: 0;
+}
+.server-field-value {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: default;
+}
+.server-field-value.ip-blur {
+  filter: blur(5px);
+  cursor: pointer;
+  user-select: none;
+}
+.server-field-value.ip-blur.is-revealed {
+  filter: none;
+  cursor: text;
+  user-select: text;
+}
+.server-copy {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+}
+.server-copy.copied {
+  color: var(--success);
+  border-color: rgba(107, 191, 138, 0.4);
+}
+.server-connect-hint {
+  font-size: var(--fs-2xs);
+  color: var(--text-dim);
+  margin-top: var(--space-2);
+}
+
+.server-players-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+}
+.players-online-count {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.players-online-count.has-online {
+  color: var(--success);
+}
+
+.players-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.players-list .skeleton-list .sk-row {
+  padding: 10px 6px;
+  background: var(--surface-2);
+  border: none;
+}
+.players-list .sk-line {
+  max-width: 46%;
+}
+.players-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 10px 6px;
+  border-radius: var(--radius-sm);
+  transition: background var(--dur) var(--ease);
+}
+.players-row:hover {
+  background: var(--surface-2);
+}
+.players-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 7px;
+  image-rendering: pixelated;
+  flex-shrink: 0;
+}
+.players-dim-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--dim-badge-color, var(--text-dim));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--dim-badge-color, var(--text-dim)) 16%, transparent);
+}
+.players-dim-dot.is-inline-placeholder {
+  background: transparent;
+  box-shadow: 0 0 0 1.5px var(--border-strong);
+}
+.players-username {
+  background: none;
+  border: none;
+  color: var(--text);
+  font-weight: 700;
+  font-size: var(--fs-sm);
+  padding: 0;
+  flex-shrink: 0;
+}
+.players-username:hover {
+  color: var(--accent);
+}
+.players-row-badges {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}

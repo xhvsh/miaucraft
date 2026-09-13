@@ -1,0 +1,151 @@
+﻿<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Profile - Miaucraft</title>
+    <meta name="description" content="Player profile, stats and achievements on the Miaucraft SMP." />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" href="img/icon.webp" type="image/webp" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <script src="https://kit.fontawesome.com/384138011e.js" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="css/tokens.css" />
+    <link rel="stylesheet" href="css/base.css" />
+    <link rel="stylesheet" href="css/components.css" />
+    <link rel="stylesheet" href="css/nav.css" />
+    <link rel="stylesheet" href="css/profile.css" />
+  </head>
+  <body data-page="profile">
+    <a class="skip-link" href="#mainContent">Skip to content</a>
+    <div class="app-shell">
+      <div id="navRoot"></div>
+
+      <main class="page-main" id="mainContent">
+        <div class="page-container profile-container">
+          <div class="profile-loading" id="profileLoading">
+            <div class="card profile-loading-card">
+              <div class="profile-loading-row">
+                <div class="skeleton skeleton-skin"></div>
+                <div class="sk-lines">
+                  <div class="skeleton sk-line" style="width:55%;height:26px"></div>
+                  <div class="skeleton sk-line tiny" style="width:34%;height:12px"></div>
+                  <div class="skeleton sk-line short" style="height:22px;margin-top:4px"></div>
+                  <div class="sk-loading-pills">
+                    <span class="skeleton sk-tag"></span>
+                    <span class="skeleton sk-tag" style="width:84px"></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="empty-state" id="profileNotFound" hidden>
+            <i class="fa-solid fa-user-slash" aria-hidden="true"></i>
+            <span>This player couldn't be found.</span>
+          </div>
+
+          <div id="profileContent" hidden>
+            <header class="profile-header card">
+              <img class="profile-skin" id="profileSkin" src="" alt="" />
+              <div class="profile-header-info">
+                <div class="profile-header-top">
+                  <h1 id="profileUsername">-</h1>
+                  <span class="badge" id="profileOnlineBadge">-</span>
+                  <button class="icon-btn" id="profileShareBtn" type="button" title="Copy profile link" aria-label="Copy profile link"><i class="fa-solid fa-link" aria-hidden="true"></i></button>
+                </div>
+                <div class="profile-header-meta">
+                  <span class="profile-last-seen" id="profileLastSeen"></span>
+                </div>
+                <div class="profile-tracking-disabled" id="profileTrackingDisabled" hidden><i class="fa-solid fa-eye-slash" aria-hidden="true"></i> Live position tracking is off</div>
+                <div class="profile-badges-row">
+                  <span class="profile-badge-pill is-playtime" id="profilePlaytime" hidden><i class="fa-solid fa-clock" aria-hidden="true"></i> <span class="profile-playtime-value"></span> played</span>
+                  <div id="profileTopBadges" hidden></div>
+                  <button class="profile-badge-pill" id="profileAchievementsBadge" type="button"><i class="fa-solid fa-medal" aria-hidden="true"></i> 0/0 achievements</button>
+                </div>
+              </div>
+            </header>
+
+            <nav class="tabs profile-main-tabs" id="profileMainTabs">
+              <button class="tab profile-main-tab" data-tab="stats" data-active="true">Stats</button>
+              <button class="tab profile-main-tab" data-tab="waypoints">Waypoints</button>
+              <button class="tab profile-main-tab" data-tab="topcategories">Leaderboards</button>
+              <button class="tab profile-main-tab" data-tab="achievements">Achievements</button>
+            </nav>
+
+            <section class="profile-panel" id="profileStatsPanel">
+              <div class="profile-stats-toolbar">
+                <nav class="tabs profile-stat-tabs" id="profileStatTabs">
+                  <button class="tab profile-stat-tab" data-tab="general" data-active="true">General</button>
+                  <button class="tab profile-stat-tab" data-tab="item">Items</button>
+                  <button class="tab profile-stat-tab" data-tab="mob">Mobs</button>
+                </nav>
+                <div class="search-field">
+                  <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                  <input type="search" id="profileStatSearch" placeholder="Search stats" aria-label="Search stats" />
+                </div>
+              </div>
+              <div class="profile-stats-grid" id="profileStatsGrid"></div>
+              <div class="empty-state" id="profileStatsEmpty" hidden>
+                <i class="fa-solid fa-chart-simple" aria-hidden="true"></i>
+                <span>No stats tracked yet.</span>
+              </div>
+              <div class="empty-state" id="profileStatsNoMatch" hidden>
+                <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                <span></span>
+              </div>
+            </section>
+
+            <section class="profile-panel" id="profileWaypointsPanel" hidden>
+              <div class="search-field profile-panel-search">
+                <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                <input type="search" id="profileWaypointsSearch" placeholder="Search waypoints" aria-label="Search waypoints" />
+              </div>
+              <div class="category-filter-row" id="profileWaypointsCategoryRow"></div>
+              <div class="waypoint-list profile-waypoints-list" id="profileWaypointsList"></div>
+              <div class="empty-state" id="profileWaypointsEmpty" hidden>
+                <i class="fa-solid fa-map-pin" aria-hidden="true"></i>
+                <span>No waypoints added yet.</span>
+              </div>
+            </section>
+
+            <section class="profile-panel" id="profileTopCategoriesPanel" hidden>
+              <div class="search-field profile-panel-search">
+                <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                <input type="search" id="profileTopSearch" placeholder="Search leaderboards" aria-label="Search leaderboards" />
+              </div>
+              <div class="profile-top-grid" id="profileTopCategoriesList"></div>
+              <div class="empty-state" id="profileTopCategoriesEmpty" hidden>
+                <i class="fa-solid fa-crown" aria-hidden="true"></i>
+                <span>Not #1 in any tracked leaderboard yet.</span>
+              </div>
+            </section>
+
+            <section class="profile-panel" id="profileAchievementsPanel" hidden>
+              <div class="profile-stats-toolbar">
+                <nav class="tabs profile-achievements-tabs" id="profileAchievementsTabs">
+                  <button class="tab" data-tab="all" data-active="true">All</button>
+                  <button class="tab" data-tab="completed">Completed</button>
+                  <button class="tab" data-tab="progress">In progress</button>
+                </nav>
+                <div class="search-field">
+                  <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                  <input type="search" id="profileAchievementsSearch" placeholder="Search achievements" aria-label="Search achievements" />
+                </div>
+              </div>
+              <div id="profileAchievementsList"></div>
+              <div class="empty-state" id="profileAchievementsEmpty" hidden>
+                <i class="fa-solid fa-medal" aria-hidden="true"></i>
+                <span>No achievements tracked yet.</span>
+              </div>
+            </section>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+    <script type="module" src="js/pages/profile.js"></script>
+  </body>
+</html>

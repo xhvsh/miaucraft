@@ -1,0 +1,143 @@
+﻿<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Server - Miaucraft</title>
+    <meta name="description" content="Live TPS, uptime and player list for the Miaucraft SMP." />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" href="img/icon.webp" type="image/webp" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <script src="https://kit.fontawesome.com/384138011e.js" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="css/tokens.css" />
+    <link rel="stylesheet" href="css/base.css" />
+    <link rel="stylesheet" href="css/components.css" />
+    <link rel="stylesheet" href="css/nav.css" />
+    <link rel="stylesheet" href="css/server.css" />
+  </head>
+  <body data-page="server">
+    <a class="skip-link" href="#mainContent">Skip to content</a>
+    <div class="app-shell">
+      <div id="navRoot"></div>
+
+      <main class="page-main" id="mainContent">
+        <div class="page-container">
+          <div class="page-head">
+            <div>
+              <h1>Server</h1>
+              <p>Live status and who's online right now.</p>
+            </div>
+          </div>
+
+          <div class="server-grid">
+            <div class="server-left-col">
+              <section class="card server-status-card">
+                <div class="server-offline-notice" id="serverOfflineNotice" hidden></div>
+                <div class="server-stats-row">
+                  <div class="server-stat">
+                    <span class="server-stat-label">TPS</span>
+                    <span class="server-stat-value tabular is-skeleton" id="serverTps">20.0</span>
+                  </div>
+                  <div class="server-stat">
+                    <span class="server-stat-label">Uptime</span>
+                    <span class="server-stat-value tabular is-skeleton" id="serverUptime">6d 14h 23m</span>
+                  </div>
+                  <div class="server-stat">
+                    <span class="server-stat-label">Days</span>
+                    <span class="server-stat-value tabular is-skeleton" id="serverDays">312</span>
+                  </div>
+                </div>
+              </section>
+
+              <section class="card server-connect-card">
+                <h2 class="section-title">Connect</h2>
+                <div class="server-field">
+                  <span class="server-field-label">Version</span>
+                  <span class="server-field-value" id="serverVersion">-</span>
+                </div>
+                <div class="server-field">
+                  <span class="server-field-label">Hostname</span>
+                  <span class="server-field-value is-skeleton" id="serverHostname">-</span>
+                  <button class="icon-btn server-copy is-skeleton" data-copy-source="serverHostname" type="button" title="Copy" aria-label="Copy hostname"><i class="fa-solid fa-copy" aria-hidden="true"></i></button>
+                </div>
+                <div class="server-field">
+                  <span class="server-field-label">IP</span>
+                  <span class="server-field-value is-skeleton" id="serverIp">-</span>
+                  <button class="icon-btn server-copy is-skeleton" data-copy-source="serverIp" type="button" title="Copy" aria-label="Copy IP"><i class="fa-solid fa-copy" aria-hidden="true"></i></button>
+                </div>
+                <p class="server-connect-hint">Tap a blurred value to reveal it.</p>
+              </section>
+            </div>
+
+            <section class="card server-players-card">
+              <div class="server-players-head">
+                <h2 class="section-title" style="margin-bottom:0">Players</h2>
+                <span class="players-online-count" id="playersOnlineCount">0 online</span>
+              </div>
+              <div class="players-list" id="playersList"></div>
+              <div class="skeleton-list" id="playersSkeleton">
+                <div class="skeleton sk-row">
+                  <span class="skeleton sk-dot"></span>
+                  <span class="skeleton sk-avatar"></span>
+                  <div class="sk-lines"><div class="skeleton sk-line" style="width:38%"></div></div>
+                  <div class="sk-badges"><span class="skeleton sk-tag"></span></div>
+                </div>
+                <div class="skeleton sk-row">
+                  <span class="skeleton sk-dot"></span>
+                  <span class="skeleton sk-avatar"></span>
+                  <div class="sk-lines"><div class="skeleton sk-line" style="width:42%"></div></div>
+                  <div class="sk-badges"><span class="skeleton sk-tag"></span></div>
+                </div>
+                <div class="skeleton sk-row">
+                  <span class="skeleton sk-dot"></span>
+                  <span class="skeleton sk-avatar"></span>
+                  <div class="sk-lines"><div class="skeleton sk-line" style="width:42%"></div></div>
+                  <div class="sk-badges"><span class="skeleton sk-tag"></span></div>
+                </div>
+                <div class="skeleton sk-row">
+                  <span class="skeleton sk-dot"></span>
+                  <span class="skeleton sk-avatar"></span>
+                  <div class="sk-lines"><div class="skeleton sk-line" style="width:35%"></div></div>
+                  <div class="sk-badges"><span class="skeleton sk-tag"></span></div>
+                </div>
+                <div class="skeleton sk-row">
+                  <span class="skeleton sk-dot"></span>
+                  <span class="skeleton sk-avatar"></span>
+                  <div class="sk-lines"><div class="skeleton sk-line" style="width:40%"></div></div>
+                  <div class="sk-badges"><span class="skeleton sk-tag"></span></div>
+                </div>
+                <div class="skeleton sk-row">
+                  <span class="skeleton sk-dot"></span>
+                  <span class="skeleton sk-avatar"></span>
+                  <div class="sk-lines"><div class="skeleton sk-line" style="width:38%"></div></div>
+                  <div class="sk-badges"><span class="skeleton sk-tag"></span></div>
+                </div>
+                <div class="skeleton sk-row">
+                  <span class="skeleton sk-dot"></span>
+                  <span class="skeleton sk-avatar"></span>
+                  <div class="sk-lines"><div class="skeleton sk-line" style="width:44%"></div></div>
+                  <div class="sk-badges"><span class="skeleton sk-tag"></span></div>
+                </div>
+                <div class="skeleton sk-row">
+                  <span class="skeleton sk-dot"></span>
+                  <span class="skeleton sk-avatar"></span>
+                  <div class="sk-lines"><div class="skeleton sk-line" style="width:36%"></div></div>
+                  <div class="sk-badges"><span class="skeleton sk-tag"></span></div>
+                </div>
+              </div>
+              <div class="empty-state" id="playersEmpty" hidden>
+                <i class="fa-solid fa-users" aria-hidden="true"></i>
+                <span>No players have joined yet.</span>
+              </div>
+            </section>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+    <script type="module" src="js/pages/server.js"></script>
+  </body>
+</html>

@@ -32,7 +32,7 @@ export function isLoggedIn() {
 }
 
 export function role() {
-  return state.profile?.role ?? "guest";
+  return (state.profile?.role ?? "guest").toLowerCase();
 }
 
 export function can(action) {
@@ -198,6 +198,43 @@ export async function deleteAccount() {
   }
 
   await supabase.auth.signOut();
+}
+
+export async function listProfiles() {
+  const { data, error } = await supabase.from("profiles").select("id, username, role, created_at").order("created_at", { ascending: true });
+  if (error) {
+    if (error.code === "42501") throw new Error("Admins can't read the accounts table yet - the RLS policy from the SQL below isn't applied.");
+    throw new Error(error.message);
+  }
+  return data ?? [];
+}
+
+export async function revokeAccount(username) {
+  const { data, error } = await supabase.rpc("delete_account_by_username", { _username: username });
+  if (error) {
+    if (error.code === "PGRST202") throw new Error("The delete_account_by_username function isn't set up yet - run the SQL below.");
+    throw new Error(error.message);
+  }
+  if (data === false) throw new Error("Only owners can delete accounts.");
+  if (data?.error) throw new Error(data.error);
+}
+
+export async function updateUserRole(profileId, role) {
+  const { error } = await supabase.from("profiles").update({ role }).eq("id", profileId);
+  if (error) {
+    if (error.code === "42501") throw new Error("Role changes aren't allowed yet - the profiles_update_owner_only RLS policy may not cover this.");
+    throw new Error(error.message);
+  }
+}
+
+export async function updateUsername(profileId, newUsername) {
+  const { data, error } = await supabase.rpc("update_username_by_profile", { _profile_id: profileId, _new_username: newUsername });
+  if (error) {
+    if (error.code === "PGRST202") throw new Error("The update_username_by_profile function isn't set up yet - run the SQL below.");
+    throw new Error(error.message);
+  }
+  if (data?.error) throw new Error(data.error);
+  return data;
 }
 
 // discord handling

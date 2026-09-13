@@ -116,6 +116,59 @@ export async function getLiveTrackingEnabled(playerId) {
   return data.live_tracking_enabled;
 }
 
+// achievements
+
+export async function getAchievementsCatalog() {
+  const { data, error } = await db("achievements").select("key, title, description, frame, hidden, icon, total_criteria").order("title", { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function getAchievementCriteriaCatalog() {
+  const pageSize = 1000;
+  let allRows = [];
+  let from = 0;
+
+  while (true) {
+    const { data, error } = await db("achievement_criteria")
+      .select("achievement_key, criterion_key")
+      .range(from, from + pageSize - 1);
+    if (error) throw error;
+    const page = data ?? [];
+    allRows = allRows.concat(page);
+    if (page.length < pageSize) break;
+    from += pageSize;
+  }
+
+  return allRows;
+}
+
+export async function getPlayerAchievements(playerId) {
+  const { data, error } = await db("player_achievements").select("achievement_key, completed, criteria_done, criteria_total, completed_at").eq("player_id", playerId);
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function getPlayerAchievementCriteria(playerId) {
+  const pageSize = 1000;
+  let allRows = [];
+  let from = 0;
+
+  while (true) {
+    const { data, error } = await db("player_achievement_criteria")
+      .select("achievement_key, criterion_key, done")
+      .eq("player_id", playerId)
+      .range(from, from + pageSize - 1);
+    if (error) throw error;
+    const page = data ?? [];
+    allRows = allRows.concat(page);
+    if (page.length < pageSize) break;
+    from += pageSize;
+  }
+
+  return allRows;
+}
+
 export async function setLiveTracking(playerId, enabled) {
   const { data, error } = await db("players").update({ live_tracking_enabled: enabled }).eq("id", playerId).select("id");
   if (error) throw error;

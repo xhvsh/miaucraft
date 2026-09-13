@@ -4,7 +4,6 @@ export const PRESET_STATS = [
   { id: "mob_kills", label: "Mob Kills", keys: ["MOB_KILLS_TOTAL", "MOB_KILLS"], format: "count" },
   { id: "time_played", label: "Time Played", keys: ["PLAY_ONE_MINUTE", "TIME_PLAYED"], format: "time" },
   { id: "player_deaths", label: "Deaths", keys: ["DEATHS"], format: "count" },
-  { id: "shulker_boxes_opened", label: "Shulker Boxes Opened", keys: ["SHULKER_BOX_OPENED"], format: "count" },
   { id: "crafting_table_interactions", label: "Crafting Table Interactions", keys: ["CRAFTING_TABLE_INTERACTION"], format: "count" },
   { id: "blocks_mined", label: "Blocks Mined", keys: ["BLOCKS_MINED_TOTAL"], format: "count" },
 ];
