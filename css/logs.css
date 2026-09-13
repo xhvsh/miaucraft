@@ -44,6 +44,7 @@
   gap: var(--space-3);
   margin-bottom: var(--space-3);
   flex-shrink: 0;
+  position: relative;
 }
 .logs-toolbar .search-field {
   flex: 1;
@@ -56,29 +57,58 @@
   display: inline-block;
   margin-left: 4px;
 }
-.logs-filters {
-  display: none;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-bottom: var(--space-4);
-  flex-shrink: 0;
-}
-.logs-filters.is-open {
+.logs-filters-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: var(--z-dropdown);
+  width: 300px;
+  max-width: calc(100vw - var(--space-6));
   display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
 }
-.logs-filters .select-wrap {
-  min-width: 140px;
-  flex: 1;
+.logs-filters-menu .category-filter-trigger {
+  background: var(--surface);
 }
-.logs-filters select {
-  height: 36px;
+.logs-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.logs-filter-label {
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+}
+.logs-filters-reset {
+  justify-content: center;
+  width: 100%;
+  color: var(--text-muted);
+}
+.logs-filters-reset i {
+  font-size: 0.8em;
+}
+.log-filter-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  image-rendering: pixelated;
+  flex-shrink: 0;
 }
 
 .logs-list,
 #logsList {
   flex: 1;
   min-height: 0;
-  overflow-y: scroll;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 10px;

@@ -42,40 +42,26 @@
                 <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
                 <input type="search" id="logSearch" placeholder="Search activity" aria-label="Search activity" />
               </div>
-              <button class="btn btn-ghost" id="logsFiltersToggle" type="button"><i class="fa-solid fa-filter" aria-hidden="true"></i> Filters <span class="filters-dot" id="logsFiltersDot" hidden></span></button>
-            </div>
+              <button class="btn btn-ghost" id="logsFiltersToggle" type="button" aria-haspopup="true" aria-expanded="false"><i class="fa-solid fa-filter" aria-hidden="true"></i> Filters <span class="filters-dot" id="logsFiltersDot" hidden></span></button>
 
-            <div class="logs-filters" id="logsFiltersPanel">
-              <div class="select-wrap">
-                <select id="logEntityFilter">
-                  <option value="">All types</option>
-                  <option value="waypoint">Waypoints</option>
-                  <option value="category">Categories</option>
-                  <option value="whitelist">Whitelist</option>
-                </select>
-                <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
-              </div>
-              <div class="select-wrap">
-                <select id="logUserFilter"><option value="">All users</option></select>
-                <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
-              </div>
-              <div class="select-wrap">
-                <select id="logActionFilter">
-                  <option value="">All actions</option>
-                  <option value="create">Created</option>
-                  <option value="update">Edited</option>
-                  <option value="delete">Deleted</option>
-                </select>
-                <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
-              </div>
-              <div class="select-wrap" id="logDimensionFilterWrap">
-                <select id="logDimensionFilter">
-                  <option value="">All dimensions</option>
-                  <option value="overworld">Overworld</option>
-                  <option value="nether">Nether</option>
-                  <option value="end">End</option>
-                </select>
-                <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+              <div class="logs-filters-menu" id="logsFiltersMenu" hidden>
+                <div class="logs-filter-group">
+                  <span class="logs-filter-label">Type</span>
+                  <div id="logEntityFilterRoot"></div>
+                </div>
+                <div class="logs-filter-group">
+                  <span class="logs-filter-label">User</span>
+                  <div id="logUserFilterRoot"></div>
+                </div>
+                <div class="logs-filter-group">
+                  <span class="logs-filter-label">Action</span>
+                  <div id="logActionFilterRoot"></div>
+                </div>
+                <div class="logs-filter-group" id="logDimensionFilterWrap">
+                  <span class="logs-filter-label">Dimension</span>
+                  <div id="logDimensionFilterRoot"></div>
+                </div>
+                <button class="btn btn-ghost logs-filters-reset" id="logsFiltersReset" type="button" hidden><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Reset filters</button>
               </div>
             </div>
 

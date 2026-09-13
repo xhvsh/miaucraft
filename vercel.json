@@ -4,6 +4,6 @@
     { "source": "/index.html", "destination": "/" }
   ],
   "rewrites": [
-    { "source": "/c/:code", "destination": "/index.html" }
+    { "source": "/c/:code", "destination": "/index" }
   ]
 }

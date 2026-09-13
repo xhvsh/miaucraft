@@ -166,6 +166,15 @@ export function buildDimensionFilter({ selected = "", ariaLabel = "Filter dimens
     return btn;
   });
 
+  root.setValue = (value) => {
+    selected = value;
+    for (const b of buttons) {
+      const on = b.dataset.dim === value && value !== "";
+      b.dataset.active = String(on);
+      b.setAttribute("aria-selected", String(on));
+    }
+  };
+
   return root;
 }
 

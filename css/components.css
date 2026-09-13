@@ -561,7 +561,7 @@ input.no-spinner {
   width: 100%;
   max-width: 420px;
   max-height: min(88dvh, 720px);
-  overflow-y: scroll;
+  overflow-y: auto;
   padding: var(--space-6) var(--space-5);
   animation: modal-in var(--dur-slow) var(--ease-out);
   position: relative;
@@ -1079,7 +1079,7 @@ mark {
   left: 0;
   right: 0;
   max-height: 240px;
-  overflow-y: scroll;
+  overflow-y: auto;
   background: var(--surface-2);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);

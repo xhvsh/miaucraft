@@ -1,5 +1,6 @@
 import * as Auth from "../lib/auth.js";
 import { listCategories, listLogs } from "../lib/waypoints.js";
+import { buildDimensionFilter } from "../lib/waypoint-ui.js";
 import { formatCoordsForDisplay } from "../lib/settings.js";
 import { escapeHtml, formatRelativeTime } from "../lib/ui.js";
 import { initNav } from "../lib/nav.js";
@@ -9,12 +10,26 @@ const DIM_COLORS = { overworld: "#6bbf8a", nether: "#e2685f", end: "#d9c775" };
 const DIM_LABELS = { overworld: "Overworld", nether: "Nether", end: "End" };
 const LOG_ACTION_LABELS = { create: "created", update: "edited", delete: "deleted" };
 const LOG_ACTION_ICONS = { create: "fa-plus", update: "fa-pen", delete: "fa-trash" };
+const LOG_ACTION_STYLE = {
+  create: { label: "Created", icon: "fa-plus", color: "#6bbf8a" },
+  update: { label: "Edited", icon: "fa-pen", color: "#9683e0" },
+  delete: { label: "Deleted", icon: "fa-trash", color: "#e2685f" },
+};
+const LOG_ENTITY_STYLE = {
+  waypoint: { label: "Waypoints", icon: "fa-location-dot" },
+  category: { label: "Categories", icon: "fa-tags" },
+  whitelist: { label: "Whitelist", icon: "fa-user-check" },
+};
 const LOGS_PER_PAGE = 20;
 
 let allLogs = [];
 let deletedWaypointIds = new Set();
 let logsCurrentPage = 1;
 let categories = [];
+
+const logFilters = { entity: "", user: "", action: "", dimension: "" };
+const dropdowns = [];
+let userDropdown = null;
 
 await initNav("logs");
 
@@ -165,7 +180,7 @@ async function loadLogs() {
   try {
     [allLogs] = await Promise.all([listLogs(), loadCategories()]);
     deletedWaypointIds = new Set(allLogs.filter((l) => l.entity_type === "waypoint" && l.action === "delete").map((l) => l.entity_id));
-    populateLogUserFilter();
+    buildUserFilterDropdown();
     renderLogs();
   } catch (err) {
     $("#logsList").innerHTML = `<div class="logs-error">Could not load logs: ${escapeHtml(err.message || "unknown error")}</div>`;
@@ -183,28 +198,37 @@ async function loadCategories() {
   }
 }
 
-function populateLogUserFilter() {
-  const el = $("#logUserFilter");
-  const current = el.value;
+function buildUserFilterDropdown() {
+  if (userDropdown) {
+    dropdowns.splice(dropdowns.indexOf(userDropdown), 1);
+    userDropdown = null;
+  }
   const users = new Map();
   for (const log of allLogs) if (log.user_id && log.username) users.set(log.user_id, log.username);
   const sorted = [...users.entries()].sort((a, b) => a[1].localeCompare(b[1]));
-  el.innerHTML = '<option value="">All users</option>' + sorted.map(([id, name]) => `<option value="${escapeHtml(id)}">${escapeHtml(name)}</option>`).join("");
-  if (sorted.some(([id]) => id === current)) el.value = current;
+  userDropdown = buildLogsFilterDropdown({
+    allLabel: "All users",
+    ariaLabel: "Filter by user",
+    selected: logFilters.user,
+    options: sorted.map(([id, name]) => ({ value: id, label: name, avatar: name })),
+    onChange: (value) => {
+      logFilters.user = value;
+      onLogFilterChange();
+    },
+  });
+  const rootEl = $("#logUserFilterRoot");
+  rootEl.innerHTML = "";
+  rootEl.appendChild(userDropdown.root);
 }
 
 function renderLogs() {
   const search = $("#logSearch").value.trim().toLowerCase();
-  const entityFilter = $("#logEntityFilter").value;
-  const userFilter = $("#logUserFilter").value;
-  const actionFilter = $("#logActionFilter").value;
-  const dimFilter = $("#logDimensionFilter").value;
 
   const filtered = allLogs.filter((log) => {
-    if (entityFilter && log.entity_type !== entityFilter) return false;
-    if (userFilter && log.user_id !== userFilter) return false;
-    if (actionFilter && log.action !== actionFilter) return false;
-    if (dimFilter && log.dimension !== dimFilter) return false;
+    if (logFilters.entity && log.entity_type !== logFilters.entity) return false;
+    if (logFilters.user && log.user_id !== logFilters.user) return false;
+    if (logFilters.action && log.action !== logFilters.action) return false;
+    if (logFilters.dimension && log.dimension !== logFilters.dimension) return false;
     if (search) {
       const haystack = `${log.entity_name || ""} ${log.username || ""}`.toLowerCase();
       if (!haystack.includes(search)) return false;
@@ -327,27 +351,209 @@ function buildLogEntry(log) {
 
 // ---------- filters ----------
 
-function updateLogDimensionFilterVisibility() {
-  const hide = $("#logEntityFilter").value === "category" || $("#logEntityFilter").value === "whitelist";
-  $("#logDimensionFilterWrap").hidden = hide;
-  if (hide && $("#logDimensionFilter").value) $("#logDimensionFilter").value = "";
+function buildLogsFilterDropdown({ allLabel, options, selected = "", ariaLabel, onChange }) {
+  const root = document.createElement("div");
+  root.className = "category-filter";
+  root.setAttribute("aria-label", ariaLabel);
+
+  const trigger = document.createElement("button");
+  trigger.type = "button";
+  trigger.className = "category-filter-trigger";
+  trigger.setAttribute("aria-haspopup", "listbox");
+  trigger.setAttribute("aria-expanded", "false");
+
+  const triggerPill = document.createElement("span");
+  triggerPill.className = "category-pill";
+  trigger.appendChild(triggerPill);
+  trigger.insertAdjacentHTML("beforeend", '<i class="fa-solid fa-chevron-down category-filter-chevron" aria-hidden="true"></i>');
+
+  const menu = document.createElement("div");
+  menu.className = "category-filter-menu";
+  menu.setAttribute("role", "listbox");
+  menu.hidden = true;
+  root.appendChild(trigger);
+  root.appendChild(menu);
+
+  const optionDefs = [{ value: "", label: allLabel, icon: "fa-solid fa-border-all", color: null }, ...options];
+
+  function pillInner(def) {
+    if (def.avatar) {
+      return `<img class="log-filter-avatar" src="https://mc-heads.net/avatar/${encodeURIComponent(def.avatar)}/64" alt="" width="20" height="20" loading="lazy" /><span class="category-pill-label">${escapeHtml(def.label)}</span>`;
+    }
+    const colored = Boolean(def.color);
+    const chipStyle = colored ? ` style="background:color-mix(in srgb, ${escapeHtml(def.color)} 18%, transparent);color:${escapeHtml(def.color)}"` : "";
+    const labelStyle = colored ? ` style="color:${escapeHtml(def.color)}"` : "";
+    const icon = def.icon ? `<i class="fa-solid ${escapeHtml(def.icon)}" aria-hidden="true"></i>` : "";
+    return `<span class="category-pill-icon${colored ? "" : " category-pill-icon--none"}"${chipStyle}>${icon}</span><span class="category-pill-label"${labelStyle}>${escapeHtml(def.label)}</span>`;
+  }
+
+  function refresh() {
+    const def = optionDefs.find((d) => d.value === selected) || optionDefs[0];
+    triggerPill.innerHTML = pillInner(def);
+  }
+
+  function setValue(value, notify) {
+    selected = value;
+    for (const btn of optionButtons) btn.setAttribute("aria-selected", String(btn.dataset.value === value));
+    refresh();
+    if (notify) {
+      close();
+      onChange(value);
+    }
+  }
+
+  const optionButtons = optionDefs.map((def) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "category-filter-option";
+    btn.dataset.value = def.value;
+    btn.setAttribute("role", "option");
+    btn.setAttribute("aria-selected", String(selected === def.value));
+    btn.innerHTML = pillInner(def);
+    btn.addEventListener("click", () => setValue(def.value, true));
+    menu.appendChild(btn);
+    return btn;
+  });
+
+  function close() {
+    menu.hidden = true;
+    trigger.setAttribute("aria-expanded", "false");
+  }
+
+  refresh();
+  trigger.addEventListener("click", () => {
+    const willOpen = menu.hidden;
+    for (const d of dropdowns) if (d !== api) d.close();
+    if (willOpen) {
+      menu.hidden = false;
+      trigger.setAttribute("aria-expanded", "true");
+    } else {
+      close();
+    }
+  });
+
+  const api = { root, close, setValue: (value) => setValue(value, false) };
+  dropdowns.push(api);
+  return api;
 }
 
-function updateLogsFiltersDot() {
-  const active = Boolean($("#logEntityFilter").value || $("#logUserFilter").value || $("#logActionFilter").value || $("#logDimensionFilter").value);
-  $("#logsFiltersDot").hidden = !active;
-}
+const entityDropdown = buildLogsFilterDropdown({
+  allLabel: "All types",
+  ariaLabel: "Filter by type",
+  selected: logFilters.entity,
+  options: [
+    { value: "waypoint", label: LOG_ENTITY_STYLE.waypoint.label, icon: LOG_ENTITY_STYLE.waypoint.icon },
+    { value: "category", label: LOG_ENTITY_STYLE.category.label, icon: LOG_ENTITY_STYLE.category.icon },
+    { value: "whitelist", label: LOG_ENTITY_STYLE.whitelist.label, icon: LOG_ENTITY_STYLE.whitelist.icon },
+  ],
+  onChange: (value) => {
+    logFilters.entity = value;
+    onLogFilterChange();
+  },
+});
+$("#logEntityFilterRoot").appendChild(entityDropdown.root);
 
-function applyLogFilterChange() {
+const actionDropdown = buildLogsFilterDropdown({
+  allLabel: "All actions",
+  ariaLabel: "Filter by action",
+  selected: logFilters.action,
+  options: Object.entries(LOG_ACTION_STYLE).map(([value, style]) => ({ value, label: style.label, icon: style.icon, color: style.color })),
+  onChange: (value) => {
+    logFilters.action = value;
+    onLogFilterChange();
+  },
+});
+$("#logActionFilterRoot").appendChild(actionDropdown.root);
+
+const dimFilterEl = buildDimensionFilter({
+  selected: logFilters.dimension,
+  onChange: (value) => {
+    logFilters.dimension = value;
+    onLogFilterChange();
+  },
+});
+$("#logDimensionFilterRoot").appendChild(dimFilterEl);
+
+function onLogFilterChange() {
   logsCurrentPage = 1;
+  updateLogDimensionFilterVisibility();
   updateLogsFiltersDot();
   renderLogs();
 }
 
-$("#logsFiltersToggle").addEventListener("click", () => {
-  const panel = $("#logsFiltersPanel");
-  const willOpen = !panel.classList.contains("is-open");
-  panel.classList.toggle("is-open", willOpen);
+function updateLogDimensionFilterVisibility() {
+  const hide = logFilters.entity === "category" || logFilters.entity === "whitelist";
+  $("#logDimensionFilterWrap").hidden = hide;
+  if (hide && logFilters.dimension) {
+    logFilters.dimension = "";
+    dimFilterEl.setValue("");
+  }
+}
+
+function updateLogsFiltersDot() {
+  const active = Boolean(logFilters.entity || logFilters.user || logFilters.action || logFilters.dimension);
+  $("#logsFiltersDot").hidden = !active;
+  $("#logsFiltersReset").hidden = !active;
+}
+
+function closeLogsFiltersMenu() {
+  const menuEl = $("#logsFiltersMenu");
+  menuEl.hidden = true;
+  $("#logsFiltersToggle").setAttribute("aria-expanded", "false");
+  for (const d of dropdowns) d.close();
+}
+
+function positionLogsFiltersMenu() {
+  const menu = $("#logsFiltersMenu");
+  const toggle = $("#logsFiltersToggle");
+  const rect = toggle.getBoundingClientRect();
+  const width = Math.min(300, window.innerWidth - 24);
+  menu.style.position = "fixed";
+  menu.style.width = `${width}px`;
+  menu.style.right = `${Math.max(12, window.innerWidth - rect.right)}px`;
+  const desiredTop = rect.bottom + 8;
+  const maxTop = window.innerHeight - menu.offsetHeight - 8;
+  menu.style.top = `${Math.max(8, Math.min(desiredTop, maxTop))}px`;
+}
+
+$("#logsFiltersToggle").addEventListener("click", (e) => {
+  e.stopPropagation();
+  const menuEl = $("#logsFiltersMenu");
+  const willOpen = menuEl.hidden;
+  menuEl.hidden = !willOpen;
+  e.currentTarget.setAttribute("aria-expanded", String(willOpen));
+  if (willOpen) {
+    positionLogsFiltersMenu();
+    for (const d of dropdowns) d.close();
+  }
+});
+
+document.addEventListener("click", (e) => {
+  const menuEl = $("#logsFiltersMenu");
+  const toggle = $("#logsFiltersToggle");
+  if (!menuEl.hidden && !menuEl.contains(e.target) && !toggle.contains(e.target)) {
+    closeLogsFiltersMenu();
+    return;
+  }
+  for (const d of dropdowns) {
+    if (!d.root.contains(e.target)) d.close();
+  }
+});
+
+$("#logsFiltersReset").addEventListener("click", () => {
+  logFilters.entity = "";
+  logFilters.user = "";
+  logFilters.action = "";
+  logFilters.dimension = "";
+  entityDropdown.setValue("");
+  userDropdown?.setValue("");
+  actionDropdown.setValue("");
+  dimFilterEl.setValue("");
+  updateLogsFiltersDot();
+  updateLogDimensionFilterVisibility();
+  logsCurrentPage = 1;
+  renderLogs();
+  closeLogsFiltersMenu();
 });
 
 let logFilterDebounce = null;
@@ -358,10 +564,3 @@ $("#logSearch").addEventListener("input", () => {
     renderLogs();
   }, 150);
 });
-$("#logEntityFilter").addEventListener("change", () => {
-  updateLogDimensionFilterVisibility();
-  applyLogFilterChange();
-});
-$("#logUserFilter").addEventListener("change", applyLogFilterChange);
-$("#logActionFilter").addEventListener("change", applyLogFilterChange);
-$("#logDimensionFilter").addEventListener("change", applyLogFilterChange);
