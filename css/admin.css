@@ -243,6 +243,13 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.users-you {
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  color: var(--accent);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
 .users-actions {
   display: flex;
   gap: 6px;
@@ -278,6 +285,8 @@ tr.is-editing .users-role {
 .users-role {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  min-width: 62px;
   font-size: var(--fs-2xs);
   font-weight: 700;
   text-transform: capitalize;
@@ -314,19 +323,93 @@ tr.is-editing .users-role {
   color: var(--text-dim);
 }
 .users-role-select {
+  position: relative;
+  display: inline-flex;
+}
+.users-role-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   height: 32px;
-  padding: 0 6px;
-  font-size: var(--fs-xs);
-  font-weight: 700;
-  text-transform: capitalize;
+  padding: 0 6px 0 4px;
+  font-size: 0;
   color: var(--text);
   background: var(--surface-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
-.users-role-select option {
-  text-transform: capitalize;
+.users-role-trigger:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+}
+.users-role-trigger:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.users-role-trigger:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.users-role-chevron {
+  font-size: 9px;
+  color: var(--text-dim);
+  transition: transform var(--dur-fast) var(--ease);
+}
+.users-role-trigger[aria-expanded="true"] .users-role-chevron {
+  transform: rotate(180deg);
+}
+.users-role-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 104px;
+  padding: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  z-index: var(--z-dropdown);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.users-role-select--up .users-role-menu {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+.users-role-option {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  font-size: 0;
+  transition: background var(--dur-fast) var(--ease);
+}
+.users-role-option:hover {
+  background: var(--surface-3);
+}
+.users-role-option:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.users-role-option[aria-selected="true"] {
+  cursor: default;
+}
+.users-role-option[aria-selected="true"]::after {
+  content: "\f00c";
+  font-family: "Font Awesome 6 Free";
+  font-weight: 900;
+  font-size: 10px;
+  color: var(--accent);
+  margin-left: var(--space-2);
 }
 .users-table-empty {
   text-align: center;
@@ -353,4 +436,29 @@ tr.is-editing .users-role {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+/* phones: compact role column so the player column gets more room */
+@media (max-width: 600px) {
+  .users-table th,
+  .users-table td {
+    padding: 10px 8px;
+  }
+  .users-role-trigger {
+    padding: 0 4px 0 3px;
+  }
+  .users-role-trigger .users-role,
+  .users-role-option .users-role {
+    padding: 2px 7px;
+    font-size: 10px;
+  }
+  /* give the player column a real floor so usernames never spill into or
+     under the role column - the wrap scrolls sideways instead */
+  .users-table td:first-child {
+    min-width: 180px;
+  }
+  .users-actions .icon-btn {
+    width: 30px;
+    height: 30px;
+  }
 }

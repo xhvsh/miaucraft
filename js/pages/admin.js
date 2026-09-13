@@ -221,52 +221,178 @@ async function loadUsersPanel() {
   }
 }
 
-function renderUsers() {
+const USER_ROLES = ["owner", "admin", "user"];
+const openRoleMenus = [];
+
+function closeRoleMenu(root) {
+  const menu = root.querySelector(".users-role-menu");
+  const trigger = root.querySelector(".users-role-trigger");
+  if (menu) menu.hidden = true;
+  if (trigger) trigger.setAttribute("aria-expanded", "false");
+  const idx = openRoleMenus.indexOf(root);
+  if (idx !== -1) openRoleMenus.splice(idx, 1);
+}
+
+function positionRoleMenu(root) {
+  const menu = root.querySelector(".users-role-menu");
+  const trigger = root.querySelector(".users-role-trigger");
+  const wrap = root.closest(".users-table-wrap");
+  const wrapRect = wrap ? wrap.getBoundingClientRect() : { top: 0, bottom: window.innerHeight };
+  const triggerRect = trigger.getBoundingClientRect();
+  const spaceBelow = wrapRect.bottom - triggerRect.bottom;
+  const spaceAbove = triggerRect.top - wrapRect.top;
+  const needsUp = spaceBelow < menu.offsetHeight + 8 && spaceAbove >= menu.offsetHeight + 8;
+  root.classList.toggle("users-role-select--up", needsUp);
+}
+
+function openRoleMenu(root) {
+  root.querySelector(".users-role-menu").hidden = false;
+  root.querySelector(".users-role-trigger").setAttribute("aria-expanded", "true");
+  if (!openRoleMenus.includes(root)) openRoleMenus.push(root);
+  positionRoleMenu(root);
+}
+
+function toggleRoleMenu(root) {
+  if (openRoleMenus.includes(root)) {
+    closeRoleMenu(root);
+  } else {
+    for (const m of [...openRoleMenus]) closeRoleMenu(m);
+    openRoleMenu(root);
+  }
+}
+
+function roleBadgeHtml(role) {
+  const safe = USER_ROLES.includes(role) ? role : "user";
+  return `<span class="users-role role-${safe}">${escapeHtml(safe)}</span>`;
+}
+
+function buildRoleSelect(profileId, currentRole) {
+  const safeRole = USER_ROLES.includes(currentRole) ? currentRole : "user";
+  const root = document.createElement("div");
+  root.className = "users-role-select";
+  root.dataset.roleSelect = profileId;
+  root.dataset.roleValue = safeRole;
+
+  const trigger = document.createElement("button");
+  trigger.type = "button";
+  trigger.className = "users-role-trigger";
+  trigger.dataset.roleTrigger = "";
+  trigger.setAttribute("aria-haspopup", "listbox");
+  trigger.setAttribute("aria-expanded", "false");
+  trigger.innerHTML = `${roleBadgeHtml(safeRole)}<i class="fa-solid fa-chevron-down users-role-chevron" aria-hidden="true"></i>`;
+
+  const menu = document.createElement("div");
+  menu.className = "users-role-menu";
+  menu.setAttribute("role", "listbox");
+  menu.hidden = true;
+  menu.innerHTML = USER_ROLES.map(
+    (r) => `<button type="button" class="users-role-option" role="option" data-role-option="${r}" aria-selected="${safeRole === r}">${roleBadgeHtml(r)}</button>`,
+  ).join("");
+
+  root.appendChild(trigger);
+  root.appendChild(menu);
+  return root;
+}
+
+async function applyRoleSelection(root, role) {
+  if (!USER_ROLES.includes(role) || role === root.dataset.roleValue) {
+    closeRoleMenu(root);
+    return;
+  }
+  const profileId = root.dataset.roleSelect;
+  const trigger = root.querySelector(".users-role-trigger");
+  closeRoleMenu(root);
+  trigger.disabled = true;
+  try {
+    await Auth.updateUserRole(profileId, role);
+    toast("Role updated.", "success");
+    await loadUsersPanel();
+  } catch (err) {
+    trigger.disabled = false;
+    toast(err.message || "Could not update role.", "error");
+    loadUsersPanel();
+  }
+}
+
+document.addEventListener("click", (e) => {
+  const root = e.target.closest("[data-role-select]");
+  if (root) {
+    if (e.target.closest("[data-role-trigger]")) {
+      toggleRoleMenu(root);
+    } else if (e.target.closest("[data-role-option]")) {
+      applyRoleSelection(root, e.target.closest("[data-role-option]").dataset.roleOption);
+    }
+    return;
+  }
+  for (const m of [...openRoleMenus]) closeRoleMenu(m);
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") for (const m of [...openRoleMenus]) closeRoleMenu(m);
+});
+
+function rowMatchesSearch(u) {
   const q = $("#usersSearch").value.trim().toLowerCase();
+  if (!q) return true;
+  return (u.username || "").toLowerCase().includes(q) || (u.role || "").toLowerCase().includes(q);
+}
+
+function buildUserRow(u) {
   const me = Auth.getState()?.profile?.username?.toLowerCase();
+  const tr = document.createElement("tr");
+  tr.dataset.username = (u.username || "").toLowerCase();
+  tr.dataset.profileId = u.id || "";
+  const username = (u.username || "").toLowerCase();
+  const isSelf = me && me === username;
+  const isProtected = isSelf || username === "xhvsh";
+  const canEdit = isOwner() && !isProtected;
+  const userRole = (u.role || "user").toLowerCase();
+
+  let roleCell;
+  if (canEdit) {
+    roleCell = buildRoleSelect(u.id || "", userRole).outerHTML;
+  } else {
+    const safeRole = USER_ROLES.includes(userRole) ? userRole : "user";
+    roleCell = `<span class="users-role role-${safeRole}">${escapeHtml(safeRole)}</span>`;
+  }
+
+  let actionCell = "";
+  if (canEdit) {
+    const editBtn = `<button class="icon-btn users-edit-btn" data-edit-username="${escapeHtml(u.username || "")}" title="Edit username" aria-label="Edit username for ${escapeHtml(u.username || "")}"><i class="fa-solid fa-pen" aria-hidden="true"></i></button>`;
+    const revokeBtn = `<button class="icon-btn icon-btn--danger" data-revoke="${escapeHtml(u.username || "")}" title="Revoke (delete account)" aria-label="Revoke ${escapeHtml(u.username || "")}"><i class="fa-solid fa-user-xmark" aria-hidden="true"></i></button>`;
+    actionCell = `<div class="users-actions">${editBtn}${revokeBtn}</div>`;
+  }
+
+  tr.innerHTML = `
+    <td><span class="users-table-player"><img src="https://mc-heads.net/avatar/${encodeURIComponent(u.username || "Steve")}/64" alt="" width="24" height="24" /><span class="users-table-username">${escapeHtml(u.username || "Unknown")}</span>${isSelf ? ` <span class="users-you">(You)</span>` : ""}</span></td>
+    <td>${roleCell}</td>
+    <td class="users-joined">${u.created_at ? formatJoinedDate(u.created_at) : "-"}</td>
+    <td>${actionCell}</td>
+  `;
+  return tr;
+}
+
+function replaceUserRow(tr, user) {
+  const fresh = buildUserRow(user);
+  tr.replaceWith(fresh);
+  fresh.hidden = !rowMatchesSearch(user);
+}
+
+function renderUsers() {
   const body = $("#usersTableBody");
   body.innerHTML = "";
 
-  const filtered = users.filter((u) => {
-    if (!q) return true;
-    return (u.username || "").toLowerCase().includes(q) || (u.role || "").toLowerCase().includes(q);
+  const me = Auth.getState()?.profile?.username?.toLowerCase();
+  const filtered = users.filter(rowMatchesSearch).sort((a, b) => {
+    const aSelf = me && me === (a.username || "").toLowerCase();
+    const bSelf = me && me === (b.username || "").toLowerCase();
+    if (aSelf !== bSelf) return aSelf ? -1 : 1;
+    return (a.created_at || "").localeCompare(b.created_at || "");
   });
-
   if (filtered.length === 0) {
     body.innerHTML = `<tr><td colspan="4" class="users-table-empty">No accounts found.</td></tr>`;
     return;
   }
-
-  for (const u of filtered) {
-    const tr = document.createElement("tr");
-    tr.dataset.username = (u.username || "").toLowerCase();
-    tr.dataset.profileId = u.id || "";
-    const isSelf = me && me === (u.username || "").toLowerCase();
-    const canEdit = isOwner();
-    const userRole = (u.role || "user").toLowerCase();
-
-    let roleCell;
-    if (canEdit && !isSelf) {
-      roleCell = `<select class="users-role-select" data-role-select="${escapeHtml(u.id)}" aria-label="Change role for ${escapeHtml(u.username || "")}">${["owner", "admin", "user"].map((r) => `<option value="${r}"${userRole === r ? " selected" : ""}>${r}</option>`).join("")}</select>`;
-    } else {
-      roleCell = `<span class="users-role role-${escapeHtml(userRole)}">${escapeHtml(userRole)}</span>`;
-    }
-
-    let actionCell = "";
-    if (canEdit && !isSelf) {
-      const editBtn = `<button class="icon-btn users-edit-btn" data-edit-username="${escapeHtml(u.username || "")}" title="Edit username" aria-label="Edit username for ${escapeHtml(u.username || "")}"><i class="fa-solid fa-pen" aria-hidden="true"></i></button>`;
-      const revokeBtn = `<button class="icon-btn icon-btn--danger" data-revoke="${escapeHtml(u.username || "")}" title="Revoke (delete account)" aria-label="Revoke ${escapeHtml(u.username || "")}"><i class="fa-solid fa-user-xmark" aria-hidden="true"></i></button>`;
-      actionCell = `<div class="users-actions">${editBtn}${revokeBtn}</div>`;
-    }
-
-    tr.innerHTML = `
-      <td><span class="users-table-player"><img src="https://mc-heads.net/avatar/${encodeURIComponent(u.username || "Steve")}/64" alt="" width="24" height="24" /><span class="users-table-username">${escapeHtml(u.username || "Unknown")}</span></span></td>
-      <td>${roleCell}</td>
-      <td class="users-joined">${u.created_at ? formatJoinedDate(u.created_at) : "-"}</td>
-      <td>${actionCell}</td>
-    `;
-    body.appendChild(tr);
-  }
+  for (const u of filtered) body.appendChild(buildUserRow(u));
 }
 
 function formatJoinedDate(value) {
@@ -297,24 +423,6 @@ $("#usersTableBody").addEventListener("click", async (e) => {
   }
 });
 
-$("#usersTableBody").addEventListener("change", async (e) => {
-  const sel = e.target.closest("[data-role-select]");
-  if (!sel) return;
-  const profileId = sel.dataset.roleSelect;
-  const role = sel.value;
-  if (!profileId || !role) return;
-  sel.disabled = true;
-  try {
-    await Auth.updateUserRole(profileId, role);
-    toast("Role updated.", "success");
-    await loadUsersPanel();
-  } catch (err) {
-    sel.disabled = false;
-    toast(err.message || "Could not update role.", "error");
-    loadUsersPanel();
-  }
-});
-
 // ---------- username editing (owners) ----------
 
 const USERNAME_RE = /^[A-Za-z0-9_]{3,30}$/;
@@ -339,7 +447,10 @@ function startUsernameEdit(tr) {
     `;
   }
   const roleSel = tr.querySelector("[data-role-select]");
-  if (roleSel) roleSel.disabled = true;
+  if (roleSel) {
+    closeRoleMenu(roleSel);
+    roleSel.querySelector(".users-role-trigger").disabled = true;
+  }
   input.focus();
   input.select();
 }
@@ -355,14 +466,28 @@ async function saveUsernameEdit(tr) {
     return;
   }
   input.disabled = true;
+  for (const b of tr.querySelectorAll("[data-save-username], [data-cancel-username]")) b.disabled = true;
   try {
     await Auth.updateUsername(profileId, value);
+    const idx = users.findIndex((u) => (u.id || "") === profileId);
+    if (idx !== -1) users[idx] = { ...users[idx], username: value };
     toast(`Username updated to "${value}".`, "success");
-    await loadUsersPanel();
+    replaceUserRow(tr, idx !== -1 ? users[idx] : { id: profileId, username: value, role: "user" });
   } catch (err) {
     input.disabled = false;
+    for (const b of tr.querySelectorAll("[data-save-username], [data-cancel-username]")) b.disabled = false;
     toast(err.message || "Could not update username.", "error");
   }
+}
+
+function cancelUsernameEdit(tr) {
+  const profileId = tr.dataset.profileId;
+  const user = users.find((u) => (u.id || "") === profileId);
+  if (!user) {
+    renderUsers();
+    return;
+  }
+  replaceUserRow(tr, user);
 }
 
 $("#usersTableBody").addEventListener("click", (e) => {
@@ -378,7 +503,7 @@ $("#usersTableBody").addEventListener("click", (e) => {
   }
   const cancelBtn = e.target.closest("[data-cancel-username]");
   if (cancelBtn) {
-    renderUsers();
+    cancelUsernameEdit(cancelBtn.closest("tr"));
   }
 });
 
