@@ -16,15 +16,22 @@ html,
 body {
   height: 100%;
   max-width: 100%;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
+/* scrollbar stability - the window scrollbar is always present
+   (overflow-y: scroll) so it can never appear/disappear and shift the layout;
+   the map page fills the viewport itself and is exempt. scrollbar-gutter keeps
+   the track reserved where supported. overflow-x uses clip so it never turns
+   the root into a scroll container that defeats all of the above. */
 html {
   -webkit-text-size-adjust: 100%;
   color-scheme: dark;
+  overflow-y: scroll;
   scrollbar-gutter: stable;
 }
 html:has(body[data-page="map"]) {
+  overflow-y: auto;
   scrollbar-gutter: auto;
 }
 

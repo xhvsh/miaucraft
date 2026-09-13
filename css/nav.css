@@ -298,8 +298,7 @@
   box-shadow: var(--shadow-lg);
   animation: sheet-in var(--dur-slow) var(--ease-out);
   max-height: 80dvh;
-  overflow-y: auto;
-  scrollbar-gutter: stable;
+  overflow-y: scroll;
 }
 @keyframes sheet-in {
   from {

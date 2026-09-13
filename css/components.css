@@ -561,8 +561,7 @@ input.no-spinner {
   width: 100%;
   max-width: 420px;
   max-height: min(88dvh, 720px);
-  overflow-y: auto;
-  scrollbar-gutter: stable;
+  overflow-y: scroll;
   padding: var(--space-6) var(--space-5);
   animation: modal-in var(--dur-slow) var(--ease-out);
   position: relative;
@@ -960,8 +959,61 @@ mark {
 }
 
 .category-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
   flex-shrink: 0;
   margin-bottom: var(--space-3);
+}
+.category-filter-row .category-filter {
+  flex: 1 1 190px;
+  min-width: 0;
+}
+
+/* dimension segmented switch - shared between the map page's dim tabs and the
+   waypoint-list dimension filter (js/lib/waypoint-ui.js) */
+.dim-tabs {
+  display: inline-flex;
+  gap: 2px;
+  background: rgba(14, 14, 18, 0.85);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px;
+  box-shadow: var(--shadow);
+}
+.dim-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-weight: 700;
+  font-size: var(--fs-xs);
+  padding: 8px 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.dim-tab[data-active="true"][data-dim="overworld"] {
+  background: rgba(107, 191, 138, 0.16);
+  color: var(--dim-overworld);
+}
+.dim-tab[data-active="true"][data-dim="nether"] {
+  background: rgba(226, 104, 95, 0.16);
+  color: var(--dim-nether);
+}
+.dim-tab[data-active="true"][data-dim="end"] {
+  background: rgba(217, 199, 117, 0.16);
+  color: var(--dim-end);
+}
+@media (max-width: 480px) {
+  .dim-tab {
+    padding: 7px 10px;
+    font-size: 11px;
+  }
 }
 
 /* custom category dropdown (js/lib/waypoint-ui.js) - replaces the native
@@ -1027,7 +1079,7 @@ mark {
   left: 0;
   right: 0;
   max-height: 240px;
-  overflow-y: auto;
+  overflow-y: scroll;
   background: var(--surface-2);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);

@@ -123,6 +123,53 @@ export function buildCategoryFilter({ categories = [], selected = "", includeUnc
 }
 
 /**
+ * Dimension filter for the waypoint list - the same segmented switch (`.dim-tabs`
+ * / `.dim-tab`) used on the map page. Exactly one dimension is active; clicking
+ * the active one clears the filter ("" = all dimensions).
+ * @param {object} opts
+ * @param {string} [opts.selected] - current value: "" = all dimensions
+ * @param {string} [opts.ariaLabel]
+ * @param {(value: string) => void} [opts.onChange]
+ */
+export function buildDimensionFilter({ selected = "", ariaLabel = "Filter dimensions", onChange = () => {} } = {}) {
+  const dims = [
+    { value: "overworld", label: "Overworld" },
+    { value: "nether", label: "Nether" },
+    { value: "end", label: "End" },
+  ];
+
+  const root = document.createElement("div");
+  root.className = "dim-tabs";
+  root.setAttribute("role", "tablist");
+  root.setAttribute("aria-label", ariaLabel);
+
+  const buttons = dims.map((def) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "dim-tab";
+    btn.dataset.dim = def.value;
+    btn.dataset.active = String(selected === def.value);
+    btn.setAttribute("role", "tab");
+    btn.setAttribute("aria-selected", String(selected === def.value));
+    btn.textContent = def.label;
+    btn.addEventListener("click", () => {
+      const value = selected === def.value ? "" : def.value;
+      selected = value;
+      for (const b of buttons) {
+        const on = b.dataset.dim === def.value && value !== "";
+        b.dataset.active = String(on);
+        b.setAttribute("aria-selected", String(on));
+      }
+      onChange(value);
+    });
+    root.appendChild(btn);
+    return btn;
+  });
+
+  return root;
+}
+
+/**
  * @param {object} wp - waypoint row (name, description, color, x, y, z)
  * @param {object} opts
  * @param {"list"|"compact"} [opts.variant] - "compact" for the map tooltip

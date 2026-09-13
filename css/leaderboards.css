@@ -56,14 +56,13 @@
   left: 0;
   right: 0;
   max-height: 320px;
-  overflow-y: auto;
+  overflow-y: scroll;
   background: var(--surface-2);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-lg);
   z-index: var(--z-dropdown);
   padding: 4px;
-  scrollbar-gutter: stable;
 }
 .stat-picker-option {
   display: block;

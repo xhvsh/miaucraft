@@ -3,7 +3,7 @@ import { listWaypointsByUsername, listCategories, categoryIconClass } from "../l
 import { getStatDisplayName, formatStatValue, titleCaseStatKey, STAT_PREFIX_LABELS } from "../lib/statPresets.js";
 import { formatCoordsForCopy, formatCoordsForDisplay } from "../lib/settings.js";
 import { escapeHtml, copyTextToClipboard } from "../lib/ui.js";
-import { buildWaypointCard, buildCategoryFilter } from "../lib/waypoint-ui.js";
+import { buildWaypointCard, buildCategoryFilter, buildDimensionFilter } from "../lib/waypoint-ui.js";
 import { initNav } from "../lib/nav.js";
 
 const $ = (sel) => document.querySelector(sel);
@@ -655,6 +655,7 @@ function renderAchievementCard(entry, isCompletedGroup) {
 let waypointsCache = [];
 let waypointCategoriesCache = [];
 let waypointsCategoryFilter = null;
+let waypointsDimensionFilter = null;
 let waypointsSearchBound = false;
 
 async function renderWaypoints(username) {
@@ -667,6 +668,7 @@ async function renderWaypoints(username) {
   }
 
   waypointsCategoryFilter = null;
+  waypointsDimensionFilter = null;
   $("#profileWaypointsSearch").value = "";
   renderWaypointsCategoryRow();
   applyWaypointsFilter();
@@ -682,22 +684,30 @@ function renderWaypointsCategoryRow() {
   const usedCategoryIds = new Set(waypointsCache.map((w) => w.category_id).filter(Boolean));
   const usedCategories = waypointCategoriesCache.filter((c) => usedCategoryIds.has(c.id));
   rowEl.innerHTML = "";
-  if (!usedCategories.length) {
-    rowEl.hidden = true;
-    return;
-  }
-  rowEl.hidden = false;
 
   rowEl.appendChild(
-    buildCategoryFilter({
-      categories: usedCategories,
-      selected: waypointsCategoryFilter ?? "",
+    buildDimensionFilter({
+      selected: waypointsDimensionFilter ?? "",
       onChange: (value) => {
-        waypointsCategoryFilter = value === "" ? null : value;
+        waypointsDimensionFilter = value === "" ? null : value;
         applyWaypointsFilter();
       },
     }),
   );
+
+  if (usedCategories.length) {
+    rowEl.appendChild(
+      buildCategoryFilter({
+        categories: usedCategories,
+        selected: waypointsCategoryFilter ?? "",
+        onChange: (value) => {
+          waypointsCategoryFilter = value === "" ? null : value;
+          applyWaypointsFilter();
+        },
+      }),
+    );
+  }
+  rowEl.hidden = false;
 }
 
 function applyWaypointsFilter() {
@@ -705,6 +715,7 @@ function applyWaypointsFilter() {
   const categoryById = new Map(waypointCategoriesCache.map((c) => [c.id, c]));
 
   const filtered = waypointsCache.filter((wp) => {
+    if (waypointsDimensionFilter !== null && wp.dimension !== waypointsDimensionFilter) return false;
     if (waypointsCategoryFilter !== null && wp.category_id !== waypointsCategoryFilter) return false;
     if (!query) return true;
     return [wp.name, wp.description].filter(Boolean).join(" ").toLowerCase().includes(query);
