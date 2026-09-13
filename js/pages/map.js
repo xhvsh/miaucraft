@@ -592,16 +592,21 @@ function consumeSharedAccessCodeLink() {
   if (!match) return;
   const code = decodeURIComponent(match[1]);
   window.history.replaceState({}, "", "/");
-  const unsubscribe = Auth.onAuthChange((state) => {
+
+  const applyCode = (state) => {
+    if (state.ready && unsubscribe) unsubscribe();
     if (!state.ready) return;
-    unsubscribe();
     if (Auth.isLoggedIn()) return;
     openAuthModal("register");
     const codeInput = document.getElementById("registerCode");
+    if (!codeInput) return;
     codeInput.value = code;
     codeInput.disabled = true;
     document.getElementById("registerCodeLabel").textContent = "Code loaded from link";
-  });
+  };
+
+  let unsubscribe;
+  unsubscribe = Auth.onAuthChange(applyCode);
 }
 
 // ---------- deep-link jump (from profile page "Jump to") ----------
