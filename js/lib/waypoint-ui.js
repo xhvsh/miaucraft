@@ -137,32 +137,62 @@ export function buildCategoryFilter({ categories = [], selected = "", includeUnc
 export function buildWaypointCard(wp, opts = {}) {
   const { variant = "list", category = null, coordsText, conversionText = "", dimensionBadge = null, author = "", image = null, actions = [] } = opts;
 
-  const card = document.createElement("div");
-  card.className = variant === "compact" ? "waypoint-card waypoint-card--compact" : "waypoint-card";
-
+  const color = escapeHtml(wp.color || "#9683e0");
+  const dotHtml = `<span class="waypoint-card-dot" style="background:${color};color:${color}"></span>`;
+  const copyBtnHtml = `<button type="button" class="icon-btn" style="width:22px;height:22px;font-size:10px" title="Copy coordinates" aria-label="Copy coordinates" data-action="copy"><i class="fa-solid fa-copy" aria-hidden="true"></i></button>`;
   const actionsHtml = actions.length
     ? `<div class="waypoint-card-actions">${actions
         .map((a) => `<button type="button" class="btn ${a.variant === "danger" ? "btn-danger" : "btn-ghost"} btn-sm" data-action="${escapeHtml(a.action)}">${a.icon ? `<i class="fa-solid ${escapeHtml(a.icon)}" aria-hidden="true"></i> ` : ""}${escapeHtml(a.label)}</button>`)
         .join("")}</div>`
     : "";
+  const dimBadgeHtml = dimensionBadge ? `<span class="players-dim-badge" style="--dim-badge-color:${escapeHtml(dimensionBadge.color)}">${escapeHtml(dimensionBadge.label)}</span>` : "";
+  const metaHtml = `<div class="waypoint-card-meta">
+      ${categoryBadgeHtml(category)}
+      ${author ? `<span class="waypoint-card-author">${escapeHtml(author)}</span>` : ""}
+    </div>`;
+
+  const card = document.createElement("div");
+
+  // horizontal "row" variant - the profile waypoints tab lays the info out in
+  // two compact rows instead of stacking it vertically (dimension + category
+  // on the right, coords + jump on the bottom). nether/overworld conversion
+  // coords are never shown here, even when the user has them enabled.
+  if (variant === "row") {
+    card.className = "waypoint-card waypoint-card--row";
+    card.innerHTML = `
+      <div class="waypoint-card-row-top">
+        ${dotHtml}
+        <span class="waypoint-card-name">${escapeHtml(wp.name)}</span>
+        <span class="waypoint-card-meta waypoint-card-meta--right">
+          ${dimBadgeHtml}
+          ${categoryBadgeHtml(category)}
+        </span>
+      </div>
+      <div class="waypoint-card-row-bottom">
+        ${wp.description ? `<span class="waypoint-card-desc waypoint-card-desc--row">${escapeHtml(wp.description)}</span>` : ""}
+        <span class="waypoint-card-coords waypoint-card-coords--row${wp.description ? "" : " waypoint-card-coords--push"}"><span>${escapeHtml(coordsText)}</span>${copyBtnHtml}</span>
+        ${actionsHtml}
+      </div>
+    `;
+    return card;
+  }
+
+  card.className = variant === "compact" ? "waypoint-card waypoint-card--compact" : "waypoint-card";
 
   card.innerHTML = `
     <div class="waypoint-card-top">
-      <span class="waypoint-card-dot" style="background:${escapeHtml(wp.color)};color:${escapeHtml(wp.color)}"></span>
+      ${dotHtml}
       <span class="waypoint-card-name">${escapeHtml(wp.name)}</span>
-      ${dimensionBadge ? `<span class="players-dim-badge" style="--dim-badge-color:${escapeHtml(dimensionBadge.color)}">${escapeHtml(dimensionBadge.label)}</span>` : ""}
+      ${dimBadgeHtml}
     </div>
     ${wp.description ? `<div class="waypoint-card-desc">${escapeHtml(wp.description)}</div>` : ""}
     ${image ? `<img class="waypoint-card-image" src="${escapeHtml(image.src)}" alt="${escapeHtml(image.alt)}" loading="lazy" title="Click to enlarge" data-action="image" />` : ""}
     <div class="waypoint-card-coords" style="margin-top:6px;display:flex;align-items:center;gap:6px">
       <span>${escapeHtml(coordsText)}</span>
-      <button type="button" class="icon-btn" style="width:22px;height:22px;font-size:10px" title="Copy coordinates" aria-label="Copy coordinates" data-action="copy"><i class="fa-solid fa-copy" aria-hidden="true"></i></button>
+      ${copyBtnHtml}
     </div>
     ${conversionText ? `<div class="waypoint-card-coords">${escapeHtml(conversionText)}</div>` : ""}
-    <div class="waypoint-card-meta">
-      ${categoryBadgeHtml(category)}
-      ${author ? `<span class="waypoint-card-author">${escapeHtml(author)}</span>` : ""}
-    </div>
+    ${metaHtml}
     ${actionsHtml}
   `;
 

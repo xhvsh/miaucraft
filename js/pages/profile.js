@@ -726,6 +726,7 @@ function applyWaypointsFilter() {
     const coordsForCopy = formatCoordsForCopy(Math.round(waypoint.x), waypoint.y !== null && waypoint.y !== undefined ? Math.round(waypoint.y) : null, Math.round(waypoint.z));
 
     const card = buildWaypointCard(waypoint, {
+      variant: "row",
       category,
       coordsText: coords,
       dimensionBadge: { label: DIM_LABELS[waypoint.dimension] || waypoint.dimension, color: dimensionColor },

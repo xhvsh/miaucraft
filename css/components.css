@@ -876,6 +876,64 @@ mark {
   background: none;
 }
 
+/* horizontal "row" variant - the profile waypoints tab lays the info out in
+   two compact rows instead of stacking it vertically (dimension + category on
+   the right, coords + jump on the bottom), keeping the dot/name/coords/badge
+   hierarchy intact */
+.waypoint-card--row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--space-2) var(--space-3);
+}
+.waypoint-card-row-top,
+.waypoint-card-row-bottom {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  min-width: 0;
+}
+.waypoint-card--row .waypoint-card-name {
+  flex: 1;
+  min-width: 0;
+}
+.waypoint-card--row .waypoint-card-meta {
+  margin: 0;
+  flex-shrink: 0;
+}
+.waypoint-card--row .waypoint-card-coords--row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.waypoint-card--row .waypoint-card-coords--push {
+  margin-left: auto;
+}
+.waypoint-card--row .waypoint-card-actions {
+  margin: 0;
+  flex-shrink: 0;
+}
+.waypoint-card--row .waypoint-card-desc--row {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (max-width: 700px) {
+  .waypoint-card--row .waypoint-card-desc--row {
+    display: none;
+  }
+  .waypoint-card--row .waypoint-card-coords--row {
+    margin-left: auto;
+  }
+}
+
 .category-badge {
   display: inline-flex;
   align-items: center;

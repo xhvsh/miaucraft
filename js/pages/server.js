@@ -61,7 +61,7 @@ function setServerConnectionField(id, text, shouldBlur) {
 
 document.addEventListener("click", (e) => {
   const value = e.target.closest(".server-field-value.ip-blur");
-  if (value) value.classList.toggle("is-revealed");
+  if (value && !value.classList.contains("is-revealed")) value.classList.add("is-revealed");
 });
 
 async function loadServerPanel() {
