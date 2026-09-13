@@ -40,11 +40,8 @@ export function formatCoordsForCopy(x, y, z) {
   return formatter(x, y !== null && y !== undefined ? y : null, z);
 }
 
-// readable display form (used on waypoint cards / tooltips), always labeled
-// regardless of the user's copy format preference
+// readable display form (used on waypoint cards / tooltips / logs), follows the
+// user's selected coordinate copy format
 export function formatCoordsForDisplay(x, y, z) {
-  const parts = [`X ${x}`];
-  if (y !== null && y !== undefined) parts.push(`Y ${y}`);
-  parts.push(`Z ${z}`);
-  return parts.join("  ");
+  return formatCoordsForCopy(x, y, z);
 }

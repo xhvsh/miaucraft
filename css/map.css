@@ -310,6 +310,14 @@ body[data-page="map"] {
   padding: 0 var(--space-3) var(--space-4);
   gap: 8px;
 }
+@media (max-width: 860px) {
+  /* the bottom tab bar sits above the mobile drawer, so leave room for it
+     (plus the home-indicator safe area) or the last waypoint can't be scrolled into view */
+  .waypoint-list,
+  .waypoint-skeleton {
+    padding-bottom: calc(var(--bottom-nav-h) + var(--safe-b) + var(--space-5));
+  }
+}
 
 /* ---------- waypoint form modal ---------- */
 

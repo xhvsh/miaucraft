@@ -91,7 +91,12 @@ async function handlePostOAuthSignIn(session) {
 }
 
 export async function init() {
+  // supabase-js consumes the #access_token=... fragment from OAuth/email-link
+  // callbacks but leaves a bare "#" on the URL; strip it so /# never lingers.
   const { data } = await supabase.auth.getSession();
+  if (window.location.href.endsWith("#")) {
+    window.history.replaceState({}, "", window.location.pathname + window.location.search);
+  }
   state.session = await withFreshIdentities(data.session ?? null);
   state.profile = state.session ? await loadProfile(state.session.user.id) : null;
   state.ready = true;

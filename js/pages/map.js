@@ -314,10 +314,6 @@ function buildWaypointListItem(wp) {
     actions,
   });
 
-  card.addEventListener("click", (e) => {
-    if (e.target.closest("[data-action]")) return;
-    showTooltip(wp);
-  });
   card.querySelector('[data-action="copy"]')?.addEventListener("click", (e) => {
     e.stopPropagation();
     copyTextToClipboard(formatCoordsForCopy(wp.x, wp.y ?? null, wp.z), e.currentTarget);
