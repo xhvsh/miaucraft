@@ -3,7 +3,7 @@ import { listWaypointsByUsername, listCategories, categoryIconClass } from "../l
 import { getStatDisplayName, formatStatValue, titleCaseStatKey, STAT_PREFIX_LABELS } from "../lib/statPresets.js";
 import { formatCoordsForCopy, formatCoordsForDisplay } from "../lib/settings.js";
 import { escapeHtml, copyTextToClipboard } from "../lib/ui.js";
-import { buildWaypointCard } from "../lib/waypoint-ui.js";
+import { buildWaypointCard, buildCategoryFilter } from "../lib/waypoint-ui.js";
 import { initNav } from "../lib/nav.js";
 
 const $ = (sel) => document.querySelector(sel);
@@ -688,31 +688,16 @@ function renderWaypointsCategoryRow() {
   }
   rowEl.hidden = false;
 
-  const wrap = document.createElement("div");
-  wrap.className = "select-wrap";
-  const select = document.createElement("select");
-  select.setAttribute("aria-label", "Filter categories");
-
-  const buildOption = (id, label) => {
-    const opt = document.createElement("option");
-    opt.value = id === null ? "" : id;
-    opt.textContent = label;
-    if (waypointsCategoryFilter === id) opt.selected = true;
-    return opt;
-  };
-
-  select.appendChild(buildOption(null, "All categories"));
-  for (const cat of usedCategories) select.appendChild(buildOption(cat.id, cat.name));
-
-  select.addEventListener("change", () => {
-    waypointsCategoryFilter = select.value === "" ? null : select.value;
-    renderWaypointsCategoryRow();
-    applyWaypointsFilter();
-  });
-
-  wrap.appendChild(select);
-  wrap.insertAdjacentHTML("beforeend", '<i class="fa-solid fa-chevron-down" aria-hidden="true"></i>');
-  rowEl.appendChild(wrap);
+  rowEl.appendChild(
+    buildCategoryFilter({
+      categories: usedCategories,
+      selected: waypointsCategoryFilter ?? "",
+      onChange: (value) => {
+        waypointsCategoryFilter = value === "" ? null : value;
+        applyWaypointsFilter();
+      },
+    }),
+  );
 }
 
 function applyWaypointsFilter() {

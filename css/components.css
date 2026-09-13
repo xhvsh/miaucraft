@@ -905,8 +905,95 @@ mark {
   flex-shrink: 0;
   margin-bottom: var(--space-3);
 }
-.category-filter-row .select-wrap select {
+
+/* custom category dropdown (js/lib/waypoint-ui.js) - replaces the native
+   <select> in the waypoint-list filters; each option renders as a badge-style
+   row (colored icon chip + name, like .category-badge) */
+.category-filter {
+  position: relative;
+}
+.category-filter-trigger {
   width: 100%;
+  height: 42px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-3);
+  color: var(--text);
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+.category-filter-trigger:hover,
+.category-filter-trigger[aria-expanded="true"] {
+  background: var(--surface-3);
+}
+.category-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.category-pill-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  background: var(--accent-soft);
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.category-pill-icon--none {
+  background: var(--surface-3);
+  color: var(--text-dim);
+}
+.category-pill-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.category-filter-chevron {
+  font-size: 0.7em;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+.category-filter-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+  z-index: var(--z-dropdown);
+  padding: 4px;
+}
+.category-filter-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 9px;
+  border-radius: var(--radius-xs);
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: var(--fs-sm);
+  text-align: left;
+  cursor: pointer;
+}
+.category-filter-option:hover,
+.category-filter-option[aria-selected="true"] {
+  background: var(--surface-3);
 }
 
 .players-dim-badge {

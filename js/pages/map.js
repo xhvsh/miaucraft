@@ -4,7 +4,7 @@ import { listWaypoints, createWaypoint, updateWaypoint, deleteWaypoint, listCate
 import { listLivePositions, subscribeLivePositions, getServerStatus, subscribeServerStatus } from "../lib/live.js";
 import { settings, saveSettings, formatCoordsForCopy, formatCoordsForDisplay } from "../lib/settings.js";
 import { toast, confirmAction, closeOnBackdropClick, copyTextToClipboard, escapeHtml } from "../lib/ui.js";
-import { buildWaypointCard } from "../lib/waypoint-ui.js";
+import { buildWaypointCard, buildCategoryFilter } from "../lib/waypoint-ui.js";
 import { initNav, openAuthModal } from "../lib/nav.js";
 
 const $ = (sel) => document.querySelector(sel);
@@ -137,37 +137,18 @@ function renderCategoryFilterRow() {
   }
   categoryFilterRowEl.hidden = false;
 
-  const wrap = document.createElement("div");
-  wrap.className = "select-wrap";
-  const select = document.createElement("select");
-  select.setAttribute("aria-label", "Filter categories");
-
-  const buildOption = (id, label) => {
-    const opt = document.createElement("option");
-    opt.value = id === null ? "" : id;
-    opt.textContent = label;
-    if (categoryFilter === id) opt.selected = true;
-    return opt;
-  };
-
-  select.appendChild(buildOption(null, "All categories"));
-  for (const cat of categories) {
-    const opt = buildOption(cat.id, cat.name);
-    opt.style.setProperty("--option-color", cat.color);
-    select.appendChild(opt);
-  }
-  select.appendChild(buildOption("__none__", "Uncategorized"));
-
-  select.addEventListener("change", () => {
-    const value = select.value;
-    categoryFilter = value === "" ? null : value === "__none__" ? "__none__" : value;
-    renderSidebar();
-    updateMapWaypoints();
-  });
-
-  wrap.appendChild(select);
-  wrap.insertAdjacentHTML("beforeend", '<i class="fa-solid fa-chevron-down" aria-hidden="true"></i>');
-  categoryFilterRowEl.appendChild(wrap);
+  categoryFilterRowEl.appendChild(
+    buildCategoryFilter({
+      categories,
+      selected: categoryFilter ?? "",
+      includeUncategorized: true,
+      onChange: (value) => {
+        categoryFilter = value === "" ? null : value === "__none__" ? "__none__" : value;
+        renderSidebar();
+        updateMapWaypoints();
+      },
+    }),
+  );
 }
 
 // category picker inside the waypoint form
