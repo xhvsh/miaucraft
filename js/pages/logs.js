@@ -510,7 +510,11 @@ function positionLogsFiltersMenu() {
   const width = Math.min(300, window.innerWidth - 24);
   menu.style.position = "fixed";
   menu.style.width = `${width}px`;
-  menu.style.right = `${Math.max(12, window.innerWidth - rect.right)}px`;
+  const maxRight = window.innerWidth - width - 12;
+  const right = Math.min(Math.max(12, window.innerWidth - rect.right), Math.max(12, maxRight));
+  menu.style.right = `${right}px`;
+  const edge = menu.getBoundingClientRect().right;
+  menu.style.right = `${right + edge - (window.innerWidth - right)}px`;
   const desiredTop = rect.bottom + 8;
   const maxTop = window.innerHeight - menu.offsetHeight - 8;
   menu.style.top = `${Math.max(8, Math.min(desiredTop, maxTop))}px`;

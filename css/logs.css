@@ -2,40 +2,13 @@
   max-width: 960px;
 }
 
-/* Keep the page itself from ever scrolling: the card fills the viewport
-   height (minus nav and the bottom tab bar) and the list scrolls inside. */
-@media (min-width: 861px) {
-  .page-main--logs {
-    height: calc(100vh - var(--nav-h) - var(--safe-t));
-    height: calc(100svh - var(--nav-h) - var(--safe-t));
-  }
-  .page-main--logs .page-container {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    padding: var(--space-8) var(--space-6) var(--space-8);
-  }
-}
-@media (max-width: 860px) {
-  .page-main--logs {
-    height: calc(100vh - var(--nav-h) - var(--safe-t) - var(--bottom-nav-h) - var(--safe-b));
-    height: calc(100svh - var(--nav-h) - var(--safe-t) - var(--bottom-nav-h) - var(--safe-b));
-  }
-  .page-main--logs .page-container {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    padding-top: var(--space-6);
-    padding-bottom: 0;
-  }
+.page-main--logs {
+  flex: none;
 }
 
 .logs-card {
-  flex: 1;
-  min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
 }
 
 .logs-toolbar {
@@ -76,6 +49,14 @@
 .logs-filters-menu .category-filter-trigger {
   background: var(--surface);
 }
+.logs-filters-menu .dim-tabs {
+  display: flex;
+  width: 100%;
+}
+.logs-filters-menu .dim-tab {
+  flex: 1;
+  justify-content: center;
+}
 .logs-filter-group {
   display: flex;
   flex-direction: column;
@@ -106,9 +87,6 @@
 
 .logs-list,
 #logsList {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -122,6 +100,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   flex-shrink: 0;
+  overflow-x: auto;
 }
 #logsLoading .sk-row {
   padding: 14px 16px;
@@ -178,6 +157,7 @@
   font-weight: 700;
   letter-spacing: 0.04em;
   padding: 2px 7px;
+  margin-left: 5px;
   border-radius: 4px;
   color: var(--dim-badge-color, var(--text-muted));
   border: 1px solid color-mix(in srgb, var(--dim-badge-color, var(--text-muted)) 30%, transparent);
@@ -232,11 +212,14 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  overflow-x: auto;
 }
 .log-detail-row {
   display: flex;
   gap: var(--space-3);
   font-size: var(--fs-2xs);
+  min-width: max-content;
+  white-space: nowrap;
 }
 .log-detail-label {
   width: 110px;
