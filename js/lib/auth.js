@@ -1,9 +1,5 @@
 import { supabase } from "./supabaseClient.js";
-import { REGISTER_FUNCTION_URL, DELETE_ACCOUNT_FUNCTION_URL, SUPABASE_ANON_KEY } from "./config.js";
-
-function emailFor(username) {
-  return `${username.trim().toLowerCase()}@miaucraft.internal`;
-}
+import { REGISTER_FUNCTION_URL, SIGNIN_FUNCTION_URL, DELETE_ACCOUNT_FUNCTION_URL, SUPABASE_ANON_KEY } from "./config.js";
 
 // Supabase error messages can leak SQL/schema details; log the raw error for
 // debugging but only surface a generic, user-safe message.
@@ -152,16 +148,29 @@ function emitPasswordRecovery() {
 }
 
 export async function login(username, password) {
-  const { error } = await supabase.auth.signInWithPassword({
-    email: emailFor(username),
-    password,
+  // Sign-in goes through the /signin edge function so brute-force rate limiting
+  // is enforced server-side (per-IP and per-username), not just by Supabase's
+  // coarse per-IP token endpoint limit. The function returns a session which we
+  // adopt locally so the rest of the app is unaware of the detour.
+  const res = await fetch(SIGNIN_FUNCTION_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+    },
+    body: JSON.stringify({ username, password }),
   });
-  if (error) {
-    if (error.message?.toLowerCase().includes("invalid login credentials")) {
-      throw new Error("Wrong username or password.");
-    }
-    throw new Error(friendlyError(error, "Couldn't sign in. Please try again."));
+
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    if (res.status === 429) throw new Error("Too many failed sign-in attempts. Try again in about an hour.");
+    throw new Error(body.error || "Wrong username or password.");
   }
+  if (!body.session) throw new Error("Sign-in succeeded but no session was returned.");
+
+  const { error } = await supabase.auth.setSession(body.session);
+  if (error) throw new Error(friendlyError(error, "Couldn't sign in. Please try again."));
 }
 
 export async function register(username, password, accessCode) {
