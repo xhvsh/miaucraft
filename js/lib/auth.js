@@ -10,6 +10,62 @@ function friendlyError(err, fallback = "Something went wrong. Please try again."
 
 const listeners = new Set();
 
+// supabase-js clears the whole session whenever a token refresh fails - even
+// for transient failures after a laptop sleep or a network blip on a tab that
+// sat idle for hours. To keep long-idle tabs from silently logging out, keep a
+// backup of the last known-good session and restore it when a SIGNED_OUT event
+// arrives that the user didn't initiate themselves.
+const SESSION_BACKUP_KEY = "miaucraft-session-backup";
+const SESSION_BACKUP_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
+let userInitiatedSignOut = false;
+let lastRestoreAttemptAt = 0;
+
+function saveSessionBackup(session) {
+  try {
+    localStorage.setItem(SESSION_BACKUP_KEY, JSON.stringify({ savedAt: Date.now(), session }));
+  } catch {}
+}
+
+function readSessionBackup() {
+  try {
+    const backup = JSON.parse(localStorage.getItem(SESSION_BACKUP_KEY) || "null");
+    if (backup?.session && Date.now() - backup.savedAt <= SESSION_BACKUP_MAX_AGE) return backup;
+  } catch {}
+  return null;
+}
+
+async function signOutInternal() {
+  userInitiatedSignOut = true;
+  try {
+    await supabase.auth.signOut();
+    localStorage.removeItem(SESSION_BACKUP_KEY);
+  } finally {
+    setTimeout(() => {
+      userInitiatedSignOut = false;
+    }, 0);
+  }
+}
+
+async function restoreBackedUpSession() {
+  const backup = readSessionBackup();
+  if (!backup) return false;
+  // never fight a genuine logout: if a restore was just attempted, the
+  // refresh token is really dead and retrying would loop forever
+  if (Date.now() - lastRestoreAttemptAt < 30_000) return false;
+  lastRestoreAttemptAt = Date.now();
+  console.warn("Auth: unexpected sign-out, trying to restore the last known session");
+  const { error } = await supabase.auth.setSession({
+    access_token: backup.session.access_token,
+    refresh_token: backup.session.refresh_token,
+  });
+  if (error) {
+    console.warn("Auth: session restore failed, logging out for real:", error.message);
+    localStorage.removeItem(SESSION_BACKUP_KEY);
+    return false;
+  }
+  return true;
+}
+
 const state = {
   ready: false,
   session: null,
@@ -91,7 +147,7 @@ async function handlePostOAuthSignIn(session) {
   const profile = await loadProfile(session.user.id);
   if (profile) return true;
 
-  await supabase.auth.signOut();
+  await signOutInternal();
   throw new Error("This Discord account isn't linked to a Miaucraft account. Sign in with your username and password first, then link Discord from Settings.");
 }
 
@@ -103,6 +159,10 @@ export async function init() {
   supabase.auth.onAuthStateChange(async (event, session) => {
     if (event === "PASSWORD_RECOVERY") {
       emitPasswordRecovery();
+    }
+    if (event === "SIGNED_OUT" && !userInitiatedSignOut) {
+      const restored = await restoreBackedUpSession();
+      if (restored) return; // setSession re-emits SIGNED_IN and rebuilds state
     }
     if (initialSyncDone && event === "SIGNED_IN" && session) {
       try {
@@ -120,6 +180,7 @@ export async function init() {
     state.profile = state.session ? await loadProfile(state.session.user.id) : null;
     state.ready = true;
     emit();
+    if (state.session) saveSessionBackup(state.session);
   });
 
   // supabase-js consumes the #access_token=... fragment from OAuth/email-link
@@ -196,7 +257,7 @@ export async function register(username, password, accessCode) {
 }
 
 export async function logout() {
-  await supabase.auth.signOut();
+  await signOutInternal();
 }
 
 export async function updatePassword(newPassword) {
@@ -222,7 +283,7 @@ export async function deleteAccount() {
     throw new Error(body.error || "Failed to delete account.");
   }
 
-  await supabase.auth.signOut();
+  await signOutInternal();
 }
 
 export async function listProfiles() {
