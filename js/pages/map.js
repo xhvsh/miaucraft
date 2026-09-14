@@ -18,6 +18,7 @@ await initNav("map");
 
 const dimTabs = $("#dimTabs");
 const gridPanelEl = $("#gridPanel");
+const mapWorkspaceEl = $(".map-workspace");
 const sidebarEl = $("#sidebar");
 const sidebarTitle = $("#sidebarTitle");
 const waypointCountEl = $("#waypointCount");
@@ -267,6 +268,7 @@ dimTabs.addEventListener("click", (e) => {
 function switchDimension(dim) {
   currentDim = dim;
   gridPanelEl.dataset.dim = dim;
+  restartDimTransition();
   for (const btn of dimTabs.querySelectorAll(".dim-tab")) {
     const on = btn.dataset.dim === dim;
     btn.dataset.active = String(on);
@@ -278,6 +280,12 @@ function switchDimension(dim) {
   sidebarTitle.textContent = DIM_LABELS[dim];
   renderLivePins();
   return loadWaypointsForDim(dim);
+}
+
+function restartDimTransition() {
+  mapWorkspaceEl.classList.remove("dim-switching");
+  void mapWorkspaceEl.offsetWidth; // force reflow so the animation restarts
+  mapWorkspaceEl.classList.add("dim-switching");
 }
 
 let waypointsLoaded = false;

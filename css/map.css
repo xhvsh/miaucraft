@@ -76,6 +76,20 @@ body[data-page="map"] {
   min-height: 0;
   display: flex;
 }
+.map-workspace.dim-switching {
+  animation: map-dim-switch 280ms var(--ease);
+}
+@keyframes map-dim-switch {
+  0% {
+    opacity: 1;
+  }
+  40% {
+    opacity: 0.25;
+  }
+  100% {
+    opacity: 1;
+  }
+}
 
 .grid-panel {
   position: relative;
