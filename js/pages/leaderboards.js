@@ -1,11 +1,13 @@
 import { listPlayerStats, listStatKeys, listDistanceLeaderboard } from "../lib/live.js";
 import { PRESET_STATS, getStatDisplayName, formatStatValue } from "../lib/statPresets.js";
-import { escapeHtml } from "../lib/ui.js";
+import { escapeHtml, copyTextToClipboard } from "../lib/ui.js";
 import { initNav } from "../lib/nav.js";
 
 const $ = (sel) => document.querySelector(sel);
 
 await initNav("leaderboards");
+
+const leaderboardShareBtn = $("#leaderboardShareBtn");
 
 const leaderboardStatChipsEl = $("#leaderboardStatChips");
 const leaderboardCustomInputEl = $("#leaderboardCustomInput");
@@ -32,6 +34,24 @@ let allStatKeys = [];
 let leaderboardCustomDebounce = null;
 let statPickerHighlighted = -1;
 
+function currentLeaderboardLinkValue() {
+  if (activeLeaderboardStatId !== "custom") return activeLeaderboardStatId;
+  const key = leaderboardCustomInputEl.value.trim();
+  return key || null;
+}
+
+function updateLeaderboardShareLink() {
+  const value = currentLeaderboardLinkValue();
+  leaderboardShareBtn.hidden = !value;
+}
+
+leaderboardShareBtn.addEventListener("click", () => {
+  const value = currentLeaderboardLinkValue();
+  if (!value) return;
+  const url = `${window.location.origin}/leaderboards?lb=${encodeURIComponent(value)}`;
+  copyTextToClipboard(url, leaderboardShareBtn);
+});
+
 function renderLeaderboardChips() {
   leaderboardStatChipsEl.innerHTML = "";
   for (const stat of PRESET_STATS) {
@@ -49,17 +69,15 @@ function renderLeaderboardChips() {
 async function selectLeaderboardStat(id) {
   activeLeaderboardStatId = id;
   renderLeaderboardChips();
+  updateLeaderboardShareLink();
 
   if (id === "custom") {
     await ensureStatKeysLoaded();
-    const key = leaderboardCustomInputEl.value.trim();
-    if (key) {
-      leaderboardStatTitleEl.textContent = getStatDisplayName(key);
-      loadLeaderboard(() => listPlayerStats([key], 10), "count");
-    } else {
-      leaderboardStatTitleEl.textContent = "";
-      leaderboardListEl.innerHTML = "";
-      leaderboardEmptyEl.hidden = true;
+    const canonicalKey = await statKeyExists(leaderboardCustomInputEl.value);
+    if (canonicalKey) {
+      leaderboardCustomInputEl.value = canonicalKey;
+      leaderboardStatTitleEl.textContent = getStatDisplayName(canonicalKey);
+      loadLeaderboard(() => listPlayerStats([canonicalKey], 10), "count");
     }
     return;
   }
@@ -91,6 +109,13 @@ async function ensureStatKeysLoaded() {
   } catch (err) {
     console.error(err);
   }
+}
+
+async function statKeyExists(key) {
+  const normalized = key.trim().toLowerCase();
+  if (!normalized) return null;
+  if (!statKeysLoaded) await ensureStatKeysLoaded();
+  return allStatKeys.find((s) => s.key.toLowerCase() === normalized)?.key ?? null;
 }
 
 const STAT_PICKER_RENDER_LIMIT = 50;
@@ -188,6 +213,7 @@ function selectStatKey(key, name) {
   leaderboardCustomInputEl.value = key;
   closeStatPicker();
   leaderboardStatTitleEl.textContent = name;
+  updateLeaderboardShareLink();
   loadLeaderboard(() => listPlayerStats([key], 10), "count");
 }
 
@@ -195,7 +221,6 @@ leaderboardCustomInputEl.addEventListener("focus", async () => {
   if (activeLeaderboardStatId !== "custom") {
     activeLeaderboardStatId = "custom";
     renderLeaderboardChips();
-    leaderboardStatTitleEl.textContent = leaderboardCustomInputEl.value.trim() ? getStatDisplayName(leaderboardCustomInputEl.value.trim()) : "";
   }
   await ensureStatKeysLoaded();
   renderStatPickerOptions(leaderboardCustomInputEl.value);
@@ -210,15 +235,13 @@ leaderboardCustomInputEl.addEventListener("input", () => {
   renderStatPickerOptions(leaderboardCustomInputEl.value);
   openStatPicker();
   clearTimeout(leaderboardCustomDebounce);
-  leaderboardCustomDebounce = setTimeout(() => {
-    const key = leaderboardCustomInputEl.value.trim();
-    if (!key) {
-      leaderboardStatTitleEl.textContent = "";
-      leaderboardListEl.innerHTML = "";
-      leaderboardEmptyEl.hidden = true;
-      return;
-    }
+  leaderboardCustomDebounce = setTimeout(async () => {
+    const key = await statKeyExists(leaderboardCustomInputEl.value);
+    if (!key) return;
+    leaderboardCustomInputEl.value = key;
+    renderStatPickerOptions(leaderboardCustomInputEl.value);
     leaderboardStatTitleEl.textContent = getStatDisplayName(key);
+    updateLeaderboardShareLink();
     loadLeaderboard(() => listPlayerStats([key], 10), "count");
   }, 250);
 });
@@ -322,3 +345,4 @@ renderLeaderboardChips();
 const deepLinked = consumeDeepLink();
 if (deepLinked) initFromDeepLink(deepLinked);
 else selectLeaderboardStat(activeLeaderboardStatId);
+if (activeLeaderboardStatId !== "custom" || leaderboardCustomInputEl.value.trim()) updateLeaderboardShareLink();

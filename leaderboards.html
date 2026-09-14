@@ -41,8 +41,13 @@
           </div>
 
           <div class="card leaderboard-card">
-            <h2 class="section-title" id="leaderboardStatTitle"></h2>
-            <div class="leaderboard-list" id="leaderboardList"></div>
+            <div class="leaderboard-card-head">
+              <h2 class="section-title" id="leaderboardStatTitle"></h2>
+              <button class="icon-btn leaderboard-share-btn" id="leaderboardShareBtn" type="button" title="Copy leaderboard link" aria-label="Copy leaderboard link"><i class="fa-solid fa-link" aria-hidden="true"></i></button>
+            </div>
+            <div class="leaderboard-list-scroll">
+              <div class="leaderboard-list" id="leaderboardList"></div>
+            </div>
             <div class="skeleton-list" id="leaderboardLoading" hidden>
               <div class="skeleton sk-row">
                 <span class="skeleton" style="width:22px;height:14px;border-radius:4px;flex-shrink:0"></span>

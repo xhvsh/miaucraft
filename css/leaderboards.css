@@ -90,10 +90,41 @@
   display: none;
 }
 
+.leaderboard-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+.leaderboard-card-head h2 {
+  min-height: 0;
+  font-size: var(--fs-lg);
+}
+@media (max-width: 480px) {
+  .leaderboard-card-head h2 {
+    font-size: var(--fs-md);
+  }
+}
+.leaderboard-card-head .icon-btn {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+}
+.leaderboard-card-head .icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.leaderboard-list-scroll {
+  overflow-x: auto;
+}
 .leaderboard-list {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  width: max-content;
+  min-width: 100%;
 }
 #leaderboardLoading .sk-row {
   padding: 8px var(--space-3);
@@ -107,6 +138,8 @@
   gap: var(--space-3);
   padding: 10px 8px;
   border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  min-width: 0;
 }
 .leaderboard-row:hover {
   background: var(--surface-2);
@@ -142,13 +175,11 @@
   color: var(--text);
   font-weight: 700;
   font-size: var(--fs-sm);
-  flex: 1;
-  min-width: 0;
+  flex: 1 1 auto;
+  min-width: min-content;
   text-align: left;
   padding: 0;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 .leaderboard-username:hover {
   color: var(--accent);
@@ -160,6 +191,7 @@
   font-weight: 600;
   flex-shrink: 0;
   white-space: nowrap;
+  margin-left: var(--space-2);
 }
 @media (max-width: 480px) {
   .leaderboard-row {
