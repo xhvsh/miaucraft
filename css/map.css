@@ -82,7 +82,13 @@ body[data-page="map"] {
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  background: radial-gradient(ellipse 800px 500px at 50% 40%, rgba(150, 131, 224, 0.05), transparent 65%), var(--bg);
+  background: radial-gradient(ellipse 800px 500px at 50% 40%, color-mix(in srgb, var(--dim-overworld) 6%, transparent), transparent 65%), var(--bg);
+}
+.grid-panel[data-dim="nether"] {
+  background: radial-gradient(ellipse 800px 500px at 50% 40%, color-mix(in srgb, var(--dim-nether) 6%, transparent), transparent 65%), var(--bg);
+}
+.grid-panel[data-dim="end"] {
+  background: radial-gradient(ellipse 800px 500px at 50% 40%, color-mix(in srgb, var(--dim-end) 6%, transparent), transparent 65%), var(--bg);
 }
 
 .grid-container {

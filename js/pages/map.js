@@ -17,6 +17,7 @@ const STATUS_STALE_MS = 30000;
 await initNav("map");
 
 const dimTabs = $("#dimTabs");
+const gridPanelEl = $("#gridPanel");
 const sidebarEl = $("#sidebar");
 const sidebarTitle = $("#sidebarTitle");
 const waypointCountEl = $("#waypointCount");
@@ -265,6 +266,7 @@ dimTabs.addEventListener("click", (e) => {
 
 function switchDimension(dim) {
   currentDim = dim;
+  gridPanelEl.dataset.dim = dim;
   for (const btn of dimTabs.querySelectorAll(".dim-tab")) {
     const on = btn.dataset.dim === dim;
     btn.dataset.active = String(on);
