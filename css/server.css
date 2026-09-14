@@ -38,6 +38,16 @@
   flex-wrap: wrap;
   gap: var(--space-4) var(--space-5);
 }
+@media (max-width: 425px) {
+  .server-stats-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+  }
+  .server-stat:nth-child(1) { grid-row: 1; grid-column: 1; }
+  .server-stat:nth-child(3) { grid-row: 1; grid-column: 2; }
+  .server-stat:nth-child(2) { grid-row: 2; grid-column: 1 / -1; }
+}
 .server-stat {
   display: flex;
   flex-direction: column;

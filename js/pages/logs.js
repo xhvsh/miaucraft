@@ -327,20 +327,23 @@ function buildLogEntry(log) {
   }
 
   if (log.entity_type !== "whitelist") {
-    const detailsPanel = buildLogDetailsPanel(log);
     const detailsToggleBtn = document.createElement("button");
     detailsToggleBtn.type = "button";
     detailsToggleBtn.className = "log-entry-details-toggle";
     detailsToggleBtn.innerHTML = `<i class="fa-solid fa-chevron-down" aria-hidden="true"></i> Details`;
+    let detailsPanel = null;
     detailsToggleBtn.addEventListener("click", (event) => {
       event.stopPropagation();
+      if (!detailsPanel) {
+        detailsPanel = buildLogDetailsPanel(log);
+        body.appendChild(detailsPanel);
+      }
       const willOpen = !detailsPanel.classList.contains("is-open");
       detailsPanel.classList.toggle("is-open", willOpen);
       detailsToggleBtn.classList.toggle("is-open", willOpen);
     });
     entryActions.appendChild(detailsToggleBtn);
     body.appendChild(entryActions);
-    body.appendChild(detailsPanel);
   } else {
     body.appendChild(entryActions);
   }

@@ -174,7 +174,13 @@ async function loadPlayersPanel() {
   }
 }
 
-subscribeLivePositions(() => {
+subscribeLivePositions((payload) => {
+  if (payload && payload.new && payload.eventType !== "DELETE") {
+    const np = payload.new;
+    const dims = new Map(lastDims);
+    dims.set(np.player_id, np.dimension);
+    lastDims = dims;
+  }
   clearTimeout(loadPlayersPanel._dl);
   loadPlayersPanel._dl = setTimeout(loadPlayersPanel, 300);
 });
@@ -204,6 +210,7 @@ function renderPlayersList(players) {
   onlineEl.textContent = `${onlineCount} online`;
   onlineEl.classList.toggle("has-online", onlineCount > 0);
 
+  const frag = document.createDocumentFragment();
   for (const p of sorted) {
     const row = document.createElement("div");
     row.className = "players-row";
@@ -233,8 +240,9 @@ function renderPlayersList(players) {
     row.querySelector(".players-username").addEventListener("click", () => {
       window.location.href = `/profile?user=${encodeURIComponent(p.username)}`;
     });
-    $("#playersList").appendChild(row);
+    frag.appendChild(row);
   }
+  $("#playersList").appendChild(frag);
   refreshTip();
 }
 
@@ -413,7 +421,10 @@ document.querySelectorAll(".server-copy").forEach((button) => {
   });
 });
 
-subscribePlayers(() => loadPlayersPanel());
+subscribePlayers(() => {
+  clearTimeout(loadPlayersPanel._plDebounce);
+  loadPlayersPanel._plDebounce = setTimeout(loadPlayersPanel, 300);
+});
 
 // Auth is already initialized by initNav(); this fires immediately since
 // state.ready is already true, and again on future sign-in/out.

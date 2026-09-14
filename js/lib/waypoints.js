@@ -56,10 +56,23 @@ export async function deleteWaypoint(id) {
   if (error) throw error;
 }
 
+let _categoriesCache = null;
+let _categoriesCacheTime = 0;
+const CATEGORIES_CACHE_TTL_MS = 30000;
+
 export async function listCategories() {
+  const now = Date.now();
+  if (_categoriesCache && now - _categoriesCacheTime < CATEGORIES_CACHE_TTL_MS) return _categoriesCache;
   const { data, error } = await supabase.from("categories").select("*").order("name", { ascending: true });
   if (error) throw error;
+  _categoriesCache = data;
+  _categoriesCacheTime = now;
   return data;
+}
+
+export function invalidateCategoriesCache() {
+  _categoriesCache = null;
+  _categoriesCacheTime = 0;
 }
 
 export async function createCategory(category) {

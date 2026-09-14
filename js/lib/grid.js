@@ -66,6 +66,15 @@ export class Grid {
     this.onViewChange = null;
     this._jumpAnimation = null;
 
+    this._boundVisibilityHandler = () => {
+      if (document.hidden) {
+        if (this._playerAnimFrame) { cancelAnimationFrame(this._playerAnimFrame); this._playerAnimFrame = null; }
+      } else {
+        this._ensurePlayerAnimationLoop();
+      }
+    };
+    document.addEventListener("visibilitychange", this._boundVisibilityHandler);
+
     this._bind();
     this._resize();
     this._resizeRaf = null;
@@ -77,6 +86,7 @@ export class Grid {
       if (this._resizeRaf) return;
       this._resizeRaf = requestAnimationFrame(() => {
         this._resizeRaf = null;
+        this._cachedRect = null;
         this._resize();
       });
     }).observe(container);
@@ -145,6 +155,15 @@ export class Grid {
 
     for (const id of [...this.playerAnimations.keys()]) {
       if (!incomingIds.has(id)) this.playerAnimations.delete(id);
+    }
+
+    const activeUsernames = new Set(players.map((p) => p.username));
+    if (this.playerHeadCache.size > 100) {
+      for (const key of this.playerHeadCache.keys()) {
+        if (!activeUsernames.has(key) && this.playerHeadCache.size > 50) {
+          this.playerHeadCache.delete(key);
+        }
+      }
     }
 
     this._ensurePlayerAnimationLoop();
@@ -261,35 +280,52 @@ export class Grid {
       c.classList.add("dragging");
     });
 
-    window.addEventListener("mousemove", (e) => {
-      if (this._dragging) {
-        const dx = e.clientX - this._dragStart.x;
-        const dy = e.clientY - this._dragStart.y;
-        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) this._dragMoved = true;
-        this.centerX = this._dragOriginCenter.x - dx / this.scale;
-        this.centerZ = this._dragOriginCenter.z - dy / this.scale;
-        this.draw();
-        this.onViewChange?.();
-      }
+    this._mouseRafPending = false;
+    this._lastMouseEvent = null;
+    this._cachedRect = null;
+    this._cachedRectTime = 0;
 
-      const rect = c.getBoundingClientRect();
-      if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
-        const sx = e.clientX - rect.left;
-        const sy = e.clientY - rect.top;
-        const w = this.screenToWorld(sx, sy);
-        const hoveredWaypoint = this._hitTestPin(sx, sy);
-        if (hoveredWaypoint !== this.hoveredWaypoint) {
-          this.hoveredWaypoint = hoveredWaypoint;
+    window.addEventListener("mousemove", (e) => {
+      this._lastMouseEvent = e;
+      if (!this._mouseRafPending) {
+        this._mouseRafPending = true;
+        requestAnimationFrame(() => {
+          this._mouseRafPending = false;
+          const ev = this._lastMouseEvent;
+          if (!ev) return;
+          if (this._dragging) {
+            const dx = ev.clientX - this._dragStart.x;
+            const dy = ev.clientY - this._dragStart.y;
+            if (Math.abs(dx) > 3 || Math.abs(dy) > 3) this._dragMoved = true;
+            this.centerX = this._dragOriginCenter.x - dx / this.scale;
+            this.centerZ = this._dragOriginCenter.z - dy / this.scale;
+          }
+
+          const now = performance.now();
+          if (!this._cachedRect || now - this._cachedRectTime > 100) {
+            this._cachedRect = c.getBoundingClientRect();
+            this._cachedRectTime = now;
+          }
+          const rect = this._cachedRect;
+          if (ev.clientX >= rect.left && ev.clientX <= rect.right && ev.clientY >= rect.top && ev.clientY <= rect.bottom) {
+            const sx = ev.clientX - rect.left;
+            const sy = ev.clientY - rect.top;
+            const w = this.screenToWorld(sx, sy);
+            const hoveredWaypoint = this._hitTestPin(sx, sy);
+            if (hoveredWaypoint !== this.hoveredWaypoint) {
+              this.hoveredWaypoint = hoveredWaypoint;
+            }
+            this.readout.hidden = false;
+            this.readout.textContent = `x ${Math.round(w.x)}, z ${Math.round(w.z)}`;
+          } else {
+            if (this.hoveredWaypoint) {
+              this.hoveredWaypoint = null;
+            }
+            this.readout.hidden = true;
+          }
           this.draw();
-        }
-        this.readout.hidden = false;
-        this.readout.textContent = `x ${Math.round(w.x)}, z ${Math.round(w.z)}`;
-      } else {
-        if (this.hoveredWaypoint) {
-          this.hoveredWaypoint = null;
-          this.draw();
-        }
-        this.readout.hidden = true;
+          this.onViewChange?.();
+        });
       }
     });
 

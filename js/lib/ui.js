@@ -2,10 +2,10 @@
 // clipboard, and the time/text formatters that were duplicated between
 // app.js and profile.js in the old build.
 
+const ESC_MAP = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+const ESC_RE = /[&<>"']/g;
 export function escapeHtml(value) {
-  const div = document.createElement("div");
-  div.textContent = value ?? "";
-  return div.innerHTML;
+  return String(value ?? "").replace(ESC_RE, (ch) => ESC_MAP[ch]);
 }
 
 let toastContainer = null;

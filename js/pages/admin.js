@@ -1,7 +1,7 @@
 import * as Auth from "../lib/auth.js";
-import { createCategory, updateCategory, deleteCategory, listCategories, categoryIconClass, sanitizeIconClass } from "../lib/waypoints.js";
+import { createCategory, updateCategory, deleteCategory, listCategories, categoryIconClass, sanitizeIconClass, invalidateCategoriesCache } from "../lib/waypoints.js";
 import { listWhitelist, subscribeWhitelist, requestWhitelistAdd, requestWhitelistRemove, listPendingWhitelistCommands, subscribeWhitelistCommands, cancelWhitelistCommand } from "../lib/live.js";
-import { escapeHtml, toast, confirmAction } from "../lib/ui.js";
+import { escapeHtml, toast, confirmAction, debounce } from "../lib/ui.js";
 import { initNav } from "../lib/nav.js";
 
 const $ = (sel) => document.querySelector(sel);
@@ -177,7 +177,7 @@ function applyWhitelistSearch() {
   const rows = $("#whitelistList").querySelectorAll("[data-search]");
   for (const row of rows) row.hidden = query ? !row.dataset.search.includes(query) : false;
 }
-$("#whitelistSearch").addEventListener("input", applyWhitelistSearch);
+$("#whitelistSearch").addEventListener("input", debounce(applyWhitelistSearch, 150));
 
 $("#whitelistForm").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -194,13 +194,17 @@ $("#whitelistForm").addEventListener("submit", async (e) => {
   }
 });
 
-subscribeWhitelist(() => loadWhitelistPanel());
+subscribeWhitelist(() => {
+  clearTimeout(loadWhitelistPanel._wlDebounce);
+  loadWhitelistPanel._wlDebounce = setTimeout(loadWhitelistPanel, 300);
+});
 subscribeWhitelistCommands((payload) => {
   if (payload.eventType === "UPDATE" && payload.new.status === "failed") {
     const verb = payload.new.action === "remove" ? "remove" : "add";
     toast(`Could not ${verb} "${payload.new.username}" - the command failed on the server.`, "error");
   }
-  loadWhitelistPanel();
+  clearTimeout(loadWhitelistPanel._wlDebounce);
+  loadWhitelistPanel._wlDebounce = setTimeout(loadWhitelistPanel, 300);
 });
 
 // ---------- website users ----------
@@ -403,7 +407,7 @@ function formatJoinedDate(value) {
   return `<span class="users-joined-date">${day}</span><span class="users-joined-time">${time}</span>`;
 }
 
-$("#usersSearch").addEventListener("input", () => renderUsers());
+$("#usersSearch").addEventListener("input", debounce(() => renderUsers(), 150));
 
 $("#usersTableBody").addEventListener("click", async (e) => {
   const btn = e.target.closest("[data-revoke]");
@@ -593,6 +597,7 @@ async function handleDeleteCategory(cat) {
   try {
     await deleteCategory(cat.id);
     if (editingCategory && editingCategory.id === cat.id) resetCategoryForm();
+    invalidateCategoriesCache();
     await loadCategories();
     toast("Category deleted.", "success");
   } catch (err) {
@@ -610,6 +615,7 @@ $("#categoryForm").addEventListener("submit", async (e) => {
     if (editingCategory) await updateCategory(editingCategory.id, { name, color, icon }, editingCategory);
     else await createCategory({ name, color, icon });
     resetCategoryForm();
+    invalidateCategoriesCache();
     await loadCategories();
     toast("Category saved.", "success");
   } catch (err) {

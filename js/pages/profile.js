@@ -79,8 +79,9 @@ async function openProfile(username) {
   setActiveMainTab("stats");
   renderHeader(player);
   renderStats(player);
-  renderTopBadges(player);
-  renderTopCategoriesTab(player);
+  const top3DataPromise = getTop3DataFor(player);
+  renderTopBadges(player, top3DataPromise);
+  renderTopCategoriesTab(player, top3DataPromise);
   renderWaypoints(player.username);
   renderAchievements(player);
 }
@@ -374,9 +375,9 @@ const RANK_CLASSES = { 1: "is-gold", 2: "is-silver", 3: "is-bronze" };
 const RANK_ICONS = { 1: "fa-crown", 2: "fa-medal", 3: "fa-medal" };
 const RANK_LABELS = { 1: "Top 1", 2: "Top 2", 3: "Top 3" };
 
-async function renderTopBadges(player) {
+async function renderTopBadges(player, dataPromise) {
   const wrap = $("#profileTopBadges");
-  const data = await getTop3DataFor(player);
+  const data = await dataPromise;
   const top1Count = data.filter((e) => e.rank === 1).length;
 
   if (!top1Count) {
@@ -417,8 +418,8 @@ async function getTop3DataFor(player) {
 let topSearchBound = false;
 let topTierBound = false;
 
-async function renderTopCategoriesTab(player) {
-  topEntriesCache = await getTop3DataFor(player);
+async function renderTopCategoriesTab(player, dataPromise) {
+  topEntriesCache = await dataPromise;
   topTierFilter = "all";
   $("#profileTopSearch").value = "";
   setActiveTopTierTab("all");

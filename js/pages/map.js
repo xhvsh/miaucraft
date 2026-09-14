@@ -3,7 +3,7 @@ import { Grid } from "../lib/grid.js";
 import { listWaypoints, createWaypoint, updateWaypoint, deleteWaypoint, listCategories, categoryIconClass, sanitizeIconClass } from "../lib/waypoints.js";
 import { listLivePositions, subscribeLivePositions, getServerStatus, subscribeServerStatus } from "../lib/live.js";
 import { settings, saveSettings, formatCoordsForCopy, formatCoordsForDisplay } from "../lib/settings.js";
-import { toast, confirmAction, closeOnBackdropClick, copyTextToClipboard, escapeHtml } from "../lib/ui.js";
+import { toast, confirmAction, closeOnBackdropClick, copyTextToClipboard, escapeHtml, debounce } from "../lib/ui.js";
 import { buildWaypointCard, buildCategoryFilter } from "../lib/waypoint-ui.js";
 import { initNav, openAuthModal } from "../lib/nav.js";
 
@@ -94,9 +94,20 @@ function renderLivePins() {
   grid.setPlayers(pins);
 }
 
-subscribeLivePositions(() => {
+subscribeLivePositions((payload) => {
   clearTimeout(refreshLivePositions._debounce);
-  refreshLivePositions._debounce = setTimeout(refreshLivePositions, 300);
+  refreshLivePositions._debounce = setTimeout(() => {
+    if (payload && payload.new && payload.eventType !== "DELETE") {
+      const np = payload.new;
+      const idx = livePositions.findIndex((p) => p.player_id === np.player_id);
+      if (idx !== -1) Object.assign(livePositions[idx], np);
+      else livePositions.push(np);
+    } else {
+      refreshLivePositions();
+      return;
+    }
+    renderLivePins();
+  }, 300);
 });
 refreshLivePositions();
 
@@ -258,7 +269,7 @@ function updateMapWaypoints() {
 
 // ---------- sidebar list ----------
 
-waypointSearchEl.addEventListener("input", () => renderSidebar());
+waypointSearchEl.addEventListener("input", debounce(() => renderSidebar(), 150));
 
 function renderSidebar() {
   const query = waypointSearchEl.value.trim().toLowerCase();
@@ -285,7 +296,9 @@ function renderSidebar() {
     waypointListEmptyEl.querySelector("span").textContent = isFiltered ? "No waypoints match this search or filter." : Auth.can("addWaypoint") ? "No waypoints yet. Tap + or right-click the map." : "No waypoints here yet.";
     return;
   }
-  for (const wp of visible) waypointListEl.appendChild(buildWaypointListItem(wp));
+  const frag = document.createDocumentFragment();
+  for (const wp of visible) frag.appendChild(buildWaypointListItem(wp));
+  waypointListEl.appendChild(frag);
 }
 
 function conversionText(wp) {
