@@ -783,12 +783,6 @@ function applyWaypointsFilter() {
 // ---------- resolve username from the URL ----------
 
 function resolveUsername() {
-  const pathMatch = window.location.pathname.match(/^\/p\/([^/]+)\/?$/);
-  if (pathMatch) {
-    const username = decodeURIComponent(pathMatch[1]);
-      window.history.replaceState({}, "", `/profile?user=${encodeURIComponent(username)}`);
-    return username;
-  }
   const params = new URLSearchParams(window.location.search);
   return params.get("user");
 }
