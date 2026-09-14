@@ -155,6 +155,15 @@
   flex-direction: column;
   gap: 2px;
 }
+
+/* pc: keep the list inside the screen and scroll it internally, like the
+   admin page's access codes table; phones grow the page instead */
+@media (min-width: 781px) {
+  .players-list {
+    max-height: 480px;
+    overflow-y: auto;
+  }
+}
 .players-list .skeleton-list .sk-row {
   padding: 10px 6px;
   background: var(--surface-2);

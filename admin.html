@@ -45,6 +45,7 @@
               <button class="tab" data-tab="whitelist" data-active="true">Whitelist</button>
               <button class="tab" data-tab="users">Website users</button>
               <button class="tab" data-tab="categories">Categories</button>
+              <button class="tab" data-tab="accesscodes">Access codes</button>
             </nav>
 
             <!-- Whitelist -->
@@ -180,6 +181,62 @@
                     </div>
                   </div>
                   <div class="categories-list" id="categoriesList"></div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Access codes -->
+            <section class="admin-panel" id="adminAccessCodesPanel" hidden>
+              <div class="admin-two-col">
+                <div class="card">
+                  <h2 class="section-title">Generate access code</h2>
+                  <button class="btn btn-primary access-code-generate" id="accessCodeGenerateBtn" type="button">Generate new code</button>
+                  <p class="admin-hint" id="accessCodeGateHint" hidden>There are already 3 unused codes waiting to be claimed. Delete or hand them out before generating more.</p>
+                  <div class="access-code-list" id="accessCodeList"></div>
+                  <p class="admin-hint">Codes grant registration access to the server. Share them only with people you trust.</p>
+                </div>
+                <div class="card">
+                  <div class="admin-panel-head">
+                    <h2 class="section-title" style="margin-bottom:0">Access codes</h2>
+                    <div class="search-field admin-users-search">
+                      <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                      <input type="search" id="accessCodesSearch" placeholder="Search codes" aria-label="Search access codes" />
+                    </div>
+                  </div>
+                  <div class="users-table-wrap access-codes-wrap">
+                    <table class="users-table access-codes-table">
+                      <thead>
+                        <tr>
+                          <th>Code</th>
+                          <th>Role</th>
+                          <th>Created</th>
+                          <th>Used</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody id="accessCodesTableBody">
+                        <tr class="users-table-sk-row">
+                          <td><span class="skeleton sk-line" style="width:140px;height:13px"></span></td>
+                          <td><span class="skeleton sk-line" style="width:48px;height:13px"></span></td>
+                          <td><span class="skeleton sk-line" style="width:110px;height:13px"></span></td>
+                          <td><span class="skeleton sk-line" style="width:90px;height:13px"></span></td>
+                          <td></td>
+                        </tr>
+                        <tr class="users-table-sk-row">
+                          <td><span class="skeleton sk-line" style="width:128px;height:13px"></span></td>
+                          <td><span class="skeleton sk-line" style="width:56px;height:13px"></span></td>
+                          <td><span class="skeleton sk-line" style="width:96px;height:13px"></span></td>
+                          <td><span class="skeleton sk-line" style="width:84px;height:13px"></span></td>
+                          <td></td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <div class="empty-state" id="accessCodesEmpty" hidden><i class="fa-solid fa-key" aria-hidden="true"></i><span>No access codes yet. Generate one.</span></div>
+                  <div class="admin-note" id="accessCodesError" hidden>
+                    <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+                    <span></span>
+                  </div>
                 </div>
               </div>
             </section>

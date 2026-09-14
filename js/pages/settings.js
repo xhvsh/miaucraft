@@ -21,6 +21,7 @@ const changePasswordModal = $("#changePasswordModal");
 function updateSettingsUI() {
   settingHideFilteredEl.checked = settings.hideFilteredWaypoints;
   settingCopyFormatEl.value = settings.copyFormat;
+  syncCopyFormatLabel();
   settingShowConversionEl.checked = settings.showDimensionConversion;
 }
 
@@ -35,6 +36,61 @@ settingCopyFormatEl.addEventListener("change", () => {
 settingShowConversionEl.addEventListener("change", () => {
   settings.showDimensionConversion = settingShowConversionEl.checked;
   saveSettings();
+});
+
+// custom dropdown for the coordinate format (keeps the hidden input's
+// value + change contract so the save logic stays untouched)
+const copyFormatSelectEl = $("#settingCopyFormatSelect");
+const copyFormatTriggerEl = copyFormatSelectEl.querySelector(".custom-select-trigger");
+const copyFormatMenuEl = copyFormatSelectEl.querySelector(".custom-select-menu");
+const copyFormatValueEl = copyFormatSelectEl.querySelector(".custom-select-value");
+
+function syncCopyFormatLabel() {
+  const current = copyFormatMenuEl.querySelector(`[data-value="${settingCopyFormatEl.value}"]`);
+  if (!current) return;
+  copyFormatValueEl.textContent = current.textContent;
+  for (const option of copyFormatMenuEl.querySelectorAll(".custom-select-option")) {
+    option.setAttribute("aria-selected", String(option === current));
+  }
+}
+
+function closeCopyFormatMenu() {
+  copyFormatMenuEl.hidden = true;
+  copyFormatSelectEl.classList.remove("custom-select--open", "custom-select--up");
+  copyFormatTriggerEl.setAttribute("aria-expanded", "false");
+}
+
+copyFormatTriggerEl.addEventListener("click", () => {
+  if (copyFormatMenuEl.hidden) {
+    copyFormatMenuEl.hidden = false;
+    copyFormatSelectEl.classList.add("custom-select--open");
+    copyFormatTriggerEl.setAttribute("aria-expanded", "true");
+    // flip above the trigger when there is no room below in the viewport
+    copyFormatSelectEl.classList.remove("custom-select--up");
+    const rect = copyFormatTriggerEl.getBoundingClientRect();
+    if (window.innerHeight - rect.bottom < copyFormatMenuEl.offsetHeight + 12 && rect.top > copyFormatMenuEl.offsetHeight + 12) {
+      copyFormatSelectEl.classList.add("custom-select--up");
+    }
+  } else {
+    closeCopyFormatMenu();
+  }
+});
+
+copyFormatMenuEl.addEventListener("click", (e) => {
+  const option = e.target.closest(".custom-select-option");
+  if (!option) return;
+  const changed = settingCopyFormatEl.value !== option.dataset.value;
+  settingCopyFormatEl.value = option.dataset.value;
+  syncCopyFormatLabel();
+  closeCopyFormatMenu();
+  if (changed) settingCopyFormatEl.dispatchEvent(new Event("change"));
+});
+
+document.addEventListener("click", (e) => {
+  if (!copyFormatSelectEl.contains(e.target)) closeCopyFormatMenu();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeCopyFormatMenu();
 });
 
 function updateSettingsAuthVisibility() {
@@ -122,25 +178,22 @@ function renderDiscordSetting() {
 
   const data = identity.identity_data || {};
   const discordUsername = (data.user_name || data.name || data.full_name || "Unknown").replace(/#0$/, "");
-  const discordId = data.provider_id || data.sub || identity.id || "?";
 
   const wrap = document.createElement("div");
   wrap.className = "discord-linked";
   wrap.innerHTML = `
     <span class="discord-linked-label">
       <span class="discord-linked-name-line"><i class="fa-brands fa-discord" aria-hidden="true"></i> <span class="discord-linked-name"></span></span>
-      <span class="discord-linked-id"></span>
     </span>
   `;
   wrap.querySelector(".discord-linked-name").textContent = discordUsername;
-  wrap.querySelector(".discord-linked-id").textContent = `{${discordId}}`;
 
   const unlinkBtn = document.createElement("button");
   unlinkBtn.className = "btn btn-danger";
   unlinkBtn.type = "button";
   unlinkBtn.textContent = "Unlink";
   unlinkBtn.addEventListener("click", async () => {
-    const confirmed = await confirmAction("Unlink your Discord account? You'll need your username and password to sign in.", { confirmLabel: "Unlink" });
+    const confirmed = await confirmAction("You'll need your username and password to sign in.", { title: "Unlink Discord account?", confirmLabel: "Unlink" });
     if (!confirmed) return;
     unlinkBtn.disabled = true;
     try {

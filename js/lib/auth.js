@@ -49,6 +49,8 @@ export function can(action) {
     case "editAnyWaypoint":
     case "manageCategories":
       return r === "owner" || r === "admin";
+    case "viewAccessCodes":
+    case "manageAccessCodes":
     case "manageWhitelist":
       return r === "owner";
     default:

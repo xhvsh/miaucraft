@@ -1,7 +1,7 @@
 import * as Auth from "../lib/auth.js";
 import { createCategory, updateCategory, deleteCategory, listCategories, categoryIconClass, sanitizeIconClass, invalidateCategoriesCache } from "../lib/waypoints.js";
-import { listWhitelist, subscribeWhitelist, requestWhitelistAdd, requestWhitelistRemove, listPendingWhitelistCommands, subscribeWhitelistCommands, cancelWhitelistCommand } from "../lib/live.js";
-import { escapeHtml, toast, confirmAction, debounce, sanitizeColor } from "../lib/ui.js";
+import { listWhitelist, subscribeWhitelist, requestWhitelistAdd, requestWhitelistRemove, listPendingWhitelistCommands, subscribeWhitelistCommands, cancelWhitelistCommand, listAccessCodes, accessCodeExists, createAccessCode, updateAccessCodeRole, deleteAccessCode } from "../lib/live.js";
+import { escapeHtml, toast, confirmAction, debounce, sanitizeColor, copyTextToClipboard } from "../lib/ui.js";
 import { initNav } from "../lib/nav.js";
 
 const $ = (sel) => document.querySelector(sel);
@@ -38,6 +38,7 @@ async function boot() {
   loadCategories();
   loadWhitelistPanel();
   loadUsersPanel();
+  loadAccessCodesPanel();
   consumeAdminParams();
   setupWhitelistRealtime();
 }
@@ -67,6 +68,7 @@ function showAdminTabsForRole() {
     whitelist: Auth.can("manageWhitelist"),
     users: Auth.can("manageCategories"),
     categories: Auth.can("manageCategories"),
+    accesscodes: Auth.can("viewAccessCodes"),
   };
   for (const btn of $("#adminTabs").querySelectorAll(".tab")) {
     btn.hidden = !visibility[btn.dataset.tab];
@@ -90,6 +92,7 @@ function showAdminTab(tab) {
   $("#adminWhitelistPanel").hidden = tab !== "whitelist";
   $("#adminUsersPanel").hidden = tab !== "users";
   $("#adminCategoriesPanel").hidden = tab !== "categories";
+  $("#adminAccessCodesPanel").hidden = tab !== "accesscodes";
 }
 
 // after landing from a logs link like /admin?tab=categories&name=...
@@ -98,7 +101,7 @@ function consumeAdminParams() {
   if (params.size === 0) return;
   window.history.replaceState({}, "", window.location.pathname);
   const tab = params.get("tab");
-  if (tab && ["whitelist", "users", "categories"].includes(tab)) showAdminTab(tab);
+  if (tab && ["whitelist", "users", "categories", "accesscodes"].includes(tab)) showAdminTab(tab);
   if (tab === "categories" && params.has("name")) prefillCategoryForm(params);
 }
 
@@ -150,7 +153,7 @@ function renderWhitelist(entries, pending) {
       <button class="icon-btn icon-btn--danger" data-username="${escapeHtml(entry.username)}" title="Remove" aria-label="Remove ${escapeHtml(entry.username)}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
     `;
     row.querySelector("button").addEventListener("click", async () => {
-      const ok = await confirmAction(`Remove "${entry.username}" from the whitelist?`);
+      const ok = await confirmAction(`"${entry.username}" will be removed from the server's whitelist within a few seconds.`, { title: "Remove from whitelist?" });
       if (!ok) return;
       try {
         await requestWhitelistRemove(entry.username);
@@ -173,7 +176,7 @@ function renderWhitelist(entries, pending) {
       <button class="icon-btn" title="Cancel request" aria-label="Cancel request for ${escapeHtml(cmd.username)}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
     `;
     row.querySelector("button").addEventListener("click", async () => {
-      const ok = await confirmAction("Cancel this pending request?");
+      const ok = await confirmAction("The pending whitelist request will be canceled.", { title: "Cancel request?" });
       if (!ok) return;
       try {
         await cancelWhitelistCommand(cmd.id);
@@ -334,7 +337,10 @@ document.addEventListener("click", (e) => {
   for (const m of [...openRoleMenus]) closeRoleMenu(m);
 });
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") for (const m of [...openRoleMenus]) closeRoleMenu(m);
+  if (e.key === "Escape") {
+    for (const m of [...openRoleMenus]) closeRoleMenu(m);
+    closeAccessCodeMenus();
+  }
 });
 
 function rowMatchesSearch(u) {
@@ -630,3 +636,502 @@ $("#catIcon").addEventListener("input", updateCategoryIconPreview);
 $("#catColor").addEventListener("input", updateCategoryIconPreview);
 $("#catName").addEventListener("input", updateCategoryIconPreview);
 updateCategoryIconPreview();
+
+// ---------- access codes ----------
+
+let accessCodes = [];
+
+const MAX_UNUSED_ACCESS_CODES = 3;
+
+function unusedAccessCodeCount() {
+  return accessCodes.filter((c) => !c.used).length;
+}
+
+function updateAccessCodeGate() {
+  const gated = unusedAccessCodeCount() >= MAX_UNUSED_ACCESS_CODES;
+  $("#accessCodeGenerateBtn").disabled = gated;
+  $("#accessCodeGateHint").hidden = !gated;
+}
+
+async function loadAccessCodesPanel() {
+  if (!Auth.can("viewAccessCodes")) return;
+  const errorEl = $("#accessCodesError");
+  errorEl.hidden = true;
+  try {
+    accessCodes = await listAccessCodes();
+    renderAccessCodes();
+  } catch (err) {
+    console.error(err);
+    accessCodes = [];
+    errorEl.querySelector("span").textContent = err.message || "Could not load access codes.";
+    errorEl.hidden = false;
+    renderAccessCodes();
+  }
+}
+
+function roleBadgeHtmlForCode(role) {
+  const safe = ["owner", "admin", "user"].includes(role) ? role : "user";
+  return `<span class="users-role role-${safe}">${escapeHtml(safe)}</span>`;
+}
+
+function formatAccessCodeDateTimeText(value, fallback = "&mdash;") {
+  if (!value) return fallback;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return fallback;
+  const day = date.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  const time = date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  return `${day}, ${time}`;
+}
+
+function relativeDateText(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const diffMs = date.getTime() - Date.now();
+  if (Math.abs(diffMs) < 60_000) return "just now";
+  const mins = Math.floor(Math.abs(diffMs) / 60_000);
+  const pl = (n, unit) => `${n} ${unit}${n === 1 ? "" : "s"}`;
+  const days = Math.floor(mins / 1440);
+  const hours = Math.floor((mins % 1440) / 60);
+  const minutes = mins % 60;
+  let text;
+  if (days > 0) text = hours > 0 ? `${pl(days, "day")} ${pl(hours, "hour")}` : pl(days, "day");
+  else if (hours > 0) text = minutes > 0 ? `${pl(hours, "hour")} ${pl(minutes, "minute")}` : pl(hours, "hour");
+  else text = pl(minutes, "minute");
+  return diffMs < 0 ? `${text} ago` : `in ${text}`;
+}
+
+function acTimeHtml(value, fallback = "&mdash;") {
+  return `<span class="ac-meta-time">${formatAccessCodeDateTimeText(value, fallback)}</span>`;
+}
+
+// tooltip rides on the whole cell so the tap target is big enough for thumbs
+function acCellTipAttr(value, key) {
+  const relative = relativeDateText(value);
+  if (!relative) return "";
+  return ` data-tooltip="${escapeHtml(relative)}" data-tip-key="${escapeHtml(key)}"`;
+}
+
+function buildAccessCodeRoleSelect(code, currentRole) {
+  const safeRole = ["owner", "admin", "user"].includes(currentRole) ? currentRole : "user";
+  const root = document.createElement("div");
+  root.className = "users-role-select";
+  root.dataset.acRoleSelect = code;
+  root.dataset.roleValue = safeRole;
+
+  const trigger = document.createElement("button");
+  trigger.type = "button";
+  trigger.className = "users-role-trigger";
+  trigger.dataset.acRoleTrigger = "";
+  trigger.setAttribute("aria-haspopup", "listbox");
+  trigger.setAttribute("aria-expanded", "false");
+  trigger.innerHTML = `${roleBadgeHtmlForCode(safeRole)}<i class="fa-solid fa-chevron-down users-role-chevron" aria-hidden="true"></i>`;
+
+  const menu = document.createElement("div");
+  menu.className = "users-role-menu";
+  menu.setAttribute("role", "listbox");
+  menu.hidden = true;
+  menu.innerHTML = ["owner", "admin", "user"]
+    .map((r) => `<button type="button" class="users-role-option" role="option" data-ac-role-option="${r}" aria-selected="${safeRole === r}">${roleBadgeHtmlForCode(r)}</button>`)
+    .join("");
+
+  root.appendChild(trigger);
+  root.appendChild(menu);
+  return root;
+}
+
+function buildAccessCodeRow(entry) {
+  const tr = document.createElement("tr");
+  tr.dataset.search = [entry.code, entry.created_by, entry.profiles?.username, entry.role].filter(Boolean).join(" ").toLowerCase();
+
+  const canEdit = isOwner();
+  const isUsed = !!entry.used;
+  const statusLabel = isUsed ? "Used" : "Valid";
+
+  const roleCell = canEdit && !isUsed
+    ? buildAccessCodeRoleSelect(entry.code, entry.role).outerHTML
+    : roleBadgeHtmlForCode(entry.role);
+
+  const usedCell = isUsed
+    ? `
+    <td class="ac-meta-cell"${acCellTipAttr(entry.used_at, `ac:used:${entry.code}`)}>
+      <span class="ac-meta-actor">${escapeHtml(entry.profiles?.username || "unknown")}</span>
+      ${acTimeHtml(entry.used_at)}
+    </td>`
+    : `
+    <td class="ac-meta-cell">
+      <span class="ac-meta-actor ac-meta-unused">unused</span>
+    </td>`;
+
+  const copyBtns = `
+    <button class="icon-btn" data-ac-copy-text="${escapeHtml(entry.code)}" title="Copy code" aria-label="Copy code ${escapeHtml(entry.code)}"><i class="fa-solid fa-copy" aria-hidden="true"></i></button>
+    <button class="icon-btn" data-ac-copy-url="${escapeHtml(entry.code)}" title="Copy link" aria-label="Copy access code link"><i class="fa-solid fa-link" aria-hidden="true"></i></button>
+  `;
+
+  const deleteBtn = canEdit && !isUsed
+    ? `<button class="icon-btn icon-btn--danger" data-ac-delete="${escapeHtml(entry.code)}" title="Delete code" aria-label="Delete code ${escapeHtml(entry.code)}"><i class="fa-solid fa-trash" aria-hidden="true"></i></button>`
+    : "";
+
+  tr.innerHTML = `
+    <td>
+      <div class="ac-code-cell">
+        <span class="ac-status-dot${isUsed ? " ac-status-dot--used" : ""}" data-tooltip="${statusLabel}" data-tip-key="ac:dot:${escapeHtml(entry.code)}" role="img" aria-label="${statusLabel}"></span>
+        <code class="ac-code">${escapeHtml(entry.code)}</code>
+        ${copyBtns}
+      </div>
+    </td>
+    <td>${roleCell}</td>
+    <td class="ac-meta-cell"${acCellTipAttr(entry.created_at, `ac:created:${entry.code}`)}>
+      <span class="ac-meta-actor">${escapeHtml(entry.created_by || "-")}</span>
+      ${acTimeHtml(entry.created_at)}
+    </td>
+    ${usedCell}
+    <td>${deleteBtn ? `<div class="users-actions">${deleteBtn}</div>` : ""}</td>
+  `;
+  return tr;
+}
+
+function renderAccessCodes() {
+  hideTip();
+  renderAccessCodeList();
+  const body = $("#accessCodesTableBody");
+  const query = $("#accessCodesSearch").value.trim().toLowerCase();
+  const filtered = accessCodes.filter((c) => !query || c.code.toLowerCase().includes(query) || (c.created_by || "").toLowerCase().includes(query) || (c.profiles?.username || "").toLowerCase().includes(query));
+
+  body.innerHTML = "";
+  $("#accessCodesEmpty").hidden = accessCodes.length !== 0;
+
+  if (filtered.length === 0) {
+    body.innerHTML = `<tr><td colspan="5" class="users-table-empty">No access codes found.</td></tr>`;
+    updateAccessCodeGate();
+    return;
+  }
+  for (const c of filtered) body.appendChild(buildAccessCodeRow(c));
+  updateAccessCodeGate();
+}
+
+// left card: every unused ("available") code, always visible
+function renderAccessCodeList() {
+  const list = $("#accessCodeList");
+  const unused = accessCodes.filter((c) => !c.used);
+  list.innerHTML = "";
+  if (unused.length === 0) {
+    const hint = document.createElement("p");
+    hint.className = "admin-hint access-code-list-empty";
+    hint.textContent = accessCodes.length === 0 ? "No codes yet." : "All generated codes have been used.";
+    list.appendChild(hint);
+    return;
+  }
+  for (const c of unused) {
+    if (c === unused[0]) {
+      const label = document.createElement("span");
+      label.className = "access-code-list-label";
+      label.textContent = "Unused codes";
+      list.appendChild(label);
+    }
+    const row = document.createElement("div");
+    row.className = "access-code-row";
+    row.innerHTML = `
+      <code class="access-code-value">${escapeHtml(c.code)}</code>
+      <button class="icon-btn ac-copy" data-ac-copy-text="${escapeHtml(c.code)}" title="Copy code" aria-label="Copy code ${escapeHtml(c.code)}"><i class="fa-solid fa-copy" aria-hidden="true"></i></button>
+      <button class="icon-btn ac-copy" data-ac-copy-url="${escapeHtml(c.code)}" title="Copy link" aria-label="Copy access code link"><i class="fa-solid fa-link" aria-hidden="true"></i></button>
+    `;
+    list.appendChild(row);
+  }
+}
+
+function handleAccessCodeCopyClick(e) {
+  const copyTextBtn = e.target.closest("[data-ac-copy-text]");
+  if (copyTextBtn) {
+    copyTextToClipboard(copyTextBtn.dataset.acCopyText, copyTextBtn);
+    return;
+  }
+  const copyUrlBtn = e.target.closest("[data-ac-copy-url]");
+  if (copyUrlBtn) {
+    copyTextToClipboard(`${window.location.origin}/c/${encodeURIComponent(copyUrlBtn.dataset.acCopyUrl)}`, copyUrlBtn);
+  }
+}
+
+$("#accessCodeList").addEventListener("click", handleAccessCodeCopyClick);
+
+// floating tooltip for status dots + date cells, ported from the server
+// page's player tips (same .player-tip styles, same hover/tap behavior)
+const tipEl = document.createElement("div");
+tipEl.className = "player-tip";
+tipEl.hidden = true;
+document.body.appendChild(tipEl);
+
+// desktop (fine pointer + hover) shows tips instantly on hover and hides
+// instantly on leave; touch devices pin a tip by tapping and dismiss it by
+// tapping anywhere else
+const CAN_HOVER = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+const compactScreen = window.matchMedia("(max-width: 860px)");
+function allowTapToggle() {
+  return !CAN_HOVER || compactScreen.matches;
+}
+
+let activeTipKey = null;
+let tipPinned = false;
+let tipAnchorRect = null;
+let tipContainer = null;
+
+// last known pointer position, so a mid-hover re-render can tell whether the
+// pointer is still parked on a tooltip target (keep the tip up) vs leaving
+let lastPointerPos = null;
+window.addEventListener("pointermove", (e) => {
+  lastPointerPos = { x: e.clientX, y: e.clientY };
+}, { passive: true });
+
+function tipAnchor(key) {
+  return document.querySelector(`[data-tip-key="${CSS.escape(key)}"]`);
+}
+
+function showTip(key) {
+  const anchor = tipAnchor(key);
+  if (!anchor) return hideTip();
+  activeTipKey = key;
+  tipEl.textContent = anchor.dataset.tooltip || "";
+  tipEl.hidden = false;
+  // date cells anchor to the date stamp itself, not the tall cell top
+  const posEl = anchor.querySelector(".ac-meta-time") || anchor;
+  tipAnchorRect = posEl.getBoundingClientRect();
+  tipContainer = anchor.closest(".card") || null;
+  positionTip();
+}
+
+function positionTip() {
+  if (!tipAnchorRect) return;
+  const tw = tipEl.offsetWidth;
+  const th = tipEl.offsetHeight;
+  const margin = 8;
+  const box = tipContainer ? tipContainer.getBoundingClientRect() : null;
+  const anchor = tipAnchor(activeTipKey);
+  // dots get a centered tip like the server page's dimension dots; the wide
+  // date cells line the tip up with the cell's left edge instead
+  const center = anchor && anchor.classList.contains("ac-status-dot");
+  let left;
+  if (center) left = tipAnchorRect.left + tipAnchorRect.width / 2 - tw / 2;
+  else left = tipAnchorRect.left;
+  if (box) left = Math.max(box.left + margin, Math.min(left, box.right - tw - margin));
+  else left = Math.max(margin, Math.min(left, window.innerWidth - tw - margin));
+  let top = tipAnchorRect.top - th - margin;
+  if (box) {
+    const minTop = box.top + margin;
+    const maxTop = box.bottom - th - margin;
+    if (top < minTop) top = tipAnchorRect.bottom + margin;
+    top = Math.max(minTop, Math.min(top, maxTop));
+  } else {
+    if (top < margin) top = tipAnchorRect.bottom + margin;
+    top = Math.max(margin, Math.min(top, window.innerHeight - th - margin));
+  }
+  tipEl.style.left = left + "px";
+  tipEl.style.top = top + "px";
+}
+
+function hideTip() {
+  tipEl.hidden = true;
+  activeTipKey = null;
+  tipAnchorRect = null;
+  tipContainer = null;
+}
+
+// after re-renders keep an open tooltip anchored to the fresh element
+function refreshTip() {
+  if (CAN_HOVER && tipEl.hidden && lastPointerPos) {
+    const at = document.elementFromPoint(lastPointerPos.x, lastPointerPos.y);
+    const over = at ? at.closest("[data-tooltip]") : null;
+    if (over) {
+      showTip(over.dataset.tipKey);
+      return;
+    }
+  }
+  if (tipEl.hidden || !activeTipKey) return;
+  const anchor = tipAnchor(activeTipKey);
+  if (!anchor) return hideTip();
+  const text = anchor.dataset.tooltip || "";
+  if (tipEl.textContent !== text) tipEl.textContent = text;
+  const posEl = anchor.querySelector(".ac-meta-time") || anchor;
+  const rect = posEl.getBoundingClientRect();
+  if (!tipAnchorRect || Math.hypot(rect.left - tipAnchorRect.left, rect.top - tipAnchorRect.top) > 2) {
+    tipAnchorRect = rect;
+    positionTip();
+  }
+}
+
+function closePinnedTip() {
+  if (!tipPinned) return;
+  tipPinned = false;
+  hideTip();
+}
+
+$("#accessCodesTableBody").addEventListener("pointerover", (e) => {
+  if (!CAN_HOVER) return;
+  const over = e.target.closest("[data-tooltip]");
+  if (!over) return;
+  showTip(over.dataset.tipKey);
+});
+
+$("#accessCodesTableBody").addEventListener("pointerout", (e) => {
+  if (!CAN_HOVER) return;
+  if (tipPinned) return;
+  const related = e.relatedTarget instanceof HTMLElement ? e.relatedTarget.closest("[data-tooltip]") : null;
+  if (related) return;
+  hideTip();
+});
+
+// tap toggle: taps are resolved from the finger-down point (lastDownTipKey)
+// because on touch the synthetic click target can drift off a tiny element
+// like the 10px status dot
+let lastDownTipKey = null;
+let lastDownTime = 0;
+function recentDownTipKey() {
+  return Date.now() - lastDownTime < 500 ? lastDownTipKey : null;
+}
+
+$("#accessCodesTableBody").addEventListener("pointerdown", (e) => {
+  const at = e.target instanceof HTMLElement ? e.target.closest("[data-tooltip]") : null;
+  lastDownTipKey = at ? at.dataset.tipKey : null;
+  lastDownTime = Date.now();
+}, { passive: true });
+
+$("#accessCodesTableBody").addEventListener("click", (e) => {
+  if (!allowTapToggle()) return;
+  const tipTarget = e.target.closest("[data-tooltip]");
+  const key = tipTarget ? tipTarget.dataset.tipKey : recentDownTipKey();
+  if (!key) return closePinnedTip();
+  if (tipPinned && activeTipKey === key) closePinnedTip();
+  else {
+    tipPinned = true;
+    showTip(key);
+  }
+});
+
+document.addEventListener("click", (e) => {
+  if (!tipPinned) return;
+  const hit = e.target instanceof HTMLElement ? e.target.closest("[data-tooltip]") : null;
+  if (!hit && !recentDownTipKey()) closePinnedTip();
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closePinnedTip();
+});
+
+document.addEventListener("scroll", () => {
+  if (tipEl.hidden || !tipAnchorRect) return;
+  refreshTip();
+}, { passive: true, capture: true });
+
+$("#accessCodesSearch").addEventListener("input", debounce(renderAccessCodes, 150));
+
+$("#accessCodesTableBody").addEventListener("click", async (e) => {
+  if (e.target.closest("[data-ac-copy-text], [data-ac-copy-url]")) {
+    handleAccessCodeCopyClick(e);
+    return;
+  }
+  const btn = e.target.closest("[data-ac-delete]");
+  if (!btn || btn.disabled) return;
+  const code = btn.dataset.acDelete;
+  if (!code) return;
+  const ok = await confirmAction(`Delete the access code "${code}"?`, { title: "Delete access code?", confirmLabel: "Delete" });
+  if (!ok) return;
+  btn.disabled = true;
+  try {
+    await deleteAccessCode(code);
+    accessCodes = accessCodes.filter((c) => c.code !== code);
+    renderAccessCodes();
+    toast("Access code deleted.", "success");
+  } catch (err) {
+    btn.disabled = false;
+    toast(err.message || "Could not delete access code.", "error");
+    loadAccessCodesPanel();
+  }
+});
+
+function closeAccessCodeMenus(except) {
+  for (const el of document.querySelectorAll("[data-ac-role-select]")) {
+    if (el === except) continue;
+    const menu = el.querySelector(".users-role-menu");
+    if (menu && !menu.hidden) {
+      menu.hidden = true;
+      el.querySelector("[data-ac-role-trigger]").setAttribute("aria-expanded", "false");
+    }
+  }
+}
+
+document.addEventListener("click", (e) => {
+  const root = e.target.closest("[data-ac-role-select]");
+  if (!root) {
+    closeAccessCodeMenus();
+    return;
+  }
+  closeAccessCodeMenus(root);
+  if (e.target.closest("[data-ac-role-trigger]")) {
+    const menu = root.querySelector(".users-role-menu");
+    menu.hidden = !menu.hidden;
+    root.querySelector("[data-ac-role-trigger]").setAttribute("aria-expanded", String(!menu.hidden));
+  } else if (e.target.closest("[data-ac-role-option]")) {
+    applyAccessCodeRole(root, e.target.closest("[data-ac-role-option]").dataset.acRoleOption);
+  }
+});
+
+async function applyAccessCodeRole(root, role) {
+  if (!["owner", "admin", "user"].includes(role) || role === root.dataset.roleValue) {
+    closeRoleMenu(root);
+    return;
+  }
+  const code = root.dataset.acRoleSelect;
+  const trigger = root.querySelector(".users-role-trigger");
+  closeRoleMenu(root);
+  trigger.disabled = true;
+  try {
+    await updateAccessCodeRole(code, role);
+    toast("Access code role updated.", "success");
+    await loadAccessCodesPanel();
+  } catch (err) {
+    trigger.disabled = false;
+    toast(err.message || "Could not update role.", "error");
+    loadAccessCodesPanel();
+  }
+}
+
+const ACCESS_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const ACCESS_CODE_LENGTH = 12;
+const ACCESS_CODE_PREFIX = "MIAU";
+
+function randomAccessCode() {
+  let body = "";
+  for (let i = 0; i < ACCESS_CODE_LENGTH; i++) {
+    body += ACCESS_CODE_ALPHABET[Math.floor(Math.random() * ACCESS_CODE_ALPHABET.length)];
+  }
+  return `${ACCESS_CODE_PREFIX}-${body.slice(0, 4)}-${body.slice(4, 8)}-${body.slice(8, 12)}`;
+}
+
+$("#accessCodeGenerateBtn").addEventListener("click", async () => {
+  if (unusedAccessCodeCount() >= MAX_UNUSED_ACCESS_CODES) {
+    toast(`You already have ${MAX_UNUSED_ACCESS_CODES} unused codes. Delete or hand them out first.`, "error");
+    return;
+  }
+  const btn = $("#accessCodeGenerateBtn");
+  btn.disabled = true;
+
+  let code = null;
+  try {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const candidate = randomAccessCode();
+      const exists = await accessCodeExists(candidate);
+      if (!exists) {
+        code = candidate;
+        break;
+      }
+    }
+    if (!code) throw new Error("Could not generate a unique code - try again.");
+    const username = Auth.getState()?.profile?.username;
+    await createAccessCode({ code, role: "user", created_by: username ? `${username} (website)` : "unknown (website)" });
+    toast("Access code generated.", "success");
+    await loadAccessCodesPanel();
+  } catch (err) {
+    toast(err.message || "Could not generate access code.", "error");
+  } finally {
+    updateAccessCodeGate();
+  }
+});

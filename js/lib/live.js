@@ -241,3 +241,34 @@ export async function requestWhitelistRemove(username) {
   const { error } = await db("whitelist_commands").insert({ action: "remove", username: username.trim(), requested_by: user?.id ?? null });
   if (error) throw error;
 }
+
+// access codes
+
+export async function listAccessCodes() {
+  const { data, error } = await db("access_codes")
+    .select("code, role, used, used_by, created_by, created_at, used_at, profiles!access_codes_used_by_fkey(username)")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function accessCodeExists(code) {
+  const { data, error } = await db("access_codes").select("code").eq("code", code).maybeSingle();
+  if (error) throw error;
+  return !!data;
+}
+
+export async function createAccessCode(entry) {
+  const { error } = await db("access_codes").insert(entry);
+  if (error) throw error;
+}
+
+export async function updateAccessCodeRole(code, role) {
+  const { error } = await db("access_codes").update({ role }).eq("code", code);
+  if (error) throw error;
+}
+
+export async function deleteAccessCode(code) {
+  const { error } = await db("access_codes").delete().eq("code", code);
+  if (error) throw error;
+}

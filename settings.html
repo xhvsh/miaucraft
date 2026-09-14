@@ -30,8 +30,9 @@
             </div>
           </div>
 
-          <section class="card">
-            <h2 class="section-title">Display</h2>
+          <div class="settings-grid">
+            <section class="card">
+              <h2 class="section-title">Display</h2>
             <div class="setting-row">
               <div class="setting-row-text">
                 <span class="setting-row-label">Hide filtered waypoints on the map</span>
@@ -44,14 +45,18 @@
                 <span class="setting-row-label">Coordinate copy format</span>
                 <span class="setting-row-desc">Used when copying coordinates from a waypoint.</span>
               </div>
-              <div class="select-wrap">
-                <select id="settingCopyFormat">
-                  <option value="labeled">x 100, y 64, z -200</option>
-                  <option value="comma">100, 64, -200</option>
-                  <option value="space">100 64 -200</option>
-                  <option value="slash">100 / 64 / -200</option>
-                </select>
-                <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+              <div class="custom-select" id="settingCopyFormatSelect">
+                <button type="button" class="custom-select-trigger" aria-haspopup="listbox" aria-expanded="false">
+                  <span class="custom-select-value"></span>
+                  <i class="fa-solid fa-chevron-down custom-select-chevron" aria-hidden="true"></i>
+                </button>
+                <div class="custom-select-menu" role="listbox" hidden>
+                  <button type="button" class="custom-select-option" role="option" data-value="labeled">x 100, y 64, z -200</button>
+                  <button type="button" class="custom-select-option" role="option" data-value="comma">100, 64, -200</button>
+                  <button type="button" class="custom-select-option" role="option" data-value="space">100 64 -200</button>
+                  <button type="button" class="custom-select-option" role="option" data-value="slash">100 / 64 / -200</button>
+                </div>
+                <input type="hidden" id="settingCopyFormat" value="labeled" />
               </div>
             </div>
             <div class="setting-row">
@@ -61,9 +66,9 @@
               </div>
               <label class="switch"><input type="checkbox" id="settingShowConversion" /><span class="switch-track"><span class="switch-thumb"></span></span></label>
             </div>
-          </section>
+            </section>
 
-          <section class="card" id="settingsAuthOnly">
+            <section class="card" id="settingsAuthOnly">
             <h2 class="section-title">Account</h2>
             <div class="setting-row">
               <div class="setting-row-text">
@@ -94,11 +99,12 @@
               </div>
               <button class="btn btn-danger" id="deleteAccountBtn" type="button">Delete account</button>
             </div>
-          </section>
+            </section>
 
-          <div class="empty-state" id="settingsLoginFooter" hidden>
-            <i class="fa-solid fa-right-to-bracket" aria-hidden="true"></i>
-            <span>Sign in to manage your account.</span>
+            <div class="empty-state" id="settingsLoginFooter" hidden>
+              <i class="fa-solid fa-right-to-bracket" aria-hidden="true"></i>
+              <span>Sign in to manage your account.</span>
+            </div>
           </div>
         </div>
       </main>
@@ -127,6 +133,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-    <script type="module" src="js/pages/settings.js"></script>
+    <script type="module" src="js/pages/settings.js?v=2"></script>
   </body>
 </html>
