@@ -4,7 +4,7 @@ const path = require("path");
 const SUPABASE_URL = "https://qxgpsutkthtuejjrnywg.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_PxAxkWvN8EEiOt_MOSzMqA_ZmRG4oqF";
 
-const PAGE_PATH = path.join(__dirname, "..", "profile.html");
+const PAGE_PATH = path.join(__dirname, "..", "profile.template.html");
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
