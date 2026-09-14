@@ -30,6 +30,34 @@ function openCategoryFilterMenu(root) {
   root.querySelector(".category-filter-menu").hidden = false;
   root.querySelector(".category-filter-trigger").setAttribute("aria-expanded", "true");
   if (!openCategoryFilters.includes(root)) openCategoryFilters.push(root);
+  positionCategoryFilterMenu(root);
+}
+
+// On phones the page-level dropdown lives inside .app-shell, which is below the
+// fixed bottom-nav in stacking order, so a menu that extends past the nav gets
+// covered and its lower options become unreachable. Flip the menu upward when
+// there isn't room below it, and clamp its height to stay clear of the nav.
+function positionCategoryFilterMenu(root) {
+  root.classList.remove("category-filter--up");
+  root.querySelector(".category-filter-menu").style.maxHeight = "";
+  if (!window.matchMedia("(max-width: 860px)").matches) return;
+
+  const docStyle = getComputedStyle(document.documentElement);
+  const navH = parseFloat(docStyle.getPropertyValue("--bottom-nav-h")) || 64;
+  const safeB = parseFloat(docStyle.getPropertyValue("--safe-b")) || 0;
+  const clearance = navH + safeB + 12;
+  const rect = root.getBoundingClientRect();
+  const menu = root.querySelector(".category-filter-menu");
+  const menuH = Math.min(menu.offsetHeight, 240);
+  const spaceBelow = window.innerHeight - rect.bottom;
+  const spaceAbove = rect.top;
+
+  if (spaceBelow - clearance < menuH && spaceAbove > spaceBelow) {
+    root.classList.add("category-filter--up");
+    menu.style.maxHeight = `${Math.max(80, Math.min(240, spaceAbove - 12))}px`;
+  } else {
+    menu.style.maxHeight = `${Math.max(80, Math.min(240, spaceBelow - clearance))}px`;
+  }
 }
 
 document.addEventListener("click", (e) => {

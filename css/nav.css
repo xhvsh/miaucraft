@@ -282,7 +282,11 @@
   inset: 0;
   background: rgba(4, 3, 6, 0.6);
   z-index: var(--z-scrim);
-  animation: fade-in var(--dur) var(--ease);
+  opacity: 1;
+  transition: opacity var(--dur) var(--ease);
+}
+.sheet-backdrop.sheet-backdrop--hiding {
+  opacity: 0;
 }
 .sheet {
   position: fixed;
@@ -294,23 +298,34 @@
   border: 1px solid var(--border-strong);
   border-bottom: none;
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-  padding: var(--space-3) var(--space-3) calc(var(--space-4) + var(--safe-b));
+  padding: 0 var(--space-3) calc(var(--space-4) + var(--safe-b));
   box-shadow: var(--shadow-lg);
-  animation: sheet-in var(--dur-slow) var(--ease-out);
   max-height: 80dvh;
   overflow-y: auto;
+  transform: translateY(100%);
+  will-change: transform;
+  transition: transform var(--dur-slow) var(--ease-out);
 }
-@keyframes sheet-in {
-  from {
-    transform: translateY(100%);
-  }
+.sheet.sheet--dragging {
+  transition: none;
+}
+.sheet.sheet--entering {
+  transition: transform var(--dur-slow) var(--ease-out);
+}
+.sheet-grabber {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 48px;
+  margin-bottom: var(--space-2);
+  cursor: grab;
+  touch-action: none;
 }
 .sheet-handle {
-  width: 36px;
+  width: 44px;
   height: 4px;
   border-radius: var(--radius-pill);
   background: var(--border-strong);
-  margin: var(--space-1) auto var(--space-4);
 }
 .sheet a,
 .sheet button {

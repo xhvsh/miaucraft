@@ -191,6 +191,8 @@
   font-size: var(--fs-sm);
   padding: 0;
   flex-shrink: 0;
+  -webkit-user-select: text;
+  user-select: text;
 }
 .players-username:hover {
   color: var(--accent);

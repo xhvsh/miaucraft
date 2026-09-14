@@ -457,6 +457,41 @@ tr.is-editing .users-role {
   .users-table td:first-child {
     min-width: 180px;
   }
+}
+
+/* phones: whitelist as a simple vertical list, no internal scroll */
+@media (max-width: 780px) {
+  .whitelist-list {
+    max-height: none;
+    overflow: visible;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .admin-users-search {
+    width: 100%;
+    max-width: none;
+  }
+  .whitelist-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    padding: var(--space-3);
+    gap: var(--space-3);
+    text-align: left;
+  }
+  .whitelist-avatar {
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+  }
+  .whitelist-row .icon-btn {
+    position: static;
+    margin-left: auto;
+    width: 30px;
+    height: 30px;
+  }
+}
   .users-actions .icon-btn {
     width: 30px;
     height: 30px;

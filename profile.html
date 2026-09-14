@@ -111,14 +111,22 @@
             </section>
 
             <section class="profile-panel" id="profileTopCategoriesPanel" hidden>
-              <div class="search-field profile-panel-search">
-                <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
-                <input type="search" id="profileTopSearch" placeholder="Search leaderboards" aria-label="Search leaderboards" />
+              <div class="profile-top-toolbar">
+                <nav class="tabs profile-top-tier-tabs" id="profileTopTierTabs">
+                  <button class="tab profile-top-tier-tab" data-tier="all" data-active="true">All</button>
+                  <button class="tab profile-top-tier-tab" data-tier="1">Top 1</button>
+                  <button class="tab profile-top-tier-tab" data-tier="2">Top 2</button>
+                  <button class="tab profile-top-tier-tab" data-tier="3">Top 3</button>
+                </nav>
+                <div class="search-field profile-panel-search">
+                  <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                  <input type="search" id="profileTopSearch" placeholder="Search leaderboards" aria-label="Search leaderboards" />
+                </div>
               </div>
               <div class="profile-top-grid" id="profileTopCategoriesList"></div>
               <div class="empty-state" id="profileTopCategoriesEmpty" hidden>
-                <i class="fa-solid fa-crown" aria-hidden="true"></i>
-                <span>Not #1 in any tracked leaderboard yet.</span>
+                <i class="fa-solid fa-medal" aria-hidden="true"></i>
+                <span>Not in any tracked leaderboard yet.</span>
               </div>
             </section>
 

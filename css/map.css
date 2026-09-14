@@ -275,6 +275,19 @@ body[data-page="map"] {
   .waypoint-skeleton {
     padding-bottom: calc(var(--bottom-nav-h) + var(--safe-b) + var(--space-5));
   }
+  #sidebar .empty-state {
+    padding-bottom: calc(var(--bottom-nav-h) + var(--safe-b) + var(--space-8) * 4);
+  }
+}
+
+/* when the list has nothing to show, let it collapse so the empty message
+   fills the remaining space and centers instead of being pushed under the nav */
+.waypoint-list:empty {
+  flex: 0 0 auto;
+}
+#sidebar .empty-state {
+  flex: 1;
+  justify-content: center;
 }
 
 /* ---------- waypoint form modal ---------- */

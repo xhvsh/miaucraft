@@ -259,6 +259,7 @@ function allowTapToggle() {
 let activeTipKey = null;
 let tipPinned = false;
 let tipAnchorRect = null;
+let tipContainer = null;
 
 // last known pointer position, so a mid-hover re-render can tell whether the
 // pointer is still parked on a badge (keep the tip up) vs really leaving
@@ -278,6 +279,7 @@ function showTip(key) {
   tipEl.textContent = anchor.dataset.tooltip || "";
   tipEl.hidden = false;
   tipAnchorRect = anchor.getBoundingClientRect();
+  tipContainer = anchor.closest(".card") || null;
   positionTip();
 }
 
@@ -286,11 +288,20 @@ function positionTip() {
   const tw = tipEl.offsetWidth;
   const th = tipEl.offsetHeight;
   const margin = 8;
+  const box = tipContainer ? tipContainer.getBoundingClientRect() : null;
   let left = tipAnchorRect.left + tipAnchorRect.width / 2 - tw / 2;
-  left = Math.max(margin, Math.min(left, window.innerWidth - tw - margin));
+  if (box) left = Math.max(box.left + margin, Math.min(left, box.right - tw - margin));
+  else left = Math.max(margin, Math.min(left, window.innerWidth - tw - margin));
   let top = tipAnchorRect.top - th - margin;
-  if (top < margin) top = tipAnchorRect.bottom + margin;
-  top = Math.max(margin, Math.min(top, window.innerHeight - th - margin));
+  if (box) {
+    const minTop = box.top + margin;
+    const maxTop = box.bottom - th - margin;
+    if (top < minTop) top = tipAnchorRect.bottom + margin;
+    top = Math.max(minTop, Math.min(top, maxTop));
+  } else {
+    if (top < margin) top = tipAnchorRect.bottom + margin;
+    top = Math.max(margin, Math.min(top, window.innerHeight - th - margin));
+  }
   tipEl.style.left = left + "px";
   tipEl.style.top = top + "px";
 }
@@ -299,6 +310,7 @@ function hideTip() {
   tipEl.hidden = true;
   activeTipKey = null;
   tipAnchorRect = null;
+  tipContainer = null;
 }
 
 // after re-renders keep an open tooltip anchored to the fresh element without
@@ -352,11 +364,26 @@ $("#playersList").addEventListener("pointerout", (e) => {
 
 // tap-to-toggle: on touch / small screens a tap pins its tip, tapping it again
 // or anywhere else closes it. Desktop clicks don't pin so tips can't get stuck.
+// Taps are resolved from the finger-down point (lastDownTipKey): on touch the
+// synthetic click target can drift off a tiny badge (e.g. the 10px dim dot),
+// which otherwise reads as a tap on empty space and kills the pinned tip
+// instead of switching it to the badge the user actually meant to tap.
+let lastDownTipKey = null;
+let lastDownTime = 0;
+function recentDownTipKey() {
+  return Date.now() - lastDownTime < 500 ? lastDownTipKey : null;
+}
+$("#playersList").addEventListener("pointerdown", (e) => {
+  const at = e.target instanceof HTMLElement ? e.target.closest("[data-tooltip]") : null;
+  lastDownTipKey = at ? at.dataset.tipKey : null;
+  lastDownTime = Date.now();
+}, { passive: true });
+
 $("#playersList").addEventListener("click", (e) => {
-  const tipTarget = e.target.closest("[data-tooltip]");
-  if (!tipTarget) return closePinnedTip();
   if (!allowTapToggle()) return;
-  const key = tipTarget.dataset.tipKey;
+  const tipTarget = e.target.closest("[data-tooltip]");
+  const key = tipTarget ? tipTarget.dataset.tipKey : recentDownTipKey();
+  if (!key) return closePinnedTip();
   if (tipPinned && activeTipKey === key) closePinnedTip();
   else {
     tipPinned = true;
@@ -366,7 +393,8 @@ $("#playersList").addEventListener("click", (e) => {
 
 document.addEventListener("click", (e) => {
   if (!tipPinned) return;
-  if (!(e.target instanceof HTMLElement) || !e.target.closest("[data-tooltip]")) closePinnedTip();
+  const hit = e.target instanceof HTMLElement ? e.target.closest("[data-tooltip]") : null;
+  if (!hit && !recentDownTipKey()) closePinnedTip();
 });
 
 document.addEventListener("keydown", (e) => {

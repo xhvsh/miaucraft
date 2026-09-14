@@ -1,4 +1,4 @@
-import { getPlayerProfile, getAllPlayerStats, getTop1Summary, getAchievementsCatalog, getAchievementCriteriaCatalog, getPlayerAchievements, getPlayerAchievementCriteria } from "../lib/live.js";
+import { getPlayerProfile, getAllPlayerStats, getTop3Summary, getAchievementsCatalog, getAchievementCriteriaCatalog, getPlayerAchievements, getPlayerAchievementCriteria } from "../lib/live.js";
 import { listWaypointsByUsername, listCategories, categoryIconClass } from "../lib/waypoints.js";
 import { getStatDisplayName, formatStatValue, titleCaseStatKey, STAT_PREFIX_LABELS } from "../lib/statPresets.js";
 import { formatCoordsForCopy, formatCoordsForDisplay } from "../lib/settings.js";
@@ -365,49 +365,88 @@ function applyStatSearch() {
   if (!noMatchEl.hidden) noMatchEl.querySelector("span").textContent = `No stats match "${query}".`;
 }
 
-// ---------- top leaderboards (categories the player is #1 in) ----------
+// ---------- top leaderboards (categories the player is top 1 / 2 / 3 in) ----------
 
-let topKeysCache = [];
+let topEntriesCache = [];
+let topTierFilter = "all";
+
+const RANK_CLASSES = { 1: "is-gold", 2: "is-silver", 3: "is-bronze" };
+const RANK_ICONS = { 1: "fa-crown", 2: "fa-medal", 3: "fa-medal" };
+const RANK_LABELS = { 1: "Top 1", 2: "Top 2", 3: "Top 3" };
 
 async function renderTopBadges(player) {
   const wrap = $("#profileTopBadges");
-  const keys = await getTopKeysFor(player);
-  if (!keys.length) {
+  const data = await getTop3DataFor(player);
+  const top1Count = data.filter((e) => e.rank === 1).length;
+
+  if (!top1Count) {
     wrap.hidden = true;
     wrap.innerHTML = "";
     return;
   }
   wrap.hidden = false;
-  wrap.innerHTML = `<button type="button" class="profile-badge-pill is-gold" id="profileTopSummaryBtn"><i class="fa-solid fa-crown" aria-hidden="true"></i> #1 in ${keys.length} leaderboard${keys.length === 1 ? "" : "s"}</button>`;
-  $("#profileTopSummaryBtn").addEventListener("click", () => setActiveMainTab("topcategories"));
+  wrap.innerHTML = `<button type="button" class="profile-badge-pill is-gold" data-rank="1"><i class="fa-solid fa-crown" aria-hidden="true"></i> Top 1 &middot; ${top1Count}</button>`;
+  wrap.querySelector("button").addEventListener("click", () => {
+    setActiveMainTab("topcategories");
+    setTopTierFilter("all");
+  });
 }
 
-async function getTopKeysFor(player) {
+async function getTop3DataFor(player) {
   let summaryRow = null;
   try {
-    const summary = await getTop1Summary();
+    const summary = await getTop3Summary();
     summaryRow = summary.find((row) => row.username?.toLowerCase() === player.username.toLowerCase()) ?? null;
   } catch (err) {
     console.error(err);
   }
-  return summaryRow?.top_in
-    ? summaryRow.top_in
-        .split(",")
-        .map((k) => k.trim())
-        .filter(Boolean)
-    : [];
+  if (!summaryRow) return [];
+
+  const entries = [];
+  for (const rank of [1, 2, 3]) {
+    const col = summaryRow[`top${rank}`];
+    if (col) {
+      for (const key of col.split(",").map((k) => k.trim()).filter(Boolean)) {
+        entries.push({ key, rank });
+      }
+    }
+  }
+  return entries;
 }
 
 let topSearchBound = false;
+let topTierBound = false;
 
 async function renderTopCategoriesTab(player) {
-  topKeysCache = await getTopKeysFor(player);
+  topEntriesCache = await getTop3DataFor(player);
+  topTierFilter = "all";
   $("#profileTopSearch").value = "";
+  setActiveTopTierTab("all");
   applyTopCategoriesFilter();
 
   if (!topSearchBound) {
     topSearchBound = true;
     $("#profileTopSearch").addEventListener("input", applyTopCategoriesFilter);
+  }
+  if (!topTierBound) {
+    topTierBound = true;
+    $("#profileTopTierTabs").addEventListener("click", (event) => {
+      const btn = event.target.closest(".profile-top-tier-tab");
+      if (!btn) return;
+      setTopTierFilter(btn.dataset.tier);
+    });
+  }
+}
+
+function setTopTierFilter(tier) {
+  topTierFilter = tier;
+  setActiveTopTierTab(tier);
+  applyTopCategoriesFilter();
+}
+
+function setActiveTopTierTab(tier) {
+  for (const btn of $("#profileTopTierTabs").querySelectorAll(".profile-top-tier-tab")) {
+    btn.dataset.active = String(btn.dataset.tier === tier);
   }
 }
 
@@ -417,26 +456,44 @@ function applyTopCategoriesFilter() {
   const emptyEl = $("#profileTopCategoriesEmpty");
   listEl.innerHTML = "";
 
-  const filtered = query ? topKeysCache.filter((key) => getStatDisplayName(key).toLowerCase().includes(query)) : topKeysCache;
-  emptyEl.hidden = topKeysCache.length > 0;
-  if (topKeysCache.length > 0) emptyEl.querySelector("span").textContent = filtered.length ? "" : `No leaderboards match "${query}".`;
-  if (topKeysCache.length > 0 && !filtered.length) emptyEl.hidden = false;
+  let filtered = topEntriesCache;
+  if (topTierFilter !== "all") {
+    const rank = Number(topTierFilter);
+    filtered = filtered.filter((e) => e.rank === rank);
+  }
+  if (query) filtered = filtered.filter((e) => getStatDisplayName(e.key).toLowerCase().includes(query));
 
-  for (const key of filtered) {
-    const item = document.createElement("button");
-    item.type = "button";
-    item.className = "profile-top-item";
-    item.innerHTML = `
-      <span class="profile-top-item-icon"><i class="fa-solid fa-crown" aria-hidden="true"></i></span>
-      <span class="profile-top-item-body">
-        <span class="profile-top-item-title">${escapeHtml(getStatDisplayName(key))}</span>
-        <span class="profile-top-item-link">View leaderboard <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></span>
-      </span>
-    `;
-    item.addEventListener("click", () => {
-      window.location.href = `/leaderboards?lb=${encodeURIComponent(key)}`;
-    });
-    listEl.appendChild(item);
+  emptyEl.hidden = topEntriesCache.length > 0;
+  if (topEntriesCache.length > 0) emptyEl.querySelector("span").textContent = filtered.length ? "" : `No leaderboards match "${query}".`;
+  if (topEntriesCache.length > 0 && !filtered.length) emptyEl.hidden = false;
+
+  for (const rank of [1, 2, 3]) {
+    const entries = filtered.filter((e) => e.rank === rank);
+    if (!entries.length) continue;
+
+    const label = document.createElement("div");
+    label.className = `profile-top-section-label ${RANK_CLASSES[rank]}`;
+    label.dataset.rank = rank;
+    label.innerHTML = `<i class="fa-solid ${RANK_ICONS[rank]}" aria-hidden="true"></i> ${RANK_LABELS[rank]} &middot; ${entries.length}`;
+    listEl.appendChild(label);
+
+    for (const { key } of entries) {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = `profile-top-item ${RANK_CLASSES[rank]}`;
+      item.dataset.rank = rank;
+      item.innerHTML = `
+        <span class="profile-top-item-icon"><i class="fa-solid ${RANK_ICONS[rank]}" aria-hidden="true"></i></span>
+        <span class="profile-top-item-body">
+          <span class="profile-top-item-title">${escapeHtml(getStatDisplayName(key))}</span>
+          <span class="profile-top-item-link">View leaderboard <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></span>
+        </span>
+      `;
+      item.addEventListener("click", () => {
+        window.location.href = `/leaderboards?lb=${encodeURIComponent(key)}`;
+      });
+      listEl.appendChild(item);
+    }
   }
 }
 

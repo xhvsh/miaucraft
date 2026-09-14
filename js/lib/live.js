@@ -63,6 +63,13 @@ export async function getTop1Summary() {
   return data ?? [];
 }
 
+export async function getTop3Summary() {
+  const query = SCHEMA === "public" ? supabase.rpc("get_top3_summary") : supabase.schema(SCHEMA).rpc("get_top3_summary");
+  const { data, error } = await query;
+  if (error) throw error;
+  return data ?? [];
+}
+
 // live positions
 
 export async function listLivePositions() {

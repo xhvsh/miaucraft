@@ -149,23 +149,101 @@ function openSheet(pageId) {
   backdrop.className = "sheet-backdrop";
   const sheet = document.createElement("div");
   sheet.className = "sheet";
-  sheet.innerHTML = `<div class="sheet-handle"></div>${itemsHtml(items, "sheet")}`;
+  sheet.innerHTML = `<div class="sheet-grabber"><div class="sheet-handle"></div></div>${itemsHtml(items, "sheet")}`;
 
-  function close() {
-    backdrop.remove();
-    sheet.remove();
+  function close(exitAnimation = true) {
+    if (exitAnimation) {
+      sheet.style.transform = "translateY(100%)";
+      backdrop.classList.add("sheet-backdrop--hiding");
+      setTimeout(() => {
+        backdrop.remove();
+        sheet.remove();
+      }, 350);
+    } else {
+      backdrop.remove();
+      sheet.remove();
+    }
   }
-  backdrop.addEventListener("click", close);
+
+  function dismiss() {
+    close(true);
+  }
+
+  backdrop.addEventListener("click", dismiss);
   sheet.addEventListener("click", (e) => {
     const actionBtn = e.target.closest("[data-nav-action]");
     if (actionBtn) {
       handleNavAction(actionBtn.dataset.navAction);
-      close();
+      dismiss();
     } else if (e.target.closest("a")) {
-      close();
+      dismiss();
     }
   });
+
   document.body.append(backdrop, sheet);
+
+  // Trigger enter animation
+  requestAnimationFrame(() => {
+    sheet.classList.add("sheet--entering");
+    sheet.style.transform = "translateY(0)";
+  });
+
+  // Drag-to-dismiss (pointer events with a touch fallback so the whole top
+  // strip is draggable on touch screens, and it also works with a mouse)
+  const grabber = sheet.querySelector(".sheet-grabber");
+  const dismissDelta = Math.max(90, Math.round(sheet.clientHeight * 0.3));
+  let startY = 0;
+  let currentY = 0;
+  let isDragging = false;
+
+  function startDrag(y) {
+    isDragging = true;
+    startY = y;
+    currentY = y;
+    sheet.classList.add("sheet--dragging");
+    sheet.classList.remove("sheet--entering");
+  }
+
+  function moveDrag(y) {
+    if (!isDragging) return;
+    currentY = y;
+    const deltaY = currentY - startY;
+    if (deltaY > 0) {
+      sheet.style.transform = `translateY(${deltaY}px)`;
+    }
+  }
+
+  function endDrag() {
+    if (!isDragging) return;
+    isDragging = false;
+    sheet.classList.remove("sheet--dragging");
+
+    const deltaY = currentY - startY;
+    if (deltaY > dismissDelta) {
+      dismiss();
+    } else {
+      sheet.style.transform = "translateY(0)";
+    }
+  }
+
+  if (window.PointerEvent) {
+    grabber.addEventListener("pointerdown", (e) => {
+      grabber.setPointerCapture?.(e.pointerId);
+      startDrag(e.clientY);
+    });
+    grabber.addEventListener("pointermove", (e) => moveDrag(e.clientY));
+    const endPointer = (e) => {
+      if (grabber.hasPointerCapture?.(e.pointerId)) grabber.releasePointerCapture(e.pointerId);
+      endDrag();
+    };
+    grabber.addEventListener("pointerup", endPointer);
+    grabber.addEventListener("pointercancel", endPointer);
+  } else {
+    grabber.addEventListener("touchstart", (e) => startDrag(e.touches[0].clientY), { passive: true });
+    sheet.addEventListener("touchmove", (e) => moveDrag(e.touches[0].clientY), { passive: true });
+    grabber.addEventListener("touchend", endDrag);
+    sheet.addEventListener("touchend", endDrag);
+  }
 }
 
 function handleNavAction(action) {

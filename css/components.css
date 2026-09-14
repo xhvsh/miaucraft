@@ -1,5 +1,39 @@
 /* ---------- buttons ---------- */
 
+/* UI chrome that should never be text-selected: buttons, badges, chips, tabs,
+   nav chrome, and other controls. Keep *content* selectable (waypoint
+   names/descriptions/coords, server usernames, log line text) - buttons that
+   carry selectable text opt back in with user-select: text. */
+.btn,
+.icon-btn,
+.tab,
+.modal-tab,
+.modal-close,
+.password-toggle,
+.category-badge,
+.badge,
+.players-dim-badge,
+.log-entry-dim,
+.dim-tab,
+.category-picker-trigger,
+.category-filter-trigger,
+.category-filter-option,
+.auth-kicker,
+.nav-link,
+.brand,
+.auth-chip,
+.bottom-nav-item,
+.nav-more-menu a,
+.nav-more-menu button,
+.sheet a,
+.sheet button,
+.sheet-grabber,
+.log-entry-jump-btn,
+.log-entry-details-toggle {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 .btn {
   display: inline-flex;
   align-items: center;
@@ -15,7 +49,6 @@
   color: var(--text);
   transition: transform var(--dur-fast) var(--ease), background var(--dur) var(--ease), border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
   white-space: nowrap;
-  -webkit-tap-highlight-color: transparent;
 }
 .btn:hover {
   background: var(--surface-2);
@@ -31,12 +64,13 @@
 }
 
 .btn-primary {
-  background: var(--accent);
-  color: #0c0810;
+  background: var(--accent-dim);
+  color: #fff;
+  border: none;
   box-shadow: var(--shadow-accent);
 }
 .btn-primary:hover {
-  background: #a693ec;
+  background: #6a54a0;
 }
 
 .btn-ghost {
@@ -632,25 +666,31 @@ input.no-spinner {
 
 .modal-tabs {
   display: flex;
-  align-items: center;
-  gap: var(--space-1);
+  gap: 0;
+  border-bottom: 1px solid var(--border);
   margin-bottom: var(--space-4);
 }
 .modal-tab {
   flex: 1;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
   color: var(--text-muted);
   font-weight: 600;
   font-size: var(--fs-sm);
-  height: 38px;
-  border-radius: var(--radius-sm);
-  transition: all var(--dur) var(--ease);
+  padding: var(--space-2) var(--space-2) calc(var(--space-2) - 2px);
+  border-radius: 0;
+  margin-bottom: -1px;
+  cursor: pointer;
+  transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.modal-tab:hover {
+  color: var(--text);
 }
 .modal-tab[data-active="true"] {
-  background: var(--accent-soft-2);
+  background: var(--accent-soft);
   color: var(--accent);
-  border-color: var(--accent-line);
+  border-bottom-color: var(--accent);
 }
 
 .confirm-modal-message {
@@ -790,7 +830,7 @@ mark {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: var(--space-3);
-  cursor: pointer;
+  cursor: default;
   transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
 }
 .waypoint-card:hover {
@@ -1086,6 +1126,10 @@ mark {
   box-shadow: var(--shadow-lg);
   z-index: var(--z-dropdown);
   padding: 4px;
+}
+.category-filter--up .category-filter-menu {
+  top: auto;
+  bottom: calc(100% + 6px);
 }
 .category-filter-option {
   display: flex;
