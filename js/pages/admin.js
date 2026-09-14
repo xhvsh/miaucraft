@@ -1,7 +1,7 @@
 import * as Auth from "../lib/auth.js";
 import { createCategory, updateCategory, deleteCategory, listCategories, categoryIconClass, sanitizeIconClass, invalidateCategoriesCache } from "../lib/waypoints.js";
 import { listWhitelist, subscribeWhitelist, requestWhitelistAdd, requestWhitelistRemove, listPendingWhitelistCommands, subscribeWhitelistCommands, cancelWhitelistCommand } from "../lib/live.js";
-import { escapeHtml, toast, confirmAction, debounce } from "../lib/ui.js";
+import { escapeHtml, toast, confirmAction, debounce, sanitizeColor } from "../lib/ui.js";
 import { initNav } from "../lib/nav.js";
 
 const $ = (sel) => document.querySelector(sel);
@@ -39,6 +39,22 @@ async function boot() {
   loadWhitelistPanel();
   loadUsersPanel();
   consumeAdminParams();
+  setupWhitelistRealtime();
+}
+
+function setupWhitelistRealtime() {
+  subscribeWhitelist(() => {
+    clearTimeout(loadWhitelistPanel._wlDebounce);
+    loadWhitelistPanel._wlDebounce = setTimeout(loadWhitelistPanel, 300);
+  });
+  subscribeWhitelistCommands((payload) => {
+    if (payload.eventType === "UPDATE" && payload.new.status === "failed") {
+      const verb = payload.new.action === "remove" ? "remove" : "add";
+      toast(`Could not ${verb} "${payload.new.username}" - the command failed on the server.`, "error");
+    }
+    clearTimeout(loadWhitelistPanel._wlDebounce);
+    loadWhitelistPanel._wlDebounce = setTimeout(loadWhitelistPanel, 300);
+  });
 }
 
 refreshAdminAccess();
@@ -129,7 +145,7 @@ function renderWhitelist(entries, pending) {
     row.className = "whitelist-row";
     row.dataset.search = entry.username.toLowerCase();
     row.innerHTML = `
-      <img class="whitelist-avatar" src="https://mc-heads.net/avatar/${encodeURIComponent(entry.username)}/64" alt="" width="22" height="22" />
+      <img class="whitelist-avatar" src="https://mc-heads.net/avatar/${encodeURIComponent(entry.username)}/64" alt="" width="22" height="22" loading="lazy" />
       <span class="whitelist-username">${escapeHtml(entry.username)}</span>
       <button class="icon-btn icon-btn--danger" data-username="${escapeHtml(entry.username)}" title="Remove" aria-label="Remove ${escapeHtml(entry.username)}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
     `;
@@ -152,7 +168,7 @@ function renderWhitelist(entries, pending) {
     row.className = "whitelist-row whitelist-row--pending";
     row.dataset.search = cmd.username.toLowerCase();
     row.innerHTML = `
-      <img class="whitelist-avatar" src="https://mc-heads.net/avatar/${encodeURIComponent(cmd.username)}/64" alt="" width="22" height="22" />
+      <img class="whitelist-avatar" src="https://mc-heads.net/avatar/${encodeURIComponent(cmd.username)}/64" alt="" width="22" height="22" loading="lazy" />
       <span class="whitelist-username">${escapeHtml(cmd.username)}</span>
       <button class="icon-btn" title="Cancel request" aria-label="Cancel request for ${escapeHtml(cmd.username)}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
     `;
@@ -192,19 +208,6 @@ $("#whitelistForm").addEventListener("submit", async (e) => {
   } catch (err) {
     toast(err.message || "Could not request add.", "error");
   }
-});
-
-subscribeWhitelist(() => {
-  clearTimeout(loadWhitelistPanel._wlDebounce);
-  loadWhitelistPanel._wlDebounce = setTimeout(loadWhitelistPanel, 300);
-});
-subscribeWhitelistCommands((payload) => {
-  if (payload.eventType === "UPDATE" && payload.new.status === "failed") {
-    const verb = payload.new.action === "remove" ? "remove" : "add";
-    toast(`Could not ${verb} "${payload.new.username}" - the command failed on the server.`, "error");
-  }
-  clearTimeout(loadWhitelistPanel._wlDebounce);
-  loadWhitelistPanel._wlDebounce = setTimeout(loadWhitelistPanel, 300);
 });
 
 // ---------- website users ----------
@@ -367,7 +370,7 @@ function buildUserRow(u) {
   }
 
   tr.innerHTML = `
-    <td><span class="users-table-player"><img src="https://mc-heads.net/avatar/${encodeURIComponent(u.username || "Steve")}/64" alt="" width="24" height="24" /><span class="users-table-username">${escapeHtml(u.username || "Unknown")}</span>${isSelf ? ` <span class="users-you">(You)</span>` : ""}</span></td>
+    <td><span class="users-table-player"><img src="https://mc-heads.net/avatar/${encodeURIComponent(u.username || "Steve")}/64" alt="" width="24" height="24" loading="lazy" /><span class="users-table-username">${escapeHtml(u.username || "Unknown")}</span>${isSelf ? ` <span class="users-you">(You)</span>` : ""}</span></td>
     <td>${roleCell}</td>
     <td class="users-joined">${u.created_at ? formatJoinedDate(u.created_at) : "-"}</td>
     <td>${actionCell}</td>
@@ -553,7 +556,7 @@ function renderCategoriesList() {
     const item = document.createElement("div");
     item.className = "category-item";
     item.innerHTML = `
-      <span class="category-item-icon" style="--item-color:${escapeHtml(cat.color)}"><i class="${escapeHtml(categoryIconClass(cat.icon))}" aria-hidden="true"></i></span>
+      <span class="category-item-icon" style="--item-color:${sanitizeColor(cat.color)}"><i class="${escapeHtml(categoryIconClass(cat.icon))}" aria-hidden="true"></i></span>
       <span class="category-item-name">${escapeHtml(cat.name)}</span>
       <div class="category-item-actions">
         <button type="button" class="icon-btn" title="Edit category" aria-label="Edit category"><i class="fa-solid fa-pen" aria-hidden="true"></i></button>

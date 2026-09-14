@@ -6,11 +6,11 @@
 // the caller wires up what each action does (jump/edit/delete/copy/image).
 
 import { categoryIconClass } from "./waypoints.js";
-import { escapeHtml } from "./ui.js";
+import { escapeHtml, sanitizeColor } from "./ui.js";
 
 export function categoryBadgeHtml(category) {
   if (!category) return "";
-  return `<span class="category-badge" style="--badge-color:${escapeHtml(category.color)}"><i class="${escapeHtml(categoryIconClass(category.icon))}" aria-hidden="true"></i>${escapeHtml(category.name)}</span>`;
+  return `<span class="category-badge" style="--badge-color:${sanitizeColor(category.color)}"><i class="${escapeHtml(categoryIconClass(category.icon))}" aria-hidden="true"></i>${escapeHtml(category.name)}</span>`;
 }
 
 // The custom category dropdown used by the waypoint-list filters on the map
@@ -72,9 +72,10 @@ document.addEventListener("keydown", (e) => {
 });
 
 function categoryFilterPillInner(name, iconClass, color) {
+  const cleanColor = sanitizeColor(color);
   const colored = Boolean(color);
-  const chipStyle = colored ? ` style="background:color-mix(in srgb, ${escapeHtml(color)} 18%, transparent);color:${escapeHtml(color)}"` : "";
-  const labelStyle = colored ? ` style="color:${escapeHtml(color)}"` : "";
+  const chipStyle = colored ? ` style="background:color-mix(in srgb, ${cleanColor} 18%, transparent);color:${cleanColor}"` : "";
+  const labelStyle = colored ? ` style="color:${cleanColor}"` : "";
   return `<span class="category-pill-icon${colored ? "" : " category-pill-icon--none"}"${chipStyle}><i class="${escapeHtml(iconClass)}" aria-hidden="true"></i></span><span class="category-pill-label"${labelStyle}>${escapeHtml(name)}</span>`;
 }
 
@@ -221,7 +222,7 @@ export function buildDimensionFilter({ selected = "", ariaLabel = "Filter dimens
 export function buildWaypointCard(wp, opts = {}) {
   const { variant = "list", category = null, coordsText, conversionText = "", dimensionBadge = null, author = "", image = null, actions = [] } = opts;
 
-  const color = escapeHtml(wp.color || "#9683e0");
+  const color = sanitizeColor(wp.color || "#9683e0");
   const dotHtml = `<span class="waypoint-card-dot" style="background:${color};color:${color}"></span>`;
   const copyBtnHtml = `<button type="button" class="icon-btn" style="width:22px;height:22px;font-size:10px" title="Copy coordinates" aria-label="Copy coordinates" data-action="copy"><i class="fa-solid fa-copy" aria-hidden="true"></i></button>`;
   const actionsHtml = actions.length
@@ -229,7 +230,7 @@ export function buildWaypointCard(wp, opts = {}) {
         .map((a) => `<button type="button" class="btn ${a.variant === "danger" ? "btn-danger" : "btn-ghost"} btn-sm" data-action="${escapeHtml(a.action)}">${a.icon ? `<i class="fa-solid ${escapeHtml(a.icon)}" aria-hidden="true"></i> ` : ""}${escapeHtml(a.label)}</button>`)
         .join("")}</div>`
     : "";
-  const dimBadgeHtml = dimensionBadge ? `<span class="players-dim-badge" style="--dim-badge-color:${escapeHtml(dimensionBadge.color)}">${escapeHtml(dimensionBadge.label)}</span>` : "";
+  const dimBadgeHtml = dimensionBadge ? `<span class="players-dim-badge" style="--dim-badge-color:${sanitizeColor(dimensionBadge.color)}">${escapeHtml(dimensionBadge.label)}</span>` : "";
   const metaHtml = `<div class="waypoint-card-meta">
       ${categoryBadgeHtml(category)}
       ${author ? `<span class="waypoint-card-author">${escapeHtml(author)}</span>` : ""}

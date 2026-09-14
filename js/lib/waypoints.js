@@ -36,13 +36,29 @@ export async function listWaypointsByUsername(username) {
   return data ?? [];
 }
 
+export function validateWaypointInput(waypoint) {
+  const name = String(waypoint?.name ?? "").trim();
+  if (!name) return "Name is required.";
+  if (name.length > 60) return "Name is too long (60 characters max).";
+  const description = String(waypoint?.description ?? "").trim();
+  if (description.length > 160) return "Description is too long (160 characters max).";
+  if (waypoint?.x !== undefined && waypoint?.x !== null && !Number.isFinite(Number(waypoint.x))) return "X coordinate is invalid.";
+  if (waypoint?.z !== undefined && waypoint?.z !== null && !Number.isFinite(Number(waypoint.z))) return "Z coordinate is invalid.";
+  if (waypoint?.y !== undefined && waypoint?.y !== null && waypoint.y !== "" && !Number.isFinite(Number(waypoint.y))) return "Y coordinate is invalid.";
+  return null;
+}
+
 export async function createWaypoint(waypoint) {
+  const invalid = validateWaypointInput(waypoint);
+  if (invalid) throw new Error(invalid);
   const { data, error } = await supabase.from("waypoints").insert(waypoint).select().single();
   if (error) throw error;
   return data;
 }
 
 export async function updateWaypoint(id, patch, before) {
+  const invalid = validateWaypointInput({ ...(before || {}), ...patch });
+  if (invalid) throw new Error(invalid);
   if (before && Object.keys(patch).every((key) => before[key] === patch[key])) {
     return before;
   }
@@ -75,13 +91,24 @@ export function invalidateCategoriesCache() {
   _categoriesCacheTime = 0;
 }
 
+export function validateCategoryInput(category) {
+  const name = String(category?.name ?? "").trim();
+  if (!name) return "Name is required.";
+  if (name.length > 40) return "Name is too long (40 characters max).";
+  return null;
+}
+
 export async function createCategory(category) {
+  const invalid = validateCategoryInput(category);
+  if (invalid) throw new Error(invalid);
   const { data, error } = await supabase.from("categories").insert(category).select().single();
   if (error) throw error;
   return data;
 }
 
 export async function updateCategory(id, patch, before) {
+  const invalid = validateCategoryInput({ ...(before || {}), ...patch });
+  if (invalid) throw new Error(invalid);
   if (before && Object.keys(patch).every((key) => before[key] === patch[key])) {
     return before;
   }
@@ -96,9 +123,19 @@ export async function deleteCategory(id) {
 }
 
 export async function listLogs(limit = 1000) {
-  const { data, error } = await supabase.from("logs").select("*").order("created_at", { ascending: false }).limit(limit);
+  const { data, error } = await supabase
+    .from("logs")
+    .select("id, created_at, entity_type, entity_id, entity_name, username, user_id, action, dimension")
+    .order("created_at", { ascending: false })
+    .limit(limit);
   if (error) throw error;
   return data;
+}
+
+export async function getLogChanges(id) {
+  const { data, error } = await supabase.from("logs").select("changes").eq("id", id).maybeSingle();
+  if (error) throw error;
+  return data?.changes ?? null;
 }
 
 export async function getServerInfo() {

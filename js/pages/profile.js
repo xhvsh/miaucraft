@@ -2,7 +2,7 @@ import { getPlayerProfile, getAllPlayerStats, getTop3Summary, getAchievementsCat
 import { listWaypointsByUsername, listCategories, categoryIconClass } from "../lib/waypoints.js";
 import { getStatDisplayName, formatStatValue, titleCaseStatKey, STAT_PREFIX_LABELS } from "../lib/statPresets.js";
 import { formatCoordsForCopy, formatCoordsForDisplay } from "../lib/settings.js";
-import { escapeHtml, copyTextToClipboard } from "../lib/ui.js";
+import { escapeHtml, copyTextToClipboard, formatAbsoluteTime, formatRelativeTime, isResetArtifact } from "../lib/ui.js";
 import { buildWaypointCard, buildCategoryFilter, buildDimensionFilter } from "../lib/waypoint-ui.js";
 import { initNav } from "../lib/nav.js";
 
@@ -18,41 +18,9 @@ const MOB_PREFIXES = new Set(["KILL_ENTITY", "ENTITY_KILLED_BY"]);
 const ITEM_COLUMNS = ["MINE_BLOCK", "USE_ITEM", "BREAK_ITEM", "CRAFT_ITEM", "DROP", "PICKUP"];
 const MOB_COLUMNS = ["KILL_ENTITY", "ENTITY_KILLED_BY"];
 
-function formatAbsoluteTime(value) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
-}
-
-function formatRelativeTime(value) {
-  if (!value) return "unknown time";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "unknown time";
-  const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
-  const divisions = [
-    [60, "seconds"],
-    [60, "minutes"],
-    [24, "hours"],
-    [7, "days"],
-    [4.34524, "weeks"],
-    [12, "months"],
-    [Infinity, "years"],
-  ];
-  let duration = (date.getTime() - Date.now()) / 1000;
-  for (const [amount, unit] of divisions) {
-    if (Math.abs(duration) < amount) return rtf.format(Math.round(duration), unit);
-    duration /= amount;
-  }
-  return "unknown time";
-}
-
-const RESET_ARTIFACT_TIME = new Date("2026-08-20T19:37:58.589292Z").getTime();
-const RESET_ARTIFACT_WINDOW_MS = 5 * 60 * 1000;
-function isResetArtifact(value) {
-  if (!value) return false;
-  const time = new Date(value).getTime();
-  if (Number.isNaN(time)) return false;
-  return Math.abs(time - RESET_ARTIFACT_TIME) <= RESET_ARTIFACT_WINDOW_MS;
+function setProfileTitle(username) {
+  const cleaned = String(username ?? "Profile").replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 50);
+  document.title = `${cleaned || "Profile"} - Miaucraft`;
 }
 
 let currentUsername = null;
@@ -74,7 +42,7 @@ async function openProfile(username) {
   $("#profileLoading").hidden = true;
   $("#profileNotFound").hidden = true;
   $("#profileContent").hidden = false;
-  document.title = `${player.username} - Miaucraft`;
+  setProfileTitle(player.username);
 
   setActiveMainTab("stats");
   renderHeader(player);

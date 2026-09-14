@@ -1,5 +1,5 @@
 import * as Auth from "../lib/auth.js";
-import { listCategories, listLogs } from "../lib/waypoints.js";
+import { listCategories, listLogs, getLogChanges } from "../lib/waypoints.js";
 import { buildDimensionFilter } from "../lib/waypoint-ui.js";
 import { formatCoordsForDisplay } from "../lib/settings.js";
 import { escapeHtml, formatRelativeTime } from "../lib/ui.js";
@@ -276,6 +276,17 @@ $("#logsPageInput").addEventListener("change", () => {
   goToLogsPage(Number.isFinite(page) && page > 0 ? page : 1);
 });
 
+async function ensureLogChanges(log) {
+  if (log.changes !== undefined && log.changes !== null) return log.changes;
+  try {
+    const changes = await getLogChanges(log.id);
+    log.changes = changes;
+  } catch {
+    log.changes = null;
+  }
+  return log.changes;
+}
+
 function buildLogEntry(log) {
   const item = document.createElement("div");
   item.className = `log-entry log-entry--${log.action}`;
@@ -332,11 +343,19 @@ function buildLogEntry(log) {
     detailsToggleBtn.className = "log-entry-details-toggle";
     detailsToggleBtn.innerHTML = `<i class="fa-solid fa-chevron-down" aria-hidden="true"></i> Details`;
     let detailsPanel = null;
-    detailsToggleBtn.addEventListener("click", (event) => {
+    detailsToggleBtn.addEventListener("click", async (event) => {
       event.stopPropagation();
       if (!detailsPanel) {
-        detailsPanel = buildLogDetailsPanel(log);
-        body.appendChild(detailsPanel);
+        const placeholder = document.createElement("div");
+        placeholder.className = "log-entry-details";
+        placeholder.innerHTML = `<div class="log-detail-loading" style="color:var(--text-muted);padding:8px 0;font-size:13px">Loading details&hellip;</div>`;
+        body.appendChild(placeholder);
+        detailsToggleBtn.disabled = true;
+        await ensureLogChanges(log);
+        const panel = buildLogDetailsPanel(log);
+        placeholder.replaceWith(panel);
+        detailsPanel = panel;
+        detailsToggleBtn.disabled = false;
       }
       const willOpen = !detailsPanel.classList.contains("is-open");
       detailsPanel.classList.toggle("is-open", willOpen);
@@ -516,8 +535,6 @@ function positionLogsFiltersMenu() {
   const maxRight = window.innerWidth - width - 12;
   const right = Math.min(Math.max(12, window.innerWidth - rect.right), Math.max(12, maxRight));
   menu.style.right = `${right}px`;
-  const edge = menu.getBoundingClientRect().right;
-  menu.style.right = `${right + edge - (window.innerWidth - right)}px`;
   const desiredTop = rect.bottom + 8;
   const maxTop = window.innerHeight - menu.offsetHeight - 8;
   menu.style.top = `${Math.max(8, Math.min(desiredTop, maxTop))}px`;

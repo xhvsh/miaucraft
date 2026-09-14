@@ -65,32 +65,10 @@ document.addEventListener("click", (e) => {
 });
 
 async function loadServerPanel() {
-  try {
-    lastServerStatus = await getServerStatus();
-    renderServerStatus(lastServerStatus);
-  } catch (err) {
-    console.error(err);
-    lastServerStatus = null;
-    renderServerStatus(null);
-  }
-
-  if (Auth.isLoggedIn()) {
-    try {
-      const info = await getServerInfo();
-      setServerConnectionField("serverHostname", info.hostname || "Not set", Boolean(info.hostname));
-      setServerConnectionField("serverIp", info.ip || "Not set", Boolean(info.ip));
-    } catch (err) {
-      console.error(err);
-      setServerConnectionField("serverHostname", "unavailable", false);
-      setServerConnectionField("serverIp", "unavailable", false);
-    }
-  } else {
-    setServerConnectionField("serverHostname", "Log in to view", false);
-    setServerConnectionField("serverIp", "Log in to view", false);
-  }
+  await Promise.allSettled([refreshServerStatus(), refreshServerConnectionFields()]);
 
   for (const button of document.querySelectorAll(".server-copy")) {
-    button.style.visibility = Auth.isLoggedIn() ? "" : "hidden";
+    button.hidden = !Auth.isLoggedIn();
     const source = $("#" + button.dataset.copySource).textContent;
     button.disabled = !source || source === "unavailable";
   }
@@ -102,6 +80,34 @@ async function loadServerPanel() {
 
   loadPlayersPanel();
   startServerTicker();
+}
+
+async function refreshServerStatus() {
+  try {
+    lastServerStatus = await getServerStatus();
+    renderServerStatus(lastServerStatus);
+  } catch (err) {
+    console.error(err);
+    lastServerStatus = null;
+    renderServerStatus(null);
+  }
+}
+
+async function refreshServerConnectionFields() {
+  if (!Auth.isLoggedIn()) {
+    setServerConnectionField("serverHostname", "Log in to view", false);
+    setServerConnectionField("serverIp", "Log in to view", false);
+    return;
+  }
+  try {
+    const info = await getServerInfo();
+    setServerConnectionField("serverHostname", info.hostname || "Not set", Boolean(info.hostname));
+    setServerConnectionField("serverIp", info.ip || "Not set", Boolean(info.ip));
+  } catch (err) {
+    console.error(err);
+    setServerConnectionField("serverHostname", "unavailable", false);
+    setServerConnectionField("serverIp", "unavailable", false);
+  }
 }
 
 subscribeServerStatus((payload) => {
@@ -174,15 +180,46 @@ async function loadPlayersPanel() {
   }
 }
 
+let playersRenderPending = false;
+function schedulePlayersRender() {
+  if (playersRenderPending || !playersLoaded) return;
+  playersRenderPending = true;
+  requestAnimationFrame(() => {
+    playersRenderPending = false;
+    renderPlayersList(lastPlayers);
+  });
+}
+
+function applyPlayersPayload(payload) {
+  if (!payload?.new) return;
+  const np = payload.new;
+  const idx = lastPlayers.findIndex((p) => p.id === np.id);
+  if (payload.eventType === "DELETE") {
+    lastPlayers = lastPlayers.filter((p) => p.id !== np.id);
+  } else if (idx === -1) {
+    lastPlayers = lastPlayers.concat(np);
+  } else {
+    lastPlayers = [...lastPlayers];
+    lastPlayers[idx] = { ...lastPlayers[idx], ...np };
+  }
+  schedulePlayersRender();
+}
+
+function debounceRefreshPlayers() {
+  clearTimeout(debounceRefreshPlayers._debounce);
+  debounceRefreshPlayers._debounce = setTimeout(loadPlayersPanel, 300);
+}
+
 subscribeLivePositions((payload) => {
   if (payload && payload.new && payload.eventType !== "DELETE") {
     const np = payload.new;
     const dims = new Map(lastDims);
     dims.set(np.player_id, np.dimension);
     lastDims = dims;
+    schedulePlayersRender();
+    return;
   }
-  clearTimeout(loadPlayersPanel._dl);
-  loadPlayersPanel._dl = setTimeout(loadPlayersPanel, 300);
+  debounceRefreshPlayers();
 });
 
 function sortPlayers(players) {
@@ -233,7 +270,7 @@ function renderPlayersList(players) {
       : `<span class="players-dim-dot is-inline-placeholder" aria-hidden="true"></span>`;
     row.innerHTML = `
       ${dimDot}
-      <img class="players-avatar" src="https://mc-heads.net/avatar/${encodeURIComponent(p.username)}/64" alt="" width="32" height="32" />
+      <img class="players-avatar" src="https://mc-heads.net/avatar/${encodeURIComponent(p.username)}/64" alt="" width="32" height="32" loading="lazy" />
       <button class="players-username" type="button" data-username="${usernameAttr}">${escapeHtml(p.username)}</button>
       <span class="players-row-badges">${afkBadge}${statusBadge}</span>
     `;
@@ -421,9 +458,13 @@ document.querySelectorAll(".server-copy").forEach((button) => {
   });
 });
 
-subscribePlayers(() => {
-  clearTimeout(loadPlayersPanel._plDebounce);
-  loadPlayersPanel._plDebounce = setTimeout(loadPlayersPanel, 300);
+subscribePlayers((payload) => {
+  if (!playersLoaded) {
+    debounceRefreshPlayers();
+    return;
+  }
+  if (payload && payload.new) applyPlayersPayload(payload);
+  else debounceRefreshPlayers();
 });
 
 // Auth is already initialized by initNav(); this fires immediately since

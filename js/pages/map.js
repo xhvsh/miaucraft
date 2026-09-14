@@ -3,7 +3,7 @@ import { Grid } from "../lib/grid.js";
 import { listWaypoints, createWaypoint, updateWaypoint, deleteWaypoint, listCategories, categoryIconClass, sanitizeIconClass } from "../lib/waypoints.js";
 import { listLivePositions, subscribeLivePositions, getServerStatus, subscribeServerStatus } from "../lib/live.js";
 import { settings, saveSettings, formatCoordsForCopy, formatCoordsForDisplay } from "../lib/settings.js";
-import { toast, confirmAction, closeOnBackdropClick, copyTextToClipboard, escapeHtml, debounce } from "../lib/ui.js";
+import { toast, confirmAction, closeOnBackdropClick, copyTextToClipboard, escapeHtml, sanitizeColor, debounce } from "../lib/ui.js";
 import { buildWaypointCard, buildCategoryFilter } from "../lib/waypoint-ui.js";
 import { initNav, openAuthModal } from "../lib/nav.js";
 
@@ -100,13 +100,13 @@ subscribeLivePositions((payload) => {
     if (payload && payload.new && payload.eventType !== "DELETE") {
       const np = payload.new;
       const idx = livePositions.findIndex((p) => p.player_id === np.player_id);
-      if (idx !== -1) Object.assign(livePositions[idx], np);
-      else livePositions.push(np);
-    } else {
-      refreshLivePositions();
-      return;
+      if (idx !== -1) {
+        Object.assign(livePositions[idx], np);
+        renderLivePins();
+        return;
+      }
     }
-    renderLivePins();
+    refreshLivePositions();
   }, 300);
 });
 refreshLivePositions();
@@ -170,7 +170,8 @@ const categoryPickerMenu = $("#categoryPickerMenu");
 const wpCategoryInput = $("#wpCategory");
 
 function pickerOptionInner(name, iconClass, color, isNone) {
-  const iconStyle = isNone ? "" : ` style="background:color-mix(in srgb, ${escapeHtml(color)} 18%, transparent);color:${escapeHtml(color)}"`;
+  const cleanColor = sanitizeColor(color);
+  const iconStyle = isNone ? "" : ` style="background:color-mix(in srgb, ${cleanColor} 18%, transparent);color:${cleanColor}"`;
   return `<span class="category-picker-icon${isNone ? " category-picker-icon--none" : ""}"${iconStyle}><i class="${isNone ? "fa-solid fa-ban" : escapeHtml(iconClass)}" aria-hidden="true"></i></span><span class="category-picker-label">${escapeHtml(name)}</span>`;
 }
 
@@ -186,14 +187,46 @@ function closeCategoryPickerMenu() {
   categoryPickerMenu.hidden = true;
   categoryPickerTrigger.setAttribute("aria-expanded", "false");
 }
+function focusCategoryPickerSelected() {
+  const selected = categoryPickerMenu.querySelector('.category-picker-option[aria-selected="true"]');
+  (selected || categoryPickerMenu.querySelector(".category-picker-option"))?.focus();
+}
 function openCategoryPickerMenu() {
   categoryPickerMenu.hidden = false;
   categoryPickerTrigger.setAttribute("aria-expanded", "true");
+  focusCategoryPickerSelected();
 }
 categoryPickerTrigger.addEventListener("click", () => (categoryPickerMenu.hidden ? openCategoryPickerMenu() : closeCategoryPickerMenu()));
 document.addEventListener("click", (e) => {
   if (categoryPickerMenu.hidden || categoryPicker.contains(e.target)) return;
   closeCategoryPickerMenu();
+});
+categoryPickerMenu.addEventListener("keydown", (e) => {
+  const opts = Array.from(categoryPickerMenu.querySelectorAll(".category-picker-option"));
+  if (opts.length === 0) {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeCategoryPickerMenu();
+      categoryPickerTrigger.focus();
+    }
+    return;
+  }
+  const idx = opts.indexOf(document.activeElement);
+  let next = -1;
+  if (e.key === "ArrowDown") next = idx === -1 ? 0 : (idx + 1) % opts.length;
+  else if (e.key === "ArrowUp") next = idx === -1 ? opts.length - 1 : (idx - 1 + opts.length) % opts.length;
+  else if (e.key === "Home") next = 0;
+  else if (e.key === "End") next = opts.length - 1;
+  if (next !== -1) {
+    e.preventDefault();
+    opts[next].focus();
+    return;
+  }
+  if (e.key === "Escape") {
+    e.preventDefault();
+    closeCategoryPickerMenu();
+    categoryPickerTrigger.focus();
+  }
 });
 
 function populateCategorySelect() {
@@ -232,13 +265,17 @@ dimTabs.addEventListener("click", (e) => {
 
 function switchDimension(dim) {
   currentDim = dim;
-  for (const btn of dimTabs.querySelectorAll(".dim-tab")) btn.dataset.active = String(btn.dataset.dim === dim);
+  for (const btn of dimTabs.querySelectorAll(".dim-tab")) {
+    const on = btn.dataset.dim === dim;
+    btn.dataset.active = String(on);
+    btn.setAttribute("aria-selected", String(on));
+  }
   hideTooltip();
   closeSidebarDrawer();
   grid.setDimensionColor(DIM_COLORS[dim]);
   sidebarTitle.textContent = DIM_LABELS[dim];
-  loadWaypointsForDim(dim);
   renderLivePins();
+  return loadWaypointsForDim(dim);
 }
 
 let waypointsLoaded = false;
@@ -402,8 +439,10 @@ function positionTooltip(wp) {
   const p = grid.worldToScreen(wp.x, wp.z);
   const tw = pinTooltip.offsetWidth;
   const th = pinTooltip.offsetHeight;
-  pinTooltip.style.left = `${p.x - tw / 2}px`;
-  pinTooltip.style.top = `${p.y - th - 40}px`;
+  const left = p.x - tw / 2;
+  const top = p.y - th - 40;
+  pinTooltip.style.left = `${Math.max(8, Math.min(left, window.innerWidth - tw - 8))}px`;
+  pinTooltip.style.top = `${Math.max(8, Math.min(top, window.innerHeight - th - 8))}px`;
 }
 
 function formatWaypointDate(value) {
@@ -444,16 +483,19 @@ document.addEventListener("keydown", (e) => {
 // ---------- mobile sidebar drawer ----------
 
 function openSidebarDrawer() {
+  clearTimeout(scrimHideTimer);
   sidebarEl.dataset.open = "true";
   sidebarScrim.hidden = false;
   sidebarScrim.dataset.open = "true";
   sidebarToggleBtn.setAttribute("aria-expanded", "true");
 }
+let scrimHideTimer = null;
 function closeSidebarDrawer() {
   sidebarEl.dataset.open = "false";
   sidebarScrim.dataset.open = "false";
   sidebarToggleBtn.setAttribute("aria-expanded", "false");
-  setTimeout(() => {
+  clearTimeout(scrimHideTimer);
+  scrimHideTimer = setTimeout(() => {
     if (sidebarScrim.dataset.open === "false") sidebarScrim.hidden = true;
   }, 300);
 }
@@ -488,12 +530,8 @@ function openWaypointForm(seed) {
     wpZEl.placeholder = String(Math.round(seed.z ?? 0));
   }
   $("#wpY").value = seed.y ?? "";
-  if (!seed.category_id) wpCategoryInput.value = "";
+  wpCategoryInput.value = seed.category_id ?? "";
   populateCategorySelect();
-  if (seed.category_id) {
-    const cat = categoryById(seed.category_id);
-    if (cat) setCategoryPickerValue(cat.id, cat.name, categoryIconClass(cat.icon), cat.color);
-  }
   closeCategoryPickerMenu();
   $("#wpColor").value = seed.color ?? "#9683e0";
   updateColorValue();
@@ -624,41 +662,36 @@ function consumeSharedAccessCodeLink() {
 
 // ---------- deep-link jump (from profile page "Jump to") ----------
 
-function consumeJumpParams() {
+async function consumeJumpParams() {
   const params = new URLSearchParams(window.location.search);
   const dim = params.get("dim");
   if (!dim || !DIM_COLORS[dim]) return;
 
   if (params.get("restore") === "1") {
-  window.history.replaceState({}, "", "/");
-    switchDimension(dim);
-    setTimeout(() => {
-      openWaypointForm({
-        dimension: dim,
-        name: params.get("name") || "",
-        description: params.get("desc") || "",
-        x: Number(params.get("x")) || 0,
-        y: params.has("y") ? Number(params.get("y")) : null,
-        z: Number(params.get("z")) || 0,
-        category_id: params.get("cat") || null,
-        color: params.get("color") || "#9683e0",
-      });
-    }, 300);
+    window.history.replaceState({}, "", "/");
+    await switchDimension(dim);
+    openWaypointForm({
+      dimension: dim,
+      name: params.get("name") || "",
+      description: params.get("desc") || "",
+      x: Number(params.get("x")) || 0,
+      y: params.has("y") ? Number(params.get("y")) : null,
+      z: Number(params.get("z")) || 0,
+      category_id: params.get("cat") || null,
+      color: params.get("color") || "#9683e0",
+    });
     return;
   }
 
   const wpId = params.get("wp");
   window.history.replaceState({}, "", "/");
-  switchDimension(dim);
+  await switchDimension(dim);
   if (!wpId) return;
-  const tryJump = () => {
-    const wp = currentWaypoints.find((w) => String(w.id) === wpId);
-    if (wp) {
-      grid.jumpTo(wp.x, wp.z);
-      showTooltip(wp);
-    }
-  };
-  setTimeout(tryJump, 400);
+  const wp = currentWaypoints.find((w) => String(w.id) === wpId);
+  if (wp) {
+    grid.jumpTo(wp.x, wp.z);
+    showTooltip(wp);
+  }
 }
 
 // ---------- init ----------
@@ -666,4 +699,4 @@ function consumeJumpParams() {
 await loadCategories();
 switchDimension("overworld");
 consumeSharedAccessCodeLink();
-consumeJumpParams();
+await consumeJumpParams();

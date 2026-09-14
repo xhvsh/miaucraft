@@ -67,7 +67,7 @@ async function selectLeaderboardStat(id) {
   closeStatPicker();
   const preset = PRESET_STATS.find((s) => s.id === id);
   if (preset) {
-    leaderboardStatTitleEl.textContent = "";
+    leaderboardStatTitleEl.textContent = preset.label;
     if (preset.aggregateCm) loadLeaderboard(() => listDistanceLeaderboard(10), preset.format);
     else loadLeaderboard(() => listPlayerStats(preset.keys, 10), preset.format);
   }
@@ -285,7 +285,7 @@ function buildLeaderboardRow(row, rank, format) {
   const username = row.players?.username ?? "Unknown";
   item.innerHTML = `
     <span class="leaderboard-rank">#${rank}</span>
-    <img class="leaderboard-avatar" src="https://mc-heads.net/avatar/${encodeURIComponent(username)}/64" alt="" width="28" height="28" />
+    <img class="leaderboard-avatar" src="https://mc-heads.net/avatar/${encodeURIComponent(username)}/64" alt="" width="28" height="28" loading="lazy" />
     <button class="leaderboard-username" type="button" data-username="${escapeHtml(username)}">${escapeHtml(username)}</button>
     <span class="leaderboard-value">${escapeHtml(formatStatValue(format, row.stat_value))}</span>
   `;

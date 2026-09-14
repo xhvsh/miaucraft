@@ -5,6 +5,13 @@ function emailFor(username) {
   return `${username.trim().toLowerCase()}@miaucraft.internal`;
 }
 
+// Supabase error messages can leak SQL/schema details; log the raw error for
+// debugging but only surface a generic, user-safe message.
+function friendlyError(err, fallback = "Something went wrong. Please try again.") {
+  if (err) console.error("Auth error:", err);
+  return fallback;
+}
+
 const listeners = new Set();
 
 const state = {
@@ -91,22 +98,15 @@ async function handlePostOAuthSignIn(session) {
 }
 
 export async function init() {
-  // supabase-js consumes the #access_token=... fragment from OAuth/email-link
-  // callbacks but leaves a bare "#" on the URL; strip it so /# never lingers.
-  const { data } = await supabase.auth.getSession();
-  if (window.location.href.endsWith("#")) {
-    window.history.replaceState({}, "", window.location.pathname + window.location.search);
-  }
-  state.session = await withFreshIdentities(data.session ?? null);
-  state.profile = state.session ? await loadProfile(state.session.user.id) : null;
-  state.ready = true;
-  emit();
+  let initialSyncDone = false;
 
+  // Register the listener BEFORE the initial session sync so auth events that
+  // fire during startup (OAuth/email-link callbacks, token refresh) aren't lost.
   supabase.auth.onAuthStateChange(async (event, session) => {
     if (event === "PASSWORD_RECOVERY") {
       emitPasswordRecovery();
     }
-    if (event === "SIGNED_IN" && session) {
+    if (initialSyncDone && event === "SIGNED_IN" && session) {
       try {
         await handlePostOAuthSignIn(session);
       } catch (err) {
@@ -120,8 +120,17 @@ export async function init() {
     }
     state.session = await withFreshIdentities(session);
     state.profile = state.session ? await loadProfile(state.session.user.id) : null;
+    state.ready = true;
     emit();
   });
+
+  // supabase-js consumes the #access_token=... fragment from OAuth/email-link
+  // callbacks but leaves a bare "#" on the URL; strip it so /# never lingers.
+  const { data } = await supabase.auth.getSession();
+  if (window.location.href.endsWith("#")) {
+    window.history.replaceState({}, "", window.location.pathname + window.location.search);
+  }
+  initialSyncDone = true;
 }
 
 const errorListeners = new Set();
@@ -151,7 +160,7 @@ export async function login(username, password) {
     if (error.message?.toLowerCase().includes("invalid login credentials")) {
       throw new Error("Wrong username or password.");
     }
-    throw new Error(error.message);
+    throw new Error(friendlyError(error, "Couldn't sign in. Please try again."));
   }
 }
 
@@ -181,7 +190,7 @@ export async function logout() {
 
 export async function updatePassword(newPassword) {
   const { error } = await supabase.auth.updateUser({ password: newPassword });
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(friendlyError(error, "Couldn't update your password."));
 }
 
 export async function deleteAccount() {
@@ -209,7 +218,7 @@ export async function listProfiles() {
   const { data, error } = await supabase.from("profiles").select("id, username, role, created_at").order("created_at", { ascending: true });
   if (error) {
     if (error.code === "42501") throw new Error("Admins can't read the accounts table yet - the RLS policy from the SQL below isn't applied.");
-    throw new Error(error.message);
+    throw new Error(friendlyError(error, "Couldn't load accounts."));
   }
   return data ?? [];
 }
@@ -218,7 +227,7 @@ export async function revokeAccount(username) {
   const { data, error } = await supabase.rpc("delete_account_by_username", { _username: username });
   if (error) {
     if (error.code === "PGRST202") throw new Error("The delete_account_by_username function isn't set up yet - run the SQL below.");
-    throw new Error(error.message);
+    throw new Error(friendlyError(error, "Couldn't revoke that account."));
   }
   if (data === false) throw new Error("Only owners can delete accounts.");
   if (data?.error) throw new Error(data.error);
@@ -228,7 +237,7 @@ export async function updateUserRole(profileId, role) {
   const { error } = await supabase.from("profiles").update({ role }).eq("id", profileId);
   if (error) {
     if (error.code === "42501") throw new Error("Role changes aren't allowed yet - the profiles_update_owner_only RLS policy may not cover this.");
-    throw new Error(error.message);
+    throw new Error(friendlyError(error, "Couldn't update that role."));
   }
 }
 
@@ -259,7 +268,7 @@ export async function loginWithDiscord() {
   });
   if (error) {
     sessionStorage.removeItem(OAUTH_INTENT_KEY);
-    throw new Error(error.message);
+    throw new Error(friendlyError(error, "Couldn't start Discord sign-in."));
   }
 }
 
@@ -269,16 +278,16 @@ export async function linkDiscord() {
     provider: "discord",
     options: { redirectTo: window.location.origin },
   });
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(friendlyError(error, "Couldn't link Discord."));
 }
 
 export async function unlinkDiscord() {
   const { data, error: listError } = await supabase.auth.getUserIdentities();
-  if (listError) throw new Error(listError.message);
+  if (listError) throw new Error(friendlyError(listError, "Couldn't unlink Discord."));
   const identity = data?.identities?.find((i) => i.provider === "discord");
   if (!identity) throw new Error("No linked Discord account.");
   const { error } = await supabase.auth.unlinkIdentity(identity);
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(friendlyError(error, "Couldn't unlink Discord."));
 
   discordForcedUnlinked = true;
 

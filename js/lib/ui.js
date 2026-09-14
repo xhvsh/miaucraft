@@ -4,6 +4,11 @@
 
 const ESC_MAP = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
 const ESC_RE = /[&<>"']/g;
+const COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+export function sanitizeColor(value) {
+  return COLOR_RE.test(value) ? value : "#ffffff";
+}
+
 export function escapeHtml(value) {
   return String(value ?? "").replace(ESC_RE, (ch) => ESC_MAP[ch]);
 }
@@ -43,64 +48,106 @@ export function toast(message, type = "success", duration = type === "error" ? 5
   return el;
 }
 
-export function showConfirmDialog({ title = "Are you sure?", message = "", confirmLabel = "Confirm", danger = true, alertOnly = false } = {}) {
-  return new Promise((resolve) => {
-    let modal = document.getElementById("confirmModal");
-    if (!modal) {
-      modal = document.createElement("div");
-      modal.className = "modal-backdrop";
-      modal.id = "confirmModal";
-      modal.hidden = true;
-      modal.innerHTML = `
-        <div class="modal confirm-modal-card">
-          <h3 class="modal-title" id="confirmModalTitle">Are you sure?</h3>
-          <p class="confirm-modal-message" id="confirmModalMessage"></p>
-          <div class="modal-actions">
-            <button class="btn btn-ghost" id="confirmModalCancelBtn" type="button">Cancel</button>
-            <button class="btn btn-danger" id="confirmModalConfirmBtn" type="button">Confirm</button>
-          </div>
-        </div>`;
-      document.body.appendChild(modal);
+const FOCUSABLE_RE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+export function trapFocus(container) {
+  const focusable = Array.from(container.querySelectorAll(FOCUSABLE_RE)).filter((el) => el.offsetParent !== null);
+  if (focusable.length === 0) return () => {};
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  const handler = (e) => {
+    if (e.key !== "Tab") return;
+    const next = e.shiftKey ? last : first;
+    if (next === document.activeElement || !container.contains(document.activeElement)) {
+      e.preventDefault();
+      next.focus();
     }
+  };
+  document.addEventListener("keydown", handler, true);
+  return () => document.removeEventListener("keydown", handler, true);
+}
 
-    const confirmBtn = modal.querySelector("#confirmModalConfirmBtn");
-    const cancelBtn = modal.querySelector("#confirmModalCancelBtn");
+const confirmQueue = [];
+let confirmActive = false;
+function pumpConfirmQueue() {
+  if (confirmActive || confirmQueue.length === 0) return;
+  confirmActive = true;
+  const job = confirmQueue.shift();
+  runConfirmDialog(job.opts, (result) => {
+    job.resolve(result);
+    confirmActive = false;
+    pumpConfirmQueue();
+  });
+}
 
-    modal.querySelector("#confirmModalTitle").textContent = title;
-    modal.querySelector("#confirmModalMessage").textContent = message;
-    confirmBtn.textContent = alertOnly ? "OK" : confirmLabel;
-    confirmBtn.className = `btn ${danger && !alertOnly ? "btn-danger" : "btn-primary"}`;
-    cancelBtn.hidden = alertOnly;
+function runConfirmDialog({ title, message, confirmLabel, danger, alertOnly }, resolve) {
+  let modal = document.getElementById("confirmModal");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.className = "modal-backdrop";
+    modal.id = "confirmModal";
+    modal.hidden = true;
+    modal.innerHTML = `
+      <div class="modal confirm-modal-card">
+        <h3 class="modal-title" id="confirmModalTitle">Are you sure?</h3>
+        <p class="confirm-modal-message" id="confirmModalMessage"></p>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" id="confirmModalCancelBtn" type="button">Cancel</button>
+          <button class="btn btn-danger" id="confirmModalConfirmBtn" type="button">Confirm</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+  }
 
-    modal.hidden = false;
+  const confirmBtn = modal.querySelector("#confirmModalConfirmBtn");
+  const cancelBtn = modal.querySelector("#confirmModalCancelBtn");
 
-    function cleanup(result) {
-      modal.hidden = true;
-      confirmBtn.removeEventListener("click", onConfirm);
-      cancelBtn.removeEventListener("click", onCancel);
-      document.removeEventListener("keydown", onKeydown);
-      modal.removeEventListener("mousedown", onBackdrop);
-      resolve(result);
-    }
-    function onConfirm() {
-      cleanup(true);
-    }
-    function onCancel() {
+  modal.querySelector("#confirmModalTitle").textContent = title;
+  modal.querySelector("#confirmModalMessage").textContent = message;
+  confirmBtn.textContent = alertOnly ? "OK" : confirmLabel;
+  confirmBtn.className = `btn ${danger && !alertOnly ? "btn-danger" : "btn-primary"}`;
+  cancelBtn.hidden = alertOnly;
+
+  const previouslyFocused = document.activeElement;
+  modal.hidden = false;
+  const release = trapFocus(modal);
+
+  function cleanup(result) {
+    modal.hidden = true;
+    release();
+    confirmBtn.removeEventListener("click", onConfirm);
+    cancelBtn.removeEventListener("click", onCancel);
+    document.removeEventListener("keydown", onKeydown);
+    modal.removeEventListener("mousedown", onBackdrop);
+    if (previouslyFocused && previouslyFocused.focus) previouslyFocused.focus();
+    resolve(result);
+  }
+  function onConfirm() {
+    cleanup(true);
+  }
+  function onCancel() {
+    cleanup(false);
+  }
+  function onKeydown(e) {
+    if (e.key === "Escape") {
+      e.preventDefault();
       cleanup(false);
-    }
-    function onKeydown(e) {
-      if (e.key === "Escape") cleanup(false);
-      else if (e.key === "Enter" && alertOnly) cleanup(true);
-    }
-    function onBackdrop(e) {
-      if (e.target === modal) cleanup(false);
-    }
+    } else if (e.key === "Enter" && alertOnly) cleanup(true);
+  }
+  function onBackdrop(e) {
+    if (e.target === modal) cleanup(false);
+  }
 
-    confirmBtn.addEventListener("click", onConfirm);
-    cancelBtn.addEventListener("click", onCancel);
-    document.addEventListener("keydown", onKeydown);
-    modal.addEventListener("mousedown", onBackdrop);
-    confirmBtn.focus();
+  confirmBtn.addEventListener("click", onConfirm);
+  cancelBtn.addEventListener("click", onCancel);
+  document.addEventListener("keydown", onKeydown);
+  modal.addEventListener("mousedown", onBackdrop);
+  confirmBtn.focus();
+}
+
+export function showConfirmDialog(opts = {}) {
+  return new Promise((resolve) => {
+    confirmQueue.push({ opts, resolve });
+    pumpConfirmQueue();
   });
 }
 

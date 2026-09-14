@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Map - Miaucraft</title>
     <meta name="description" content="Live waypoint map for the Miaucraft SMP - overworld, nether and end." />
     <meta name="color-scheme" content="dark" />
@@ -25,9 +25,9 @@
       <main class="page-main map-main" id="mainContent">
         <div class="map-toolbar">
           <div class="dim-tabs" id="dimTabs" role="tablist" aria-label="Dimension">
-            <button class="dim-tab" data-dim="overworld" data-active="true" role="tab">Overworld</button>
-            <button class="dim-tab" data-dim="nether" role="tab">Nether</button>
-            <button class="dim-tab" data-dim="end" role="tab">End</button>
+            <button class="dim-tab" data-dim="overworld" data-active="true" role="tab" aria-selected="true" aria-controls="gridPanel">Overworld</button>
+            <button class="dim-tab" data-dim="nether" role="tab" aria-selected="false" aria-controls="gridPanel">Nether</button>
+            <button class="dim-tab" data-dim="end" role="tab" aria-selected="false" aria-controls="gridPanel">End</button>
           </div>
           <div class="toolbar-actions">
             <button class="icon-btn add-waypoint-btn" id="addWaypointBtn" type="button" title="Add waypoint" aria-label="Add waypoint" hidden>

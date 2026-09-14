@@ -4,7 +4,7 @@
 // every page, instead of duplicating nav across HTML files.
 
 import * as Auth from "./auth.js";
-import { closeOnBackdropClick, toast, escapeHtml } from "./ui.js";
+import { closeOnBackdropClick, toast, escapeHtml, trapFocus } from "./ui.js";
 
 const PAGES = [
   { id: "map", href: "/", label: "Map", icon: "fa-map" },
@@ -409,15 +409,30 @@ function setAuthTab(tab) {
   document.getElementById("registerForm").hidden = tab !== "register";
 }
 
+let authModalFocusRelease = null;
+let authModalRestoreFocus = null;
+
 export function openAuthModal(tab = "login") {
   ensureAuthModal();
   setAuthTab(tab);
-  document.getElementById("authModal").hidden = false;
+  const modal = document.getElementById("authModal");
+  modal.hidden = false;
+  authModalFocusRelease?.();
+  authModalFocusRelease = trapFocus(modal);
+  const previouslyFocused = document.activeElement;
+  authModalRestoreFocus = () => {
+    if (previouslyFocused && previouslyFocused.focus) previouslyFocused.focus();
+  };
+  (tab === "register" ? document.getElementById("registerUsername") : document.getElementById("loginUsername")).focus();
 }
 
 export function closeAuthModal() {
   const modal = document.getElementById("authModal");
   if (modal) modal.hidden = true;
+  authModalFocusRelease?.();
+  authModalFocusRelease = null;
+  authModalRestoreFocus?.();
+  authModalRestoreFocus = null;
 }
 
 Auth.onAuthError?.((message) => toast(message, "error"));
