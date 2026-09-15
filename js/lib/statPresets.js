@@ -44,7 +44,7 @@ export const STAT_NAME_OVERRIDES = {
   LEAVE_GAME: "Times Left Game",
   TALKED_TO_VILLAGER: "Talked to Villager",
   DROP_COUNT: "Items Dropped",
-  MOB_KILLS_TOTAL: "Mob Kills",
+  MOB_KILLS_TOTAL: "Total Mob Kills",
   MOB_KILLS: "Mob Kills",
   TOTAL_WORLD_TIME: "Time in World",
   TRADED_WITH_VILLAGER: "Villager Trades",

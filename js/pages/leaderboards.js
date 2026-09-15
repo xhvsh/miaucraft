@@ -17,6 +17,8 @@ const statPickerMenuEl = $("#statPickerMenu");
 const leaderboardListEl = $("#leaderboardList");
 const leaderboardEmptyEl = $("#leaderboardEmpty");
 const leaderboardLoadingEl = $("#leaderboardLoading");
+const leaderboardIdFooterEl = $("#leaderboardIdFooter");
+const leaderboardIdValueEl = $("#leaderboardIdValue");
 
 const STAT_ALIAS_TERMS = [
   { match: "COOKED_BEEF", terms: ["steak"] },
@@ -29,6 +31,7 @@ const STAT_ALIAS_TERMS = [
 ];
 
 let activeLeaderboardStatId = PRESET_STATS[0].id;
+let activeCustomStatKey = null;
 let statKeysLoaded = false;
 let allStatKeys = [];
 let leaderboardCustomDebounce = null;
@@ -36,19 +39,25 @@ let statPickerHighlighted = -1;
 
 function currentLeaderboardLinkValue() {
   if (activeLeaderboardStatId !== "custom") return activeLeaderboardStatId;
-  const key = leaderboardCustomInputEl.value.trim();
-  return key || null;
+  return activeCustomStatKey || null;
+}
+
+function updateLeaderboardIdFooter() {
+  const id = currentLeaderboardLinkValue();
+  leaderboardIdFooterEl.hidden = !id;
+  if (id) leaderboardIdValueEl.textContent = id;
 }
 
 function updateLeaderboardShareLink() {
   const value = currentLeaderboardLinkValue();
   leaderboardShareBtn.hidden = !value;
+  updateLeaderboardIdFooter();
 }
 
 leaderboardShareBtn.addEventListener("click", () => {
   const value = currentLeaderboardLinkValue();
   if (!value) return;
-  const url = `${window.location.origin}/leaderboards?lb=${encodeURIComponent(value)}`;
+  const url = `${window.location.origin}/leaderboards?lb=${encodeURIComponent(value.toLowerCase())}`;
   copyTextToClipboard(url, leaderboardShareBtn);
 });
 
@@ -75,8 +84,10 @@ async function selectLeaderboardStat(id) {
     await ensureStatKeysLoaded();
     const canonicalKey = await statKeyExists(leaderboardCustomInputEl.value);
     if (canonicalKey) {
-      leaderboardCustomInputEl.value = canonicalKey;
-      leaderboardStatTitleEl.textContent = getStatDisplayName(canonicalKey);
+      activeCustomStatKey = canonicalKey;
+      const name = getStatDisplayName(canonicalKey);
+      leaderboardCustomInputEl.value = name;
+      leaderboardStatTitleEl.textContent = name;
       loadLeaderboard(() => listPlayerStats([canonicalKey], 10), "count");
     }
     return;
@@ -115,7 +126,7 @@ async function statKeyExists(key) {
   const normalized = key.trim().toLowerCase();
   if (!normalized) return null;
   if (!statKeysLoaded) await ensureStatKeysLoaded();
-  return allStatKeys.find((s) => s.key.toLowerCase() === normalized)?.key ?? null;
+  return allStatKeys.find((s) => s.key.toLowerCase() === normalized || s.name.toLowerCase() === normalized)?.key ?? null;
 }
 
 const STAT_PICKER_RENDER_LIMIT = 50;
@@ -210,7 +221,8 @@ function closeStatPicker() {
   statPickerHighlighted = -1;
 }
 function selectStatKey(key, name) {
-  leaderboardCustomInputEl.value = key;
+  activeCustomStatKey = key;
+  leaderboardCustomInputEl.value = name;
   closeStatPicker();
   leaderboardStatTitleEl.textContent = name;
   updateLeaderboardShareLink();
@@ -238,9 +250,11 @@ leaderboardCustomInputEl.addEventListener("input", () => {
   leaderboardCustomDebounce = setTimeout(async () => {
     const key = await statKeyExists(leaderboardCustomInputEl.value);
     if (!key) return;
-    leaderboardCustomInputEl.value = key;
+    activeCustomStatKey = key;
+    const name = getStatDisplayName(key);
+    leaderboardCustomInputEl.value = name;
     renderStatPickerOptions(leaderboardCustomInputEl.value);
-    leaderboardStatTitleEl.textContent = getStatDisplayName(key);
+    leaderboardStatTitleEl.textContent = name;
     updateLeaderboardShareLink();
     loadLeaderboard(() => listPlayerStats([key], 10), "count");
   }, 250);
@@ -329,20 +343,27 @@ function consumeDeepLink() {
 }
 
 function initFromDeepLink(value) {
-  const preset = PRESET_STATS.find((s) => s.id === value) ?? PRESET_STATS.find((s) => s.keys?.includes(value));
+  const preset =
+    PRESET_STATS.find((s) => s.id === value.toLowerCase()) ??
+    PRESET_STATS.find((s) => s.keys?.some((k) => k.toLowerCase() === value.toLowerCase()));
   if (preset) {
     selectLeaderboardStat(preset.id);
     return;
   }
+  // Shared links always use lowercase ids; canonical stat keys are uppercase,
+  // so uppercase on landing so it matches the real stat id.
+  const canonicalKey = value.trim().toUpperCase();
   activeLeaderboardStatId = "custom";
+  activeCustomStatKey = canonicalKey;
   renderLeaderboardChips();
-  leaderboardCustomInputEl.value = value;
-  leaderboardStatTitleEl.textContent = getStatDisplayName(value);
-  loadLeaderboard(() => listPlayerStats([value], 10), "count");
+  leaderboardCustomInputEl.value = getStatDisplayName(canonicalKey);
+  leaderboardStatTitleEl.textContent = getStatDisplayName(canonicalKey);
+  loadLeaderboard(() => listPlayerStats([canonicalKey], 10), "count");
+  updateLeaderboardShareLink();
 }
 
 renderLeaderboardChips();
 const deepLinked = consumeDeepLink();
 if (deepLinked) initFromDeepLink(deepLinked);
 else selectLeaderboardStat(activeLeaderboardStatId);
-if (activeLeaderboardStatId !== "custom" || leaderboardCustomInputEl.value.trim()) updateLeaderboardShareLink();
+if (activeLeaderboardStatId !== "custom" || activeCustomStatKey) updateLeaderboardShareLink();
