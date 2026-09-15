@@ -105,19 +105,17 @@ function renderLivePins() {
 }
 
 subscribeLivePositions((payload) => {
-  clearTimeout(refreshLivePositions._debounce);
-  refreshLivePositions._debounce = setTimeout(() => {
-    if (payload && payload.new && payload.eventType !== "DELETE") {
-      const np = payload.new;
-      const idx = livePositions.findIndex((p) => p.player_id === np.player_id);
-      if (idx !== -1) {
-        Object.assign(livePositions[idx], np);
-        renderLivePins();
-        return;
-      }
+  if (payload && payload.new && payload.eventType !== "DELETE") {
+    const np = payload.new;
+    const idx = livePositions.findIndex((p) => p.player_id === np.player_id);
+    if (idx !== -1) {
+      Object.assign(livePositions[idx], np);
+      renderLivePins();
+      return;
     }
-    refreshLivePositions();
-  }, 300);
+  }
+  clearTimeout(refreshLivePositions._debounce);
+  refreshLivePositions._debounce = setTimeout(refreshLivePositions, 300);
 });
 refreshLivePositions();
 
