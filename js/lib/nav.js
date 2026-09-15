@@ -368,12 +368,18 @@ function ensureAuthModal() {
 
   modal.querySelector("#loginForm").addEventListener("submit", async (e) => {
     e.preventDefault();
+    const submitBtn = e.currentTarget.querySelector('[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Signing in...";
     try {
       await Auth.login(document.getElementById("loginUsername").value.trim(), document.getElementById("loginPassword").value);
       closeAuthModal();
       toast("Signed in.", "success");
     } catch (err) {
       toast(err.message || "Could not sign in.", "error");
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Sign in";
     }
   });
 
@@ -385,20 +391,29 @@ function ensureAuthModal() {
       toast("Passwords don't match.", "error");
       return;
     }
+    const submitBtn = e.currentTarget.querySelector('[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Creating account...";
     try {
       await Auth.register(document.getElementById("registerUsername").value.trim(), p1, document.getElementById("registerCode").value.trim());
       closeAuthModal();
       toast("Account created.", "success");
     } catch (err) {
       toast(err.message || "Registration failed.", "error");
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Create account";
     }
   });
 
-  modal.querySelector("#discordLoginBtn").addEventListener("click", async () => {
+  modal.querySelector("#discordLoginBtn").addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
     try {
       await Auth.loginWithDiscord();
     } catch (err) {
       toast(err.message || "Could not start Discord sign-in.", "error");
+      btn.disabled = false;
     }
   });
 }

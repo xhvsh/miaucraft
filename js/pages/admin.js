@@ -375,8 +375,13 @@ function buildUserRow(u) {
     actionCell = `<div class="users-actions">${editBtn}${revokeBtn}</div>`;
   }
 
+  const discordCell = u.discord_username
+    ? `<td class="users-discord-cell"><span class="users-discord" title="Discord connected"><i class="fa-brands fa-discord" aria-hidden="true"></i>${escapeHtml(u.discord_username)}</span></td>`
+    : `<td class="users-discord-cell"><span class="users-discord-empty">&mdash;</span></td>`;
+
   tr.innerHTML = `
     <td><span class="users-table-player"><img src="https://mc-heads.net/avatar/${encodeURIComponent(u.username || "Steve")}/64" alt="" width="24" height="24" loading="lazy" /><span class="users-table-username">${escapeHtml(u.username || "Unknown")}</span>${isSelf ? ` <span class="users-you">(You)</span>` : ""}</span></td>
+    ${discordCell}
     <td>${roleCell}</td>
     <td class="users-joined">${u.created_at ? formatJoinedDate(u.created_at) : "-"}</td>
     <td>${actionCell}</td>
@@ -402,7 +407,7 @@ function renderUsers() {
     return (a.created_at || "").localeCompare(b.created_at || "");
   });
   if (filtered.length === 0) {
-    body.innerHTML = `<tr><td colspan="4" class="users-table-empty">No accounts found.</td></tr>`;
+    body.innerHTML = `<tr><td colspan="5" class="users-table-empty">No accounts found.</td></tr>`;
     return;
   }
   for (const u of filtered) body.appendChild(buildUserRow(u));

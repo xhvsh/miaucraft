@@ -1,5 +1,6 @@
 import { supabase } from "./supabaseClient.js";
 import { REGISTER_FUNCTION_URL, SIGNIN_FUNCTION_URL, DELETE_ACCOUNT_FUNCTION_URL, SUPABASE_ANON_KEY } from "./config.js";
+import { toast } from "./ui.js";
 
 // Supabase error messages can leak SQL/schema details; log the raw error for
 // debugging but only surface a generic, user-safe message.
@@ -46,6 +47,30 @@ async function signOutInternal() {
   }
 }
 
+// Supabase rejects dead tokens with a 4xx status; anything else (connection
+// reset, timeout, "Auth session missing!") is a transient network problem.
+function isDefinitiveAuthError(error) {
+  const status = error?.status;
+  return typeof status === "number" && status >= 400 && status < 500 && status !== 429;
+}
+
+let restoreRetryTimer = null;
+let disconnectToastShown = false;
+
+function scheduleRestoreRetry() {
+  if (restoreRetryTimer) return;
+  restoreRetryTimer = setTimeout(() => {
+    restoreRetryTimer = null;
+    if (state.session || !readSessionBackup()) return;
+    restoreBackedUpSession();
+  }, 15_000);
+}
+
+function retryRestoreWhenConnected() {
+  if (state.session || !readSessionBackup()) return;
+  restoreBackedUpSession();
+}
+
 async function restoreBackedUpSession() {
   const backup = readSessionBackup();
   if (!backup) return false;
@@ -58,13 +83,27 @@ async function restoreBackedUpSession() {
     access_token: backup.session.access_token,
     refresh_token: backup.session.refresh_token,
   });
-  if (error) {
-    console.warn("Auth: session restore failed, logging out for real:", error.message);
+  if (!error) return true;
+  if (isDefinitiveAuthError(error)) {
+    console.warn("Auth: session rejected by the server, logging out for real:", error.message);
     localStorage.removeItem(SESSION_BACKUP_KEY);
     return false;
   }
-  return true;
+  // transient failure (the network is down) - keep the backup and retry, so
+  // a flaky connection can't permanently log the user out
+  console.warn("Auth: restore failed on a network problem, retrying when the connection is back:", error.message);
+  if (!disconnectToastShown) {
+    disconnectToastShown = true;
+    toast("Connection lost - your session will be restored automatically.", "info", 6000);
+  }
+  scheduleRestoreRetry();
+  return false;
 }
+
+window.addEventListener("online", retryRestoreWhenConnected);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) retryRestoreWhenConnected();
+});
 
 const state = {
   ready: false,
@@ -292,6 +331,15 @@ export async function listProfiles() {
     if (error.code === "42501") throw new Error("Admins can't read the accounts table yet - the RLS policy from the SQL below isn't applied.");
     throw new Error(friendlyError(error, "Couldn't load accounts."));
   }
+  // discord link info lives in a column added by discord_profile_sync.sql;
+  // this enrichment fails silently until that SQL has been applied
+  try {
+    const { data: discord, error: discordError } = await supabase.from("profiles").select("id, discord_username").not("discord_username", "is", null);
+    if (!discordError && discord) {
+      const byId = new Map(discord.map((d) => [d.id, d.discord_username]));
+      for (const profile of data) profile.discord_username = byId.get(profile.id) ?? null;
+    }
+  } catch {}
   return data ?? [];
 }
 

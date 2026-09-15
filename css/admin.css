@@ -254,6 +254,33 @@
   white-space: nowrap;
   flex-shrink: 0;
 }
+.users-discord-cell {
+  white-space: nowrap;
+}
+.users-discord {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  color: var(--text-muted);
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  white-space: nowrap;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.users-discord i {
+  color: #5865f2;
+  font-size: 0.9em;
+  flex-shrink: 0;
+}
+.users-discord-empty {
+  color: var(--text-dim);
+  font-size: var(--fs-2xs);
+}
 .users-actions {
   display: flex;
   gap: 6px;
@@ -504,7 +531,7 @@ tr.is-editing .users-role {
 /* access codes - left card lists every unused code, server-field style rows */
 .access-code-generate {
   width: 100%;
-  max-width: 280px;
+  max-width: 400px;
 }
 .access-code-list {
   margin-top: var(--space-5);
