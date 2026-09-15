@@ -13,6 +13,10 @@ function easeOutCubic(t) {
   return 1 - Math.pow(1 - t, 3);
 }
 
+function easeInOutCubic(t) {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
 function pickSpacing(scale) {
   for (const s of NICE_SPACINGS) {
     if (s * scale >= MIN_LABEL_GAP_PX) return s;
@@ -66,7 +70,7 @@ export class Grid {
     this.onEmptyTap = null;
     this.onPinClick = null;
     this.onViewChange = null;
-    this._jumpAnimation = null;
+    this._viewAnimation = null;
 
     this._boundVisibilityHandler = () => {
       if (document.hidden) {
@@ -221,31 +225,41 @@ export class Grid {
   }
 
   recenter() {
-    cancelAnimationFrame(this._jumpAnimation);
-    this.centerX = 0;
-    this.centerZ = 0;
-    this.scale = this.defaultScale;
-    this.draw();
-    this.onViewChange?.();
+    cancelAnimationFrame(this._viewAnimation);
+    const startX = this.centerX;
+    const startZ = this.centerZ;
+    const startScale = this.scale;
+    const startedAt = performance.now();
+    const duration = 500;
+    const step = (now) => {
+      const progress = Math.min((now - startedAt) / duration, 1);
+      const eased = easeInOutCubic(progress);
+      this.centerX = startX * (1 - eased);
+      this.centerZ = startZ * (1 - eased);
+      this.scale = startScale + (this.defaultScale - startScale) * eased;
+      this.draw();
+      this.onViewChange?.();
+      if (progress < 1) this._viewAnimation = requestAnimationFrame(step);
+    };
+    this._viewAnimation = requestAnimationFrame(step);
   }
 
   jumpTo(x, z) {
-    cancelAnimationFrame(this._jumpAnimation);
-    const start = { x: this.centerX, z: this.centerZ, scale: this.scale };
-    const targetScale = Math.max(this.scale, this.defaultScale);
+    cancelAnimationFrame(this._viewAnimation);
+    const startX = this.centerX;
+    const startZ = this.centerZ;
     const startedAt = performance.now();
-    const duration = 360;
+    const duration = 500;
     const step = (now) => {
       const progress = Math.min((now - startedAt) / duration, 1);
-      const eased = 1 - (1 - progress) ** 3;
-      this.centerX = start.x + (x - start.x) * eased;
-      this.centerZ = start.z + (z - start.z) * eased;
-      this.scale = start.scale + (targetScale - start.scale) * eased;
+      const eased = easeInOutCubic(progress);
+      this.centerX = startX + (x - startX) * eased;
+      this.centerZ = startZ + (z - startZ) * eased;
       this.draw();
       this.onViewChange?.();
-      if (progress < 1) this._jumpAnimation = requestAnimationFrame(step);
+      if (progress < 1) this._viewAnimation = requestAnimationFrame(step);
     };
-    this._jumpAnimation = requestAnimationFrame(step);
+    this._viewAnimation = requestAnimationFrame(step);
   }
 
   _resize() {
@@ -295,7 +309,7 @@ export class Grid {
 
     c.addEventListener("mousedown", (e) => {
       if (e.button !== 0) return;
-      cancelAnimationFrame(this._jumpAnimation);
+      cancelAnimationFrame(this._viewAnimation);
       this._dragging = true;
       this._dragMoved = false;
       this._dragStart = { x: e.clientX, y: e.clientY };
@@ -393,6 +407,7 @@ export class Grid {
       "wheel",
       (e) => {
         e.preventDefault();
+        cancelAnimationFrame(this._viewAnimation);
         const rect = c.getBoundingClientRect();
         const sx = e.clientX - rect.left;
         const sy = e.clientY - rect.top;
@@ -413,7 +428,7 @@ export class Grid {
     c.addEventListener(
       "touchstart",
       (e) => {
-        cancelAnimationFrame(this._jumpAnimation);
+        cancelAnimationFrame(this._viewAnimation);
         if (e.touches.length === 1) {
           const t = e.touches[0];
           this._touchMode = "pan";
@@ -521,15 +536,22 @@ export class Grid {
   }
 
   zoomBy(factor) {
-    const cx = this.cssWidth / 2;
-    const cy = this.cssHeight / 2;
-    const before = this.screenToWorld(cx, cy);
-    this.scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, this.scale * factor));
-    const after = this.screenToWorld(cx, cy);
-    this.centerX += before.x - after.x;
-    this.centerZ += before.z - after.z;
-    this.draw();
-    this.onViewChange?.();
+    cancelAnimationFrame(this._viewAnimation);
+    // anchor the zoom on the viewport center (which keeps centerX/Z put)
+    const startScale = this.scale;
+    const targetScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, startScale * factor));
+    if (targetScale === startScale) return;
+    const startedAt = performance.now();
+    const duration = 220;
+    const step = (now) => {
+      const progress = Math.min((now - startedAt) / duration, 1);
+      const eased = easeOutCubic(progress);
+      this.scale = startScale + (targetScale - startScale) * eased;
+      this.draw();
+      this.onViewChange?.();
+      if (progress < 1) this._viewAnimation = requestAnimationFrame(step);
+    };
+    this._viewAnimation = requestAnimationFrame(step);
   }
 
   _hitTestPin(sx, sy, isTouch = false) {
