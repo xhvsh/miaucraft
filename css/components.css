@@ -921,6 +921,9 @@ mark {
   align-items: center;
   gap: 8px;
 }
+.waypoint-card-share {
+  flex-shrink: 0;
+}
 .waypoint-card-dot {
   width: 9px;
   height: 9px;

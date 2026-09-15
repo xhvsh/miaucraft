@@ -4,9 +4,11 @@
 // hand-rolled markups. Callers build a plain options object; this module
 // only returns an HTMLElement with data-action buttons already labelled -
 // the caller wires up what each action does (jump/edit/delete/copy/image).
+// The one exception is the top-right share button, which always just copies
+// the waypoint's link, so it is labelled and wired here.
 
 import { categoryIconClass } from "./waypoints.js";
-import { escapeHtml, sanitizeColor } from "./ui.js";
+import { escapeHtml, sanitizeColor, copyTextToClipboard } from "./ui.js";
 
 export function categoryBadgeHtml(category) {
   if (!category) return "";
@@ -225,6 +227,14 @@ export function buildWaypointCard(wp, opts = {}) {
   const color = sanitizeColor(wp.color || "#9683e0");
   const dotHtml = `<span class="waypoint-card-dot" style="background:${color};color:${color}"></span>`;
   const copyBtnHtml = `<button type="button" class="icon-btn" style="width:22px;height:22px;font-size:10px" title="Copy coordinates" aria-label="Copy coordinates" data-action="copy"><i class="fa-solid fa-copy" aria-hidden="true"></i></button>`;
+  const shareBtnHtml = `<button type="button" class="icon-btn waypoint-card-share" style="width:28px;height:28px;font-size:13px" title="Copy waypoint link" aria-label="Copy waypoint link" data-action="share"><i class="fa-solid fa-link" aria-hidden="true"></i></button>`;
+  const shareUrl = `${window.location.origin}/?dim=${encodeURIComponent(wp.dimension || "")}&wp=${encodeURIComponent(wp.id ?? "")}`;
+  const wireShareButton = (cardEl) => {
+    cardEl.querySelector('[data-action="share"]')?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      copyTextToClipboard(shareUrl, e.currentTarget);
+    });
+  };
   const actionsHtml = actions.length
     ? `<div class="waypoint-card-actions">${actions
         .map((a) => `<button type="button" class="btn ${a.variant === "danger" ? "btn-danger" : "btn-ghost"} btn-sm" data-action="${escapeHtml(a.action)}">${a.icon ? `<i class="fa-solid ${escapeHtml(a.icon)}" aria-hidden="true"></i> ` : ""}${escapeHtml(a.label)}</button>`)
@@ -269,6 +279,7 @@ export function buildWaypointCard(wp, opts = {}) {
       ${dotHtml}
       <span class="waypoint-card-name">${escapeHtml(wp.name)}</span>
       ${dimBadgeHtml}
+      ${shareBtnHtml}
     </div>
     ${wp.description ? `<div class="waypoint-card-desc">${escapeHtml(wp.description)}</div>` : ""}
     ${image ? `<img class="waypoint-card-image" src="${escapeHtml(image.src)}" alt="${escapeHtml(image.alt)}" loading="lazy" title="Click to enlarge" data-action="image" />` : ""}
@@ -280,6 +291,7 @@ export function buildWaypointCard(wp, opts = {}) {
     ${metaHtml}
     ${actionsHtml}
   `;
+  wireShareButton(card);
 
   return card;
 }
