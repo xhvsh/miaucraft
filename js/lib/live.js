@@ -192,6 +192,12 @@ export async function getServerStatus() {
   return data;
 }
 
+export async function getLeaderboardLastUpdated() {
+  const { data, error } = await db("player_stats").select("updated_at").order("updated_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw error;
+  return data?.updated_at ?? null;
+}
+
 export function subscribeServerStatus(onChange) {
   const channel = supabase.channel("server-status-changes").on("postgres_changes", { event: "*", schema: SCHEMA, table: "server_status_public" }, onChange).subscribe();
   return () => supabase.removeChannel(channel);

@@ -1,6 +1,6 @@
-import { listPlayerStats, listStatKeys, listDistanceLeaderboard } from "../lib/live.js";
-import { PRESET_STATS, getStatDisplayName, formatStatValue } from "../lib/statPresets.js";
-import { escapeHtml, copyTextToClipboard } from "../lib/ui.js";
+import { listPlayerStats, listStatKeys, listDistanceLeaderboard, getLeaderboardLastUpdated } from "../lib/live.js";
+import { PRESET_STATS, getStatDisplayName, formatStatValue, guessStatFormat } from "../lib/statPresets.js";
+import { escapeHtml, copyTextToClipboard, formatRelativeTime } from "../lib/ui.js";
 import { initNav } from "../lib/nav.js";
 
 const $ = (sel) => document.querySelector(sel);
@@ -12,6 +12,7 @@ const leaderboardShareBtn = $("#leaderboardShareBtn");
 const leaderboardStatChipsEl = $("#leaderboardStatChips");
 const leaderboardCustomInputEl = $("#leaderboardCustomInput");
 const leaderboardStatTitleEl = $("#leaderboardStatTitle");
+const leaderboardStatHeaderEl = $("#leaderboardLastUpdated");
 const statPickerEl = $("#statPicker");
 const statPickerMenuEl = $("#statPickerMenu");
 const leaderboardListEl = $("#leaderboardList");
@@ -88,7 +89,7 @@ async function selectLeaderboardStat(id) {
       const name = getStatDisplayName(canonicalKey);
       leaderboardCustomInputEl.value = name;
       leaderboardStatTitleEl.textContent = name;
-      loadLeaderboard(() => listPlayerStats([canonicalKey], 10), "count");
+      loadLeaderboard(() => listPlayerStats([canonicalKey], 10), guessStatFormat(canonicalKey));
     }
     return;
   }
@@ -226,7 +227,7 @@ function selectStatKey(key, name) {
   closeStatPicker();
   leaderboardStatTitleEl.textContent = name;
   updateLeaderboardShareLink();
-  loadLeaderboard(() => listPlayerStats([key], 10), "count");
+  loadLeaderboard(() => listPlayerStats([key], 10), guessStatFormat(key));
 }
 
 leaderboardCustomInputEl.addEventListener("focus", async () => {
@@ -256,7 +257,7 @@ leaderboardCustomInputEl.addEventListener("input", () => {
     renderStatPickerOptions(leaderboardCustomInputEl.value);
     leaderboardStatTitleEl.textContent = name;
     updateLeaderboardShareLink();
-    loadLeaderboard(() => listPlayerStats([key], 10), "count");
+    loadLeaderboard(() => listPlayerStats([key], 10), guessStatFormat(key));
   }, 250);
 });
 
@@ -358,7 +359,7 @@ function initFromDeepLink(value) {
   renderLeaderboardChips();
   leaderboardCustomInputEl.value = getStatDisplayName(canonicalKey);
   leaderboardStatTitleEl.textContent = getStatDisplayName(canonicalKey);
-  loadLeaderboard(() => listPlayerStats([canonicalKey], 10), "count");
+  loadLeaderboard(() => listPlayerStats([canonicalKey], 10), guessStatFormat(canonicalKey));
   updateLeaderboardShareLink();
 }
 
@@ -367,3 +368,11 @@ const deepLinked = consumeDeepLink();
 if (deepLinked) initFromDeepLink(deepLinked);
 else selectLeaderboardStat(activeLeaderboardStatId);
 if (activeLeaderboardStatId !== "custom" || activeCustomStatKey) updateLeaderboardShareLink();
+
+getLeaderboardLastUpdated()
+  .then((ts) => {
+    if (!ts) return;
+    leaderboardStatHeaderEl.textContent = `Last updated ${formatRelativeTime(ts)}`;
+    leaderboardStatHeaderEl.hidden = false;
+  })
+  .catch(() => {});

@@ -1,6 +1,6 @@
 import { getPlayerProfile, getAllPlayerStats, getTop3Summary, getAchievementsCatalog, getAchievementCriteriaCatalog, getPlayerAchievements, getPlayerAchievementCriteria } from "../lib/live.js";
 import { listWaypointsByUsername, listCategories, categoryIconClass } from "../lib/waypoints.js";
-import { getStatDisplayName, formatStatValue, titleCaseStatKey, STAT_PREFIX_LABELS } from "../lib/statPresets.js";
+import { getStatDisplayName, formatStatValue, titleCaseStatKey, STAT_PREFIX_LABELS, guessStatFormat } from "../lib/statPresets.js";
 import { formatCoordsForCopy, formatCoordsForDisplay } from "../lib/settings.js";
 import { escapeHtml, copyTextToClipboard, formatAbsoluteTime, formatRelativeTime, isResetArtifact } from "../lib/ui.js";
 import { buildWaypointCard, buildCategoryFilter, buildDimensionFilter } from "../lib/waypoint-ui.js";
@@ -115,14 +115,6 @@ function setActiveMainTab(tab) {
   $("#profileWaypointsPanel").hidden = tab !== "waypoints";
   $("#profileTopCategoriesPanel").hidden = tab !== "topcategories";
   $("#profileAchievementsPanel").hidden = tab !== "achievements";
-}
-
-function guessStatFormat(key) {
-  const normalized = key.trim();
-  if (normalized.endsWith("_ONE_CM")) return "distance";
-  if (PLAYTIME_KEYS.includes(normalized) || normalized.includes("TIME")) return "time";
-  if (normalized.includes("DAMAGE")) return "damage";
-  return "count";
 }
 
 function categorizeStats(stats) {

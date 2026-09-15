@@ -115,6 +115,16 @@
   opacity: 0.4;
   cursor: not-allowed;
 }
+.page-head .leaderboard-last-updated {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-soft-2);
+  padding: 5px 12px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  margin-top: 0;
+}
 
 .leaderboard-list-scroll {
   overflow-x: auto;

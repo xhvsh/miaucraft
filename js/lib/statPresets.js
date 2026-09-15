@@ -13,16 +13,12 @@ export const CM_DISTANCE_LABELS = {
   SPRINT: "Sprinted",
   CROUCH: "Crouched",
   FLY: "Flown",
-  AVIATE: "Flown (Elytra)",
+  AVIATE: "by Elytra",
   CLIMB: "Climbed",
   FALL: "Fallen",
   SWIM: "Swum",
   DIVE: "Dove",
-  BOAT: "Boated",
-  HORSE: "Ridden (Horse)",
-  MINECART: "Ridden (Minecart)",
-  PIG: "Ridden (Pig)",
-  STRIDER: "Ridden (Strider)",
+  BOAT: "by Boat",
   WALK_ON_WATER: "Walked on Water",
   WALK_UNDER_WATER: "Walked Underwater",
 };
@@ -39,20 +35,29 @@ export const STAT_PREFIX_LABELS = {
 export const STAT_NAME_OVERRIDES = {
   PLAY_ONE_MINUTE: "Time Played",
   TIME_PLAYED: "Time Played",
+  SHULKER_BOX_OPENED: "Shulker Boxes Opened",
   CHEST_OPENED: "Chests Opened",
   BLOCKS_MINED_TOTAL: "Blocks Mined",
-  LEAVE_GAME: "Times Left Game",
-  TALKED_TO_VILLAGER: "Talked to Villager",
+  LEAVE_GAME: "Games Quit",
+  TALKED_TO_VILLAGER: "Talked to Villagers",
   DROP_COUNT: "Items Dropped",
-  MOB_KILLS_TOTAL: "Total Mob Kills",
-  MOB_KILLS: "Mob Kills",
-  TOTAL_WORLD_TIME: "Time in World",
-  TRADED_WITH_VILLAGER: "Villager Trades",
+  ARMOR_CLEANED: "Armor Pieces Cleaned",
+  OPEN_BARREL: "Barrels Opened",
+  CAULDRON_FILLED: "Cauldrons Filled",
+  DISPENSER_INSPECTED: "Dispensers Searched",
+  DROPPER_INSPECTED: "Droppers Searched",
+  HOPPER_INSPECTED: "Hoppers Searched",
+  ENDERCHEST_OPENED: "Ender Chests Opened",
+  MOB_KILLS_TOTAL: "Direct Mob Kills",
+  MOB_KILLS: "Total Mob Kills",
+  TOTAL_WORLD_TIME: "Time with World Open",
+  TRADED_WITH_VILLAGER: "Traded with Villagers",
+  CAULDRON_USED: "Cauldrons Used",
   DAMAGE_DEALT: "Damage Dealt",
   DAMAGE_TAKEN: "Damage Taken",
-  SNEAK_TIME: "Time Sneaking",
-  TIME_SINCE_REST: "Time Since Rest",
-  TIME_SINCE_DEATH: "Time Since Death",
+  SNEAK_TIME: "Sneak Time",
+  TIME_SINCE_REST: "Time Since Last Rest",
+  TIME_SINCE_DEATH: "Time Since Last Death",
   JUMP: "Jumps",
   DEATHS: "Deaths",
   PLAYER_KILLS: "Player Kills",
@@ -61,11 +66,14 @@ export const STAT_NAME_OVERRIDES = {
   BELL_RING: "Bells Rung",
   CAKE_SLICES_EATEN: "Cake Slices Eaten",
   ENCHANT_ITEM: "Items Enchanted",
-  FLOWER_POTTED: "Flowers Potted",
+  ITEM_ENCHANTED: "Items Enchanted",
+  FLOWER_POTTED: "Plants Potted",
   RAID_TRIGGER: "Raids Triggered",
   RAID_WIN: "Raids Won",
-  RECORD_PLAYED: "Records Played",
-  SLEEP_IN_BED: "Times Slept",
+  RECORD_PLAYED: "Music Discs Played",
+  NOTEBLOCK_PLAYED: "Note Blocks Played",
+  NOTEBLOCK_TUNED: "Note Blocks Tuned",
+  SLEEP_IN_BED: "Times Slept in a Bed",
 };
 
 export function titleCaseStatKey(str) {
@@ -93,7 +101,22 @@ export function getStatDisplayName(key) {
     const label = STAT_PREFIX_LABELS[prefix] || titleCaseStatKey(prefix);
     return `${label} ${titleCaseStatKey(suffix)}`;
   }
-  return titleCaseStatKey(trimmedKey);
+  if (trimmedKey.endsWith("_INTERACTION")) {
+    return `Interactions with ${titleCaseStatKey(trimmedKey.slice(0, -"_INTERACTION".length))}`;
+  }
+  const base = titleCaseStatKey(trimmedKey);
+  if (base.startsWith("Interact With ")) return `Interactions with ${base.slice("Interact With ".length)}`;
+  return base;
+}
+
+const PLAYTIME_KEYS = ["PLAY_ONE_MINUTE", "TIME_PLAYED"];
+
+export function guessStatFormat(key) {
+  const normalized = (key || "").trim();
+  if (normalized.endsWith("_ONE_CM")) return "distance";
+  if (PLAYTIME_KEYS.includes(normalized) || normalized.includes("TIME")) return "time";
+  if (normalized.includes("DAMAGE")) return "damage";
+  return "count";
 }
 
 export function formatStatValue(format, value) {
@@ -103,61 +126,17 @@ export function formatStatValue(format, value) {
       return `${(n / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })} blocks`;
     case "time": {
       const totalSeconds = n / 20;
-      const hours = Math.floor(totalSeconds / 3600);
+      const days = Math.floor(totalSeconds / 86400);
+      const hours = Math.floor((totalSeconds % 86400) / 3600);
       const minutes = Math.floor((totalSeconds % 3600) / 60);
-      return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+      const totalHours = Math.round(totalSeconds / 3600);
+      const main = days > 0 ? `${days}d ${hours}h ${minutes}m` : `${hours}h ${minutes}m`;
+      return `${main} (${totalHours}h)`;
     }
     case "damage":
-      return `${(n / 10).toLocaleString(undefined, { maximumFractionDigits: 1 })} HP`;
+      return `${(n / 10).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} HP`;
     case "count":
     default:
       return n.toLocaleString();
   }
-}
-
-const STAT_ICON_RULES = [
-  [/^PLAY_ONE_MINUTE$|^TIME_PLAYED$|^TOTAL_WORLD_TIME$/, "fa-hourglass-half"],
-  [/^DEATHS$|DIED|ENTITY_KILLED_BY/, "fa-skull"],
-  [/PLAYER_KILLS|^KILL_ENTITY:PLAYER/, "fa-user-injured"],
-  [/MOB_KILLS|^KILL_ENTITY/, "fa-crosshairs"],
-  [/^JUMP$/, "fa-person-running"],
-  [/FISH_CAUGHT/, "fa-fish"],
-  [/ANIMALS_BRED/, "fa-paw"],
-  [/TALKED_TO_VILLAGER|TRADED_WITH_VILLAGER/, "fa-comments"],
-  [/SLEEP_IN_BED/, "fa-bed"],
-  [/CHEST_OPENED/, "fa-box-open"],
-  [/SHULKER_BOX_OPENED/, "fa-cube"],
-  [/CRAFTING_TABLE_INTERACTION|^CRAFT_ITEM/, "fa-hammer"],
-  [/^MINE_BLOCK|BLOCKS_MINED_TOTAL/, "fa-mountain"],
-  [/^BREAK_ITEM/, "fa-heart-crack"],
-  [/^USE_ITEM/, "fa-hand"],
-  [/^DROP/, "fa-arrow-down"],
-  [/^PICKUP/, "fa-hand-sparkles"],
-  [/ENCHANT_ITEM/, "fa-wand-magic-sparkles"],
-  [/FLOWER_POTTED/, "fa-seedling"],
-  [/BELL_RING/, "fa-bell"],
-  [/CAKE_SLICES_EATEN/, "fa-cake-candles"],
-  [/RECORD_PLAYED/, "fa-record-vinyl"],
-  [/RAID_TRIGGER|RAID_WIN/, "fa-shield-halved"],
-  [/DAMAGE_DEALT/, "fa-burst"],
-  [/DAMAGE_TAKEN/, "fa-heart-crack"],
-  [/LEAVE_GAME/, "fa-door-open"],
-  [/SNEAK_TIME|^CROUCH_ONE_CM$/, "fa-shoe-prints"],
-  [/^SWIM_ONE_CM$|^DIVE_ONE_CM$|^WALK_UNDER_WATER_ONE_CM$/, "fa-water"],
-  [/^BOAT_ONE_CM$/, "fa-ship"],
-  [/^HORSE_ONE_CM$|^PIG_ONE_CM$|^STRIDER_ONE_CM$/, "fa-horse"],
-  [/^MINECART_ONE_CM$/, "fa-train"],
-  [/^AVIATE_ONE_CM$|^FLY_ONE_CM$/, "fa-plane"],
-  [/^CLIMB_ONE_CM$/, "fa-mountain"],
-  [/^FALL_ONE_CM$/, "fa-arrow-down-long"],
-  [/_ONE_CM$/, "fa-route"],
-];
-const DEFAULT_STAT_ICON = "fa-chart-simple";
-
-export function getStatIcon(key) {
-  const trimmed = (key || "").trim().toUpperCase();
-  for (const [pattern, icon] of STAT_ICON_RULES) {
-    if (pattern.test(trimmed)) return icon;
-  }
-  return DEFAULT_STAT_ICON;
 }
