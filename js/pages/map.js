@@ -1,7 +1,7 @@
 import * as Auth from "../lib/auth.js";
 import { Grid } from "../lib/grid.js";
 import { listWaypoints, createWaypoint, updateWaypoint, deleteWaypoint, listCategories, categoryIconClass, sanitizeIconClass } from "../lib/waypoints.js";
-import { listLivePositions, subscribeLivePositions, getServerStatus, subscribeServerStatus } from "../lib/live.js";
+import { listLivePositions, subscribeLivePositions, subscribePlayers, getServerStatus, subscribeServerStatus } from "../lib/live.js";
 import { settings, saveSettings, formatCoordsForCopy, formatCoordsForDisplay } from "../lib/settings.js";
 import { toast, confirmAction, closeOnBackdropClick, copyTextToClipboard, escapeHtml, sanitizeColor, debounce } from "../lib/ui.js";
 import { buildWaypointCard, buildCategoryFilter } from "../lib/waypoint-ui.js";
@@ -120,6 +120,19 @@ subscribeLivePositions((payload) => {
   }, 300);
 });
 refreshLivePositions();
+
+subscribePlayers((payload) => {
+  if (!payload || !payload.new) return;
+  const np = payload.new;
+  let changed = false;
+  for (const p of livePositions) {
+    if (p.player_id === np.id && p.players && "afk" in np && p.players.afk !== np.afk) {
+      p.players.afk = np.afk;
+      changed = true;
+    }
+  }
+  if (changed) renderLivePins();
+});
 
 getServerStatus()
   .then((s) => {
