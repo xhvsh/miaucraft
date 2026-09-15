@@ -2,6 +2,7 @@ const NICE_SPACINGS = [10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000];
 const MIN_LABEL_GAP_PX = 70;
 const MIN_SCALE = 0.02;
 const MAX_SCALE = 12;
+const OVERWORLD_NETHER_RATIO = 8; // 1 nether block = 8 overworld blocks
 const PIN_HIT_RADIUS = 20;
 const PIN_HIT_RADIUS_TOUCH = 28;
 const PIN_ICON_HEIGHT = 24;
@@ -20,7 +21,7 @@ function pickSpacing(scale) {
 }
 
 export class Grid {
-  constructor(container, { dimensionColor = "#9683e0" } = {}) {
+  constructor(container, { dimensionColor = "#9683e0", defaultScale = 0.5 } = {}) {
     this.container = container;
     this.dimensionColor = dimensionColor;
 
@@ -37,7 +38,8 @@ export class Grid {
 
     this.centerX = 0;
     this.centerZ = 0;
-    this.scale = 0.5;
+    this.defaultScale = defaultScale;
+    this.scale = defaultScale;
 
     this.waypoints = [];
     this.players = [];
@@ -98,6 +100,27 @@ export class Grid {
     this.dimensionColor = color;
     this.readout.style.color = color;
     this.draw();
+  }
+
+  setDefaultScale(scale) {
+    this.defaultScale = scale;
+  }
+
+  /**
+   * Keep the "same place" when crossing overworld <-> nether: 1 nether block
+   * equals 8 overworld blocks, so coordinates divide/multiply by 8 and the
+   * zoom flips the same way so the visible world area stays the same.
+   */
+  convertView(fromDim, toDim) {
+    let positionFactor = 1;
+    if (fromDim === "overworld" && toDim === "nether") positionFactor = 1 / OVERWORLD_NETHER_RATIO;
+    else if (fromDim === "nether" && toDim === "overworld") positionFactor = OVERWORLD_NETHER_RATIO;
+    else return;
+    this.centerX *= positionFactor;
+    this.centerZ *= positionFactor;
+    this.scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, this.scale / positionFactor));
+    this.draw();
+    this.onViewChange?.();
   }
 
   setWaypoints(waypoints) {
@@ -201,7 +224,7 @@ export class Grid {
     cancelAnimationFrame(this._jumpAnimation);
     this.centerX = 0;
     this.centerZ = 0;
-    this.scale = 0.5;
+    this.scale = this.defaultScale;
     this.draw();
     this.onViewChange?.();
   }
@@ -209,7 +232,7 @@ export class Grid {
   jumpTo(x, z) {
     cancelAnimationFrame(this._jumpAnimation);
     const start = { x: this.centerX, z: this.centerZ, scale: this.scale };
-    const targetScale = Math.max(this.scale, 0.5);
+    const targetScale = Math.max(this.scale, this.defaultScale);
     const startedAt = performance.now();
     const duration = 360;
     const step = (now) => {

@@ -11,6 +11,14 @@ const $ = (sel) => document.querySelector(sel);
 
 const DIM_COLORS = { overworld: "#6bbf8a", nether: "#e2685f", end: "#d9c775" };
 const DIM_LABELS = { overworld: "Overworld", nether: "Nether", end: "End" };
+// 1 nether block = 8 overworld blocks, so the overworld map zooms out 8x so
+// the same place looks the same size in both dimensions.
+const NETHER_BASE_SCALE = 0.5;
+const DIM_DEFAULT_SCALE = {
+  overworld: NETHER_BASE_SCALE / 8,
+  nether: NETHER_BASE_SCALE,
+  end: NETHER_BASE_SCALE,
+};
 const SPECIAL_WAYPOINT_IMAGES = { "Blehh Cat": "/img/blehh-map.png" };
 const STATUS_STALE_MS = 30000;
 
@@ -48,7 +56,7 @@ let lastServerStatus = null;
 
 const mobileMediaQuery = window.matchMedia("(max-width: 860px)");
 
-const grid = new Grid($("#gridContainer"), { dimensionColor: DIM_COLORS.overworld });
+const grid = new Grid($("#gridContainer"), { dimensionColor: DIM_COLORS.overworld, defaultScale: DIM_DEFAULT_SCALE.overworld });
 
 grid.onEmptyRightClick = (x, z) => {
   if (!Auth.can("addWaypoint")) {
@@ -266,6 +274,7 @@ dimTabs.addEventListener("click", (e) => {
 });
 
 function switchDimension(dim) {
+  const prevDim = currentDim;
   currentDim = dim;
   gridPanelEl.dataset.dim = dim;
   restartDimTransition();
@@ -277,6 +286,8 @@ function switchDimension(dim) {
   hideTooltip();
   closeSidebarDrawer();
   grid.setDimensionColor(DIM_COLORS[dim]);
+  grid.setDefaultScale(DIM_DEFAULT_SCALE[dim]);
+  grid.convertView(prevDim, dim);
   sidebarTitle.textContent = DIM_LABELS[dim];
   renderLivePins();
   return loadWaypointsForDim(dim);
