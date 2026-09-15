@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Translation Editor - Miaucraft</title>
+    <meta name="description" content="Edit the Polish (pl) translation file for the Miaucraft site - search, translate and export pl.json." />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" href="/img/icon.webp" type="image/webp" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/css/tokens.css" />
+    <link rel="stylesheet" href="/css/base.css" />
+    <link rel="stylesheet" href="/css/i18n-editor.css" />
+  </head>
+  <body data-page="i18n-editor">
+    <a class="skip-link" href="#mainContent">Skip to content</a>
+    <div class="app-shell">
+      <main class="edit-main" id="mainContent" tabindex="-1">
+        <div class="edit-shell" id="dropTarget">
+          <header class="edit-head">
+            <div class="edit-title-block">
+              <h1>MIAUCRAFT translation editor</h1>
+              <p class="edit-lang" id="langInfo">Polish (pl) · source: English (en) · file: i18n/pl.json</p>
+            </div>
+            <div class="edit-actions">
+              <button class="btn" id="importBtn" type="button" title="Import a pl.json file or paste JSON">Import file / paste</button>
+              <button class="btn" id="copyBtn" type="button" title="Copy the whole translated JSON to the clipboard">Copy JSON</button>
+              <button class="btn btn-primary" id="downloadBtn" type="button" title="Download the file as pl.json">Download pl.json</button>
+              <button class="btn btn-ghost" id="resetBtn" type="button" title="Clear local edits and reload the original file">Reset</button>
+              <input type="file" id="fileInput" accept=".json,application/json" hidden />
+            </div>
+          </header>
+
+          <div class="edit-progress">
+            <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+            <span class="progress-text" id="progressText">0 / 0</span>
+          </div>
+
+          <div class="edit-toolbar">
+            <div class="search-field">
+              <input type="search" id="searchInput" placeholder="Search keys, English text or Polish text…" autocomplete="off" spellcheck="false" />
+            </div>
+            <div class="filter-chips" id="filterChips" role="group" aria-label="Filter">
+              <button class="chip" data-filter="all" data-active="true" type="button">All</button>
+              <button class="chip" data-filter="untranslated" type="button">Untranslated</button>
+              <button class="chip" data-filter="translated" type="button">Translated</button>
+              <button class="chip" data-filter="issues" type="button" title="Translations that lost or changed a {placeholder} from the English string">Placeholder issues</button>
+            </div>
+          </div>
+
+          <div class="drop-hint" id="dropHint" hidden>Drop a pl.json file anywhere to import it</div>
+
+          <main class="edit-list" id="list"></main>
+        </div>
+      </main>
+    </div>
+
+    <div class="modal-backdrop" id="importModal" hidden>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="importModalTitle">
+        <h2 id="importModalTitle">Import translations</h2>
+        <p class="modal-hint">Pick a file <b>or</b> paste JSON below. The content must be the exported format (<code>{&hellip; messages: { key: { en, pl } } }</code>) or a flat <code>{ key: "text" }</code> map. This replaces everything in the editor.</p>
+        <textarea id="pasteInput" class="paste-input" rows="10" placeholder='Paste JSON here… (or drop/choose a file)' spellcheck="false"></textarea>
+        <div class="modal-actions">
+          <button class="btn" id="importChooseBtn" type="button">Choose file</button>
+          <button class="btn btn-primary" id="importApplyBtn" type="button">Import</button>
+          <button class="btn btn-ghost" id="importCancelBtn" type="button">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="toast" id="toast" role="status" hidden></div>
+
+    <script src="/js/pages/i18n-editor-defaults.js"></script>
+    <script src="/js/pages/i18n-editor.js"></script>
+  </body>
+</html>
