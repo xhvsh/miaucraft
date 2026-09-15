@@ -45,7 +45,7 @@ function currentLeaderboardLinkValue() {
 function updateLeaderboardIdFooter() {
   const id = currentLeaderboardLinkValue();
   leaderboardIdFooterEl.hidden = !id;
-  if (id) leaderboardIdValueEl.textContent = id;
+  if (id) leaderboardIdValueEl.textContent = id.toUpperCase();
 }
 
 function updateLeaderboardShareLink() {
