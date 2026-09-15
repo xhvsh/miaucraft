@@ -1,5 +1,5 @@
 import * as Auth from "../lib/auth.js";
-import { listCategories, listLogs, getLogChanges } from "../lib/waypoints.js";
+import { listCategories, listLogs, getLogChanges, publicImageUrl } from "../lib/waypoints.js";
 import { buildDimensionFilter } from "../lib/waypoint-ui.js";
 import { formatCoordsForDisplay } from "../lib/settings.js";
 import { escapeHtml, formatRelativeTime } from "../lib/ui.js";
@@ -8,17 +8,20 @@ import { initNav } from "../lib/nav.js";
 const $ = (sel) => document.querySelector(sel);
 const DIM_COLORS = { overworld: "#6bbf8a", nether: "#e2685f", end: "#d9c775" };
 const DIM_LABELS = { overworld: "Overworld", nether: "Nether", end: "End" };
-const LOG_ACTION_LABELS = { create: "created", update: "edited", delete: "deleted" };
-const LOG_ACTION_ICONS = { create: "fa-plus", update: "fa-pen", delete: "fa-trash" };
+const LOG_ACTION_LABELS = { create: "created", update: "edited", delete: "deleted", transfer: "transferred" };
+const LOG_ACTION_ICONS = { create: "fa-plus", update: "fa-pen", delete: "fa-trash", transfer: "fa-arrow-right-arrow-left" };
 const LOG_ACTION_STYLE = {
   create: { label: "Created", icon: "fa-plus", color: "#6bbf8a" },
   update: { label: "Edited", icon: "fa-pen", color: "#9683e0" },
   delete: { label: "Deleted", icon: "fa-trash", color: "#e2685f" },
+  transfer: { label: "Transferred", icon: "fa-arrow-right-arrow-left", color: "#5aa9e6" },
 };
+const VIS_LABELS = { private: "Private", public: "Public" };
 const LOG_ENTITY_STYLE = {
   waypoint: { label: "Waypoints", icon: "fa-location-dot" },
   category: { label: "Categories", icon: "fa-tags" },
   whitelist: { label: "Whitelist", icon: "fa-user-check" },
+  gallery: { label: "Images", icon: "fa-image" },
 };
 const LOGS_PER_PAGE = 20;
 
@@ -65,6 +68,7 @@ function formatLogFieldValue(field, value) {
   if (value === null || value === undefined || value === "") return "None";
   if (field === "category_id") return categoryById(value)?.name || "Unknown category";
   if (field === "dimension") return DIM_LABELS[value] || value;
+  if (field === "visibility") return VIS_LABELS[value] || value;
   return String(value);
 }
 
@@ -76,6 +80,7 @@ const LOG_DETAIL_FIELDS = {
     { key: "coords", label: "Coordinates" },
     { key: "color", label: "Color" },
     { key: "category_id", label: "Category" },
+    { key: "visibility", label: "Visibility" },
     { key: "created_by_username", label: "Created by" },
     { key: "created_at", label: "Created at" },
   ],
@@ -85,7 +90,50 @@ const LOG_DETAIL_FIELDS = {
     { key: "icon", label: "Icon" },
     { key: "created_at", label: "Created at" },
   ],
+  gallery: [
+    { key: "caption", label: "Caption" },
+    { key: "url", label: "Image" },
+  ],
 };
+
+function imageLabel(url) {
+  if (!url) return "None";
+  try {
+    return decodeURIComponent(url.split("/").pop()).replace(/\.[^.]+$/, "") || "Image";
+  } catch {
+    return "Image";
+  }
+}
+
+async function imageLinkHtml(url) {
+  if (!url) return "None";
+  const href = publicImageUrl(url);
+  const label = escapeHtml(imageLabel(url));
+  if (!href) return label;
+  let missing = false;
+  try {
+    // Bypass the browser cache and CDN so a deleted object is freshly re-checked.
+    const probe = `${href}${href.includes("?") ? "&" : "?"}t=${Date.now()}`;
+    const res = await fetch(probe, { headers: { Range: "bytes=0-0" }, cache: "reload", credentials: "omit" });
+    if (!res.ok) {
+      if (res.status === 404) {
+        missing = true;
+      } else if (res.status === 400) {
+        // Supabase gateway wraps real status codes: HTTP 400 + JSON {statusCode}
+        try {
+          const j = await res.json();
+          missing = Number(j?.statusCode ?? res.status) === 404;
+        } catch {
+          missing = true;
+        }
+      }
+    }
+  } catch {
+    // network/CORS hiccup: keep the link rather than mistaking it for missing
+  }
+  if (missing) return label;
+  return `<a class="log-detail-link" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+}
 
 function formatLogDetailValue(key, snapshot) {
   if (!snapshot) return "None";
@@ -98,7 +146,7 @@ function formatLogDetailValue(key, snapshot) {
   return formatLogFieldValue(key, snapshot[key]);
 }
 
-function buildLogDetailsPanel(log) {
+async function buildLogDetailsPanel(log) {
   const wrap = document.createElement("div");
   wrap.className = "log-entry-details";
   const inner = document.createElement("div");
@@ -106,29 +154,80 @@ function buildLogDetailsPanel(log) {
   wrap.appendChild(inner);
 
   const isUpdate = log.action === "update" && log.changes && log.changes.before && log.changes.after;
-  const snapshot = isUpdate ? null : log.changes;
+  const isTransfer = log.action === "transfer" && log.changes && log.changes.from && log.changes.to;
+  const snapshot = isUpdate || isTransfer ? null : log.changes;
   let fields = LOG_DETAIL_FIELDS[log.entity_type] || [];
   if (isUpdate) fields = fields.filter((f) => f.key !== "created_by_username" && f.key !== "created_at");
+  if (log.entity_type === "gallery") {
+    const cap = isUpdate ? log.changes.before?.caption || log.changes.after?.caption : snapshot?.caption;
+    if (!cap) fields = fields.filter((f) => f.key !== "caption");
+  }
 
   const table = document.createElement("div");
   table.className = "log-detail-table";
-  for (const field of fields) {
+
+  const addDiffRow = (label, beforeVal, afterVal, isHtml = false) => {
     const row = document.createElement("div");
     row.className = "log-detail-row";
-    if (isUpdate) {
-      const beforeVal = formatLogDetailValue(field.key, log.changes.before);
-      const afterVal = formatLogDetailValue(field.key, log.changes.after);
-      const changed = beforeVal !== afterVal;
-      const valueHtml = changed ? `<span class="log-detail-value-before">${escapeHtml(beforeVal)}</span> <i class="fa-solid fa-arrow-right" aria-hidden="true"></i> ${escapeHtml(afterVal)}` : escapeHtml(afterVal);
-      row.innerHTML = `<span class="log-detail-label">${escapeHtml(field.label)}</span><span class="log-detail-value${changed ? " log-detail-value--changed" : ""}">${valueHtml}</span>`;
-    } else {
-      row.innerHTML = `<span class="log-detail-label">${escapeHtml(field.label)}</span><span class="log-detail-value">${escapeHtml(formatLogDetailValue(field.key, snapshot))}</span>`;
-    }
+    const b = isHtml ? beforeVal : escapeHtml(beforeVal);
+    const a = isHtml ? afterVal : escapeHtml(afterVal);
+    const changed = b !== a;
+    const valueHtml = changed
+      ? `<span class="log-detail-value-before">${b}</span> <i class="fa-solid fa-arrow-right" aria-hidden="true"></i> ${a}`
+      : a;
+    row.innerHTML = `<span class="log-detail-label">${escapeHtml(label)}</span><span class="log-detail-value${changed ? " log-detail-value--changed" : ""}">${valueHtml}</span>`;
+    table.appendChild(row);
+  };
+
+  if (log.entity_type === "gallery") {
+    const uploader = (isUpdate ? log.changes.after?.uploaded_by_username : log.changes?.uploaded_by_username) || log.username || "Unknown user";
+    const row = document.createElement("div");
+    row.className = "log-detail-row";
+    row.innerHTML = `<span class="log-detail-label">Added by</span><span class="log-detail-value">${escapeHtml(uploader)}</span>`;
     table.appendChild(row);
   }
-  inner.appendChild(table);
 
-  if (log.action === "delete" && log.changes) {
+  if (isTransfer) {
+    const from = log.changes.from;
+    const to = log.changes.to;
+    addDiffRow(
+      "Owner",
+      from.username || "Unknown",
+      to.username || "Unknown"
+    );
+  } else {
+    if (isUpdate) {
+      const beforeImg = log.changes.before.display_image_url || null;
+      const afterImg = log.changes.after.display_image_url || null;
+      if (beforeImg !== afterImg) addDiffRow("Display image", await imageLinkHtml(beforeImg), await imageLinkHtml(afterImg), true);
+    }
+    for (const field of fields) {
+      if (isUpdate) {
+        const beforeVal = formatLogDetailValue(field.key, log.changes.before);
+        const afterVal = formatLogDetailValue(field.key, log.changes.after);
+        if (beforeVal !== afterVal) {
+          if (field.key === "url") addDiffRow(field.label, await imageLinkHtml(log.changes.before.url), await imageLinkHtml(log.changes.after.url), true);
+          else addDiffRow(field.label, beforeVal, afterVal);
+        }
+      } else {
+        const row = document.createElement("div");
+        row.className = "log-detail-row";
+        const valueHtml = field.key === "url" && snapshot?.url ? await imageLinkHtml(snapshot.url) : escapeHtml(formatLogDetailValue(field.key, snapshot));
+        row.innerHTML = `<span class="log-detail-label">${escapeHtml(field.label)}</span><span class="log-detail-value">${valueHtml}</span>`;
+        table.appendChild(row);
+      }
+    }
+  }
+  if (table.childElementCount === 0) {
+    const none = document.createElement("div");
+    none.className = "log-detail-none";
+    none.textContent = "No visible changes";
+    inner.appendChild(none);
+  } else {
+    inner.appendChild(table);
+  }
+
+  if (log.action === "delete" && log.changes && (log.entity_type === "waypoint" || log.entity_type === "category")) {
     const canRestore = log.entity_type === "waypoint" ? Auth.can("addWaypoint") : Auth.can("manageCategories");
     if (canRestore) {
       const actions = document.createElement("div");
@@ -302,12 +401,27 @@ function buildLogEntry(log) {
     const verb = log.action === "delete" ? "removed" : "added";
     const prep = log.action === "delete" ? "from" : "to";
     summary.innerHTML = `<span class="log-entry-user">${escapeHtml(log.username || "Unknown user")}</span> ${verb} <span class="log-entry-user">${escapeHtml(log.entity_name || "unknown")}</span> ${prep} the whitelist`;
+  } else if (log.entity_type === "gallery") {
+    const dimColor = log.dimension ? DIM_COLORS[log.dimension] : null;
+    const dimBadge = log.dimension ? ` <span class="log-entry-dim" style="--dim-badge-color:${dimColor || "var(--text-muted)"}">${escapeHtml(DIM_LABELS[log.dimension] || log.dimension)}</span>` : "";
+    const verb = log.action === "create" ? "added an image to" : log.action === "delete" ? "removed an image from" : "edited an image on";
+    summary.innerHTML = `<span class="log-entry-user">${escapeHtml(log.username || "Unknown user")}</span> ${verb} waypoint <span class="log-entry-name">"${escapeHtml(log.entity_name || "Unnamed")}"</span>${dimBadge}`;
   } else {
     const actionLabel = LOG_ACTION_LABELS[log.action] || log.action;
     const entityLabel = log.entity_type === "waypoint" ? "waypoint" : "category";
     const dimColor = log.dimension ? DIM_COLORS[log.dimension] : null;
     const dimBadge = log.dimension ? ` <span class="log-entry-dim" style="--dim-badge-color:${dimColor || "var(--text-muted)"}">${escapeHtml(DIM_LABELS[log.dimension] || log.dimension)}</span>` : "";
     summary.innerHTML = `<span class="log-entry-user">${escapeHtml(log.username || "Unknown user")}</span> ${actionLabel} ${entityLabel} <span class="log-entry-name">"${escapeHtml(log.entity_name || "Unnamed")}"</span>${dimBadge}`;
+    if (log.action === "transfer") {
+      const toUser = log.changes?.to?.username;
+      summary.insertAdjacentHTML("beforeend", ` to <span class="log-entry-user">${escapeHtml(toUser || "another user")}</span>`);
+    } else if (log.action === "update" && log.changes?.before && log.changes?.after) {
+      const beforeVis = log.changes.before.visibility;
+      const afterVis = log.changes.after.visibility;
+      if (beforeVis !== undefined && afterVis !== undefined && beforeVis !== afterVis) {
+        summary.insertAdjacentHTML("beforeend", ` <span class="log-entry-vis">visibility ${escapeHtml(VIS_LABELS[beforeVis] || beforeVis)} &rarr; ${escapeHtml(VIS_LABELS[afterVis] || afterVis)}</span>`);
+      }
+    }
   }
 
   const meta = document.createElement("div");
@@ -319,7 +433,7 @@ function buildLogEntry(log) {
   const entryActions = document.createElement("div");
   entryActions.className = "log-entry-actions";
 
-  if (log.entity_type === "waypoint" && log.entity_id) {
+  if ((log.entity_type === "waypoint" || log.entity_type === "gallery") && log.entity_id) {
     const waypointExists = !deletedWaypointIds.has(log.entity_id);
     const jumpBtn = document.createElement("button");
     jumpBtn.type = "button";
@@ -352,7 +466,7 @@ function buildLogEntry(log) {
         body.appendChild(placeholder);
         detailsToggleBtn.disabled = true;
         await ensureLogChanges(log);
-        const panel = buildLogDetailsPanel(log);
+        const panel = await buildLogDetailsPanel(log);
         placeholder.replaceWith(panel);
         detailsPanel = panel;
         detailsToggleBtn.disabled = false;
@@ -467,6 +581,7 @@ const entityDropdown = buildLogsFilterDropdown({
     { value: "waypoint", label: LOG_ENTITY_STYLE.waypoint.label, icon: LOG_ENTITY_STYLE.waypoint.icon },
     { value: "category", label: LOG_ENTITY_STYLE.category.label, icon: LOG_ENTITY_STYLE.category.icon },
     { value: "whitelist", label: LOG_ENTITY_STYLE.whitelist.label, icon: LOG_ENTITY_STYLE.whitelist.icon },
+    { value: "gallery", label: LOG_ENTITY_STYLE.gallery.label, icon: LOG_ENTITY_STYLE.gallery.icon },
   ],
   onChange: (value) => {
     logFilters.entity = value;
@@ -562,6 +677,18 @@ document.addEventListener("click", (e) => {
   for (const d of dropdowns) {
     if (!d.root.contains(e.target)) d.close();
   }
+});
+
+document.addEventListener(
+  "scroll",
+  () => {
+    if (!$("#logsFiltersMenu").hidden) positionLogsFiltersMenu();
+  },
+  { capture: true, passive: true }
+);
+
+window.addEventListener("resize", () => {
+  if (!$("#logsFiltersMenu").hidden) positionLogsFiltersMenu();
 });
 
 $("#logsFiltersReset").addEventListener("click", () => {

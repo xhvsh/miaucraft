@@ -46,6 +46,7 @@ export class Grid {
     this.scale = defaultScale;
 
     this.waypoints = [];
+    this.selectedWaypoint = null;
     this.players = [];
     this.playerHeadCache = new Map();
     this.playerAnimations = new Map();
@@ -129,6 +130,11 @@ export class Grid {
 
   setWaypoints(waypoints) {
     this.waypoints = waypoints;
+    this.draw();
+  }
+
+  setSelectedWaypoint(wp) {
+    this.selectedWaypoint = wp;
     this.draw();
   }
 
@@ -629,9 +635,11 @@ export class Grid {
 
       const color = wp.color || this.dimensionColor;
       const icon = "\uf3c5";
+      const isSelected = this.selectedWaypoint && String(this.selectedWaypoint.id) === String(wp.id);
+      const fontSize = isSelected ? 30 : 24;
       ctx.save();
       ctx.fillStyle = color;
-      ctx.font = "900 24px 'Font Awesome 6 Free'";
+      ctx.font = `900 ${fontSize}px 'Font Awesome 6 Free'`;
       ctx.textAlign = "center";
       ctx.textBaseline = "bottom";
       ctx.strokeStyle = "rgba(10, 10, 15, 0.9)";

@@ -975,8 +975,13 @@ mark {
 }
 .waypoint-card-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   margin-top: 8px;
+}
+
+.waypoint-card-action-end {
+  margin-left: auto;
 }
 .waypoint-card-author {
   font-family: var(--font-mono);
@@ -1257,4 +1262,421 @@ mark {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+/* ---------- waypoint visibility picker (map waypoint form) ---------- */
+
+.visibility-picker-field {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.visibility-picker {
+  display: flex;
+  gap: 4px;
+  width: 100%;
+}
+
+.visibility-picker-option {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+
+.visibility-picker-option[data-active="true"] {
+  border-color: var(--accent, #6bbf8a);
+  background: color-mix(in srgb, var(--accent, #6bbf8a) 14%, transparent);
+  color: var(--text);
+}
+
+.waypoint-visibility-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 3px 8px 3px 4px;
+  border-radius: 5px;
+  color: var(--text-muted);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-3);
+}
+.waypoint-visibility-badge i {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 3px;
+  font-size: 9px;
+  background: var(--surface-2);
+  color: inherit;
+}
+
+.waypoint-collab-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.waypoint-collab-badge.is-editor {
+  color: var(--accent, #6bbf8a);
+  border-color: color-mix(in srgb, var(--accent, #6bbf8a) 30%, transparent);
+  background: color-mix(in srgb, var(--accent, #6bbf8a) 10%, transparent);
+}
+
+/* ---------- waypoint detail view (info + gallery + collaborators) ---------- */
+
+.waypoint-detail-backdrop {
+  z-index: var(--z-modal);
+}
+
+.waypoint-detail-card {
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.waypoint-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 32px;
+}
+
+.waypoint-detail-dot {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+
+.waypoint-detail-name {
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.waypoint-detail-visibility {
+  flex-shrink: 0;
+}
+
+.waypoint-detail-desc {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.waypoint-detail-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.waypoint-detail-coords {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.waypoint-detail-conversion {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+}
+
+.waypoint-detail-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-3);
+}
+
+.waypoint-detail-section {
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.waypoint-detail-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.waypoint-detail-section-title {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+}
+
+.waypoint-detail-count {
+  font-size: var(--fs-2xs);
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 7px;
+  vertical-align: 1px;
+}
+
+.waypoint-detail-empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+  font-style: italic;
+  padding: var(--space-3);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  text-align: center;
+}
+
+.waypoint-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.waypoint-gallery-tile {
+  position: relative;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  aspect-ratio: 16 / 10;
+}
+
+.waypoint-gallery-tile--display {
+  outline: 2px solid #ffd700;
+  outline-offset: -2px;
+}
+
+.waypoint-gallery-tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  cursor: zoom-in;
+}
+
+.waypoint-gallery-caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 4px 6px;
+  font-size: var(--fs-2xs);
+  color: #fff;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.waypoint-gallery-delete {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-sm);
+}
+
+.waypoint-gallery-star {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+.waypoint-gallery-star:hover,
+.waypoint-gallery-star.active {
+  color: #ffd700;
+}
+
+.waypoint-detail-image {
+  width: 100%;
+  max-height: 130px;
+  object-fit: cover;
+  border-radius: var(--radius-xs);
+  margin: 8px 0 2px;
+  cursor: zoom-in;
+  border: 1px solid var(--border);
+}
+
+.waypoint-collaborators {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.waypoint-collab-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.waypoint-collab-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 3px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+}
+
+.waypoint-collab-name {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.waypoint-collab-row--creator {
+  border-color: color-mix(in srgb, var(--accent, #6bbf8a) 35%, var(--border));
+  background: color-mix(in srgb, var(--accent, #6bbf8a) 6%, var(--surface-2));
+}
+
+.waypoint-collab-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 3px 7px;
+  border-radius: 4px;
+  color: var(--accent, #6bbf8a);
+  border: 1px solid color-mix(in srgb, var(--accent, #6bbf8a) 30%, var(--border));
+  background: color-mix(in srgb, var(--accent, #6bbf8a) 10%, transparent);
+}
+
+.waypoint-collab-remove {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  margin-right: -2px;
+}
+
+.waypoint-person-search {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.waypoint-person-results {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: var(--z-dropdown);
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+}
+
+.waypoint-person-search:focus-within .waypoint-person-results {
+  display: flex;
+}
+
+.waypoint-person-result {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  padding: 8px 9px;
+  border: none;
+  border-radius: var(--radius-xs);
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+  transition: background var(--dur) var(--ease);
+}
+
+.waypoint-person-result:hover {
+  background: var(--surface-3);
+}
+
+.waypoint-person-result > span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.waypoint-person-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  background: var(--surface-3);
+}
+
+.waypoint-person-empty {
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  font-style: italic;
+  padding: var(--space-2);
 }

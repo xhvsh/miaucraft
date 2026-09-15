@@ -1,10 +1,11 @@
 import * as Auth from "../lib/auth.js";
 import { Grid } from "../lib/grid.js";
-import { listWaypoints, createWaypoint, updateWaypoint, deleteWaypoint, listCategories, categoryIconClass, sanitizeIconClass } from "../lib/waypoints.js";
+import { listWaypoints, createWaypoint, updateWaypoint, deleteWaypoint, listCategories, categoryIconClass, sanitizeIconClass, loadCollaboratorRoles, forceCollaboratorRole, listCollaborators, addCollaborator, removeCollaborator, transferOwnership, listGalleryImages, addGalleryImage, deleteGalleryImage, uploadGalleryImage } from "../lib/waypoints.js";
 import { listLivePositions, subscribeLivePositions, subscribePlayers, getServerStatus, subscribeServerStatus } from "../lib/live.js";
+import { supabase } from "../lib/supabaseClient.js";
 import { settings, saveSettings, formatCoordsForCopy, formatCoordsForDisplay } from "../lib/settings.js";
 import { toast, confirmAction, closeOnBackdropClick, copyTextToClipboard, escapeHtml, sanitizeColor, debounce } from "../lib/ui.js";
-import { buildWaypointCard, buildCategoryFilter } from "../lib/waypoint-ui.js";
+import { buildWaypointCard, buildCategoryFilter, categoryBadgeHtml, visibilityBadgeHtml, galleryTileHtml } from "../lib/waypoint-ui.js";
 import { initNav, openAuthModal } from "../lib/nav.js";
 
 const $ = (sel) => document.querySelector(sel);
@@ -19,7 +20,10 @@ const DIM_DEFAULT_SCALE = {
   nether: NETHER_BASE_SCALE,
   end: NETHER_BASE_SCALE,
 };
-const SPECIAL_WAYPOINT_IMAGES = { "Blehh Cat": "/img/blehh-map.png" };
+function waypointImage(wp) {
+  if (wp?.display_image_url) return { src: wp.display_image_url, alt: `${wp.name} display image` };
+  return null;
+}
 const STATUS_STALE_MS = 30000;
 
 await initNav("map");
@@ -51,6 +55,10 @@ let categoryFilter = null;
 let openTooltipWaypoint = null;
 let tooltipPointerStartedInside = false;
 let editingWaypoint = null;
+let detailWaypoint = null;
+let galleryImages = [];
+let detailCollabs = [];
+let collabMode = "add";
 let livePositions = [];
 let lastServerStatus = null;
 
@@ -65,7 +73,10 @@ grid.onEmptyRightClick = (x, z) => {
   }
   openWaypointForm({ dimension: currentDim, x, z });
 };
-grid.onPinClick = (wp) => showTooltip(wp);
+grid.onPinClick = (wp) => {
+  grid.setSelectedWaypoint(wp);
+  showTooltip(wp);
+};
 grid.onEmptyClick = hideTooltip;
 grid.onEmptyTap = (x, z) => {
   hideTooltip();
@@ -141,6 +152,88 @@ getServerStatus()
 subscribeServerStatus((payload) => {
   lastServerStatus = payload.new;
   renderLivePins();
+});
+
+// ---------- realtime waypoint sync ----------
+// Keep the map, sidebar and open detail view in sync with any waypoint,
+// collaborator or gallery change, so users never need to refresh the page.
+
+let waypointSyncTimer = null;
+let collabSyncTimer = null;
+let gallerySyncTimer = null;
+let waypointQueryOk = true;
+
+function refreshOpenDetail() {
+  if (!detailWaypoint) return;
+  if (!waypointQueryOk) return;
+  const fresh = currentWaypoints.find((w) => String(w.id) === String(detailWaypoint.id));
+  if (fresh) {
+    openWaypointDetail(fresh);
+  } else {
+    closeWaypointDetail();
+  }
+}
+
+function refreshOpenTooltip() {
+  if (pinTooltip.hidden || !openTooltipWaypoint) return;
+  if (!waypointQueryOk) return;
+  const fresh = currentWaypoints.find((w) => String(w.id) === String(openTooltipWaypoint.id));
+  if (fresh) {
+    showTooltip(fresh);
+  } else {
+    hideTooltip();
+  }
+}
+
+function queueWaypointSync() {
+  clearTimeout(waypointSyncTimer);
+  waypointSyncTimer = setTimeout(async () => {
+    await loadWaypointsForDim(currentDim);
+    refreshCollabCache();
+    refreshOpenDetail();
+    refreshOpenTooltip();
+  }, 250);
+}
+
+function queueCollabSync() {
+  clearTimeout(collabSyncTimer);
+  collabSyncTimer = setTimeout(async () => {
+    await refreshCollabCache();
+    await loadWaypointsForDim(currentDim);
+    refreshOpenDetail();
+    refreshOpenTooltip();
+  }, 250);
+}
+
+function queueGallerySync(waypointId) {
+  if (!waypointId) return;
+  clearTimeout(gallerySyncTimer);
+  gallerySyncTimer = setTimeout(() => {
+    if (detailWaypoint && String(detailWaypoint.id) === String(waypointId)) loadGallery(waypointId);
+  }, 250);
+}
+
+supabase
+  .channel("waypoint-changes")
+  .on("postgres_changes", { event: "*", schema: "public", table: "waypoints" }, queueWaypointSync)
+  .on("postgres_changes", { event: "*", schema: "public", table: "waypoint_collaborators" }, queueCollabSync)
+  .on("postgres_changes", { event: "*", schema: "public", table: "waypoint_gallery" }, (payload) => queueGallerySync(payload.new?.waypoint_id ?? payload.old?.waypoint_id))
+  .subscribe();
+
+function schedulePeriodicResync() {
+  return setInterval(() => {
+    if (document.visibilityState !== "visible") return;
+    if (waypointSyncTimer || collabSyncTimer) return;
+    queueWaypointSync();
+  }, 20000);
+}
+schedulePeriodicResync();
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible") return;
+  clearTimeout(waypointSyncTimer);
+  waypointSyncTimer = null;
+  queueWaypointSync();
 });
 
 // ---------- categories ----------
@@ -313,8 +406,10 @@ function restartDimTransition() {
 let waypointsLoaded = false;
 async function loadWaypointsForDim(dim) {
   if (!waypointsLoaded) $("#waypointSkeleton").hidden = false;
+  waypointQueryOk = false;
   try {
     currentWaypoints = await listWaypoints(dim);
+    waypointQueryOk = true;
   } catch (err) {
     console.error(err);
     currentWaypoints = [];
@@ -346,7 +441,7 @@ function renderSidebar() {
     .filter(
       (wp) =>
         matchesCategoryFilter(wp) &&
-        [wp.name, wp.description, wp.created_by_username, wp.x, wp.y, wp.z]
+        [wp.name, wp.description, wp.created_by_username, wp.owner_username, wp.x, wp.y, wp.z]
           .filter((v) => v !== null && v !== undefined)
           .join(" ")
           .toLowerCase()
@@ -381,20 +476,17 @@ function conversionText(wp) {
 }
 
 function buildWaypointListItem(wp) {
-  const special = SPECIAL_WAYPOINT_IMAGES[wp.name];
-  const actions = [{ action: "jump", label: "Jump to", icon: "fa-location-crosshairs" }];
-  if (Auth.canEditWaypoint(wp)) {
-    actions.push({ action: "edit", label: "Edit", icon: "fa-pen" });
-    actions.push({ action: "delete", label: "Delete", icon: "fa-trash", variant: "danger" });
-  }
+  const img = waypointImage(wp);
+  const actions = [{ action: "jump", label: "Jump to", icon: "fa-location-crosshairs" }, { action: "view", label: "Details", icon: "fa-circle-info" }];
   const card = buildWaypointCard(wp, {
     category: categoryById(wp.category_id),
     coordsText: formatCoordsForDisplay(wp.x, wp.y ?? null, wp.z),
     conversionText: conversionText(wp),
-    author: `by ${wp.created_by_username ?? "unknown"}`,
-    image: special ? { src: special, alt: `${wp.name} reference image` } : null,
+    author: `by ${(wp.owner_username || wp.created_by_username) ?? "unknown"}`,
+    image: img,
     actions,
   });
+  card.dataset.wpId = wp.id;
 
   card.querySelector('[data-action="copy"]')?.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -402,21 +494,19 @@ function buildWaypointListItem(wp) {
   });
   card.querySelector('[data-action="image"]')?.addEventListener("click", (e) => {
     e.stopPropagation();
-    openImageLightbox(special, `${wp.name} reference image`);
+    if (img) openImageLightbox(img.src, img.alt);
   });
   card.querySelector('[data-action="jump"]')?.addEventListener("click", (e) => {
     e.stopPropagation();
+    grid.setSelectedWaypoint(wp);
     grid.jumpTo(wp.x, wp.z);
     showTooltip(wp);
     if (mobileMediaQuery.matches) closeSidebarDrawer();
   });
-  card.querySelector('[data-action="edit"]')?.addEventListener("click", (e) => {
+  card.querySelector('[data-action="view"]')?.addEventListener("click", (e) => {
     e.stopPropagation();
-    openWaypointForm(wp);
-  });
-  card.querySelector('[data-action="delete"]')?.addEventListener("click", (e) => {
-    e.stopPropagation();
-    handleDelete(wp);
+    hideTooltip();
+    openWaypointDetail(wp);
   });
   return card;
 }
@@ -437,24 +527,30 @@ async function handleDelete(wp) {
 
 function showTooltip(wp) {
   openTooltipWaypoint = wp;
-  const special = SPECIAL_WAYPOINT_IMAGES[wp.name];
-  const actions = [];
+  const img = waypointImage(wp);
+  const actions = [{ action: "view", label: "Details", icon: "fa-circle-info" }];
   if (Auth.canEditWaypoint(wp)) {
     actions.push({ action: "edit", label: "Edit", icon: "fa-pen" });
-    actions.push({ action: "delete", label: "Delete", icon: "fa-trash", variant: "danger" });
+  }
+  if (Auth.canDeleteWaypoint(wp)) {
+    actions.push({ action: "delete", label: "Delete", icon: "fa-trash", variant: "danger", iconOnly: true });
   }
   const card = buildWaypointCard(wp, {
     variant: "compact",
     category: categoryById(wp.category_id),
     coordsText: formatCoordsForDisplay(wp.x, wp.y ?? null, wp.z),
     conversionText: conversionText(wp),
-    author: `by ${wp.created_by_username ?? "unknown"} · ${formatWaypointDate(wp.created_at)}`,
-    image: special ? { src: special, alt: `${wp.name} reference image` } : null,
+    author: `by ${(wp.owner_username || wp.created_by_username) ?? "unknown"} · ${formatWaypointDate(wp.created_at)}`,
+    image: img,
     actions,
   });
 
   card.querySelector('[data-action="copy"]')?.addEventListener("click", (e) => copyTextToClipboard(formatCoordsForCopy(wp.x, wp.y ?? null, wp.z), e.currentTarget));
-  card.querySelector('[data-action="image"]')?.addEventListener("click", () => openImageLightbox(special, `${wp.name} reference image`));
+  card.querySelector('[data-action="image"]')?.addEventListener("click", () => img && openImageLightbox(img.src, img.alt));
+  card.querySelector('[data-action="view"]')?.addEventListener("click", () => {
+    hideTooltip();
+    openWaypointDetail(wp);
+  });
   card.querySelector('[data-action="edit"]')?.addEventListener("click", () => {
     hideTooltip();
     openWaypointForm(wp);
@@ -487,6 +583,7 @@ function formatWaypointDate(value) {
 function hideTooltip() {
   pinTooltip.hidden = true;
   openTooltipWaypoint = null;
+  grid.setSelectedWaypoint(null);
 }
 
 document.addEventListener("pointerdown", (e) => {
@@ -511,6 +608,472 @@ imageLightboxImg.addEventListener("click", closeImageLightbox);
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && !imageLightbox.hidden) closeImageLightbox();
 });
+document.addEventListener(
+  "error",
+  (e) => {
+    const el = e.target;
+    if (el.tagName !== "IMG") return;
+    if (el.classList.contains("waypoint-card-image") || el.classList.contains("waypoint-detail-image") || el.closest(".waypoint-gallery-tile")) el.hidden = true;
+  },
+  true,
+);
+
+// ---------- waypoint detail view (info + gallery + collaborators) ----------
+
+const waypointDetailModal = $("#waypointDetailModal");
+
+function openWaypointDetail(wp) {
+  detailWaypoint = wp;
+  galleryImages = [];
+  detailCollabs = [];
+
+  const color = sanitizeColor(wp.color || "#9683e0");
+  const dot = $("#waypointDetailDot");
+  dot.style.background = color;
+  dot.style.color = color;
+  $("#waypointDetailName").textContent = wp.name;
+
+  $("#waypointDetailMeta").innerHTML = [
+    visibilityBadgeHtml(wp.visibility),
+    categoryBadgeHtml(categoryById(wp.category_id)),
+    wp.created_by_username ? `<span class="waypoint-card-author">by ${escapeHtml(wp.created_by_username)} · ${formatWaypointDate(wp.created_at)}</span>` : "",
+  ]
+    .filter(Boolean)
+    .join("");
+
+  const descEl = $("#waypointDetailDesc");
+  if (wp.description) {
+    descEl.hidden = false;
+    descEl.textContent = wp.description;
+  } else {
+    descEl.hidden = true;
+  }
+
+  const detailImg = $("#waypointDetailImage");
+  const dimg = waypointImage(wp);
+  detailImg.hidden = !dimg;
+  if (dimg) {
+    detailImg.src = dimg.src;
+    detailImg.alt = dimg.alt;
+  }
+
+  const coordsEl = $("#waypointDetailCoords");
+  coordsEl.innerHTML = "";
+  const coordsSpan = document.createElement("span");
+  coordsSpan.textContent = formatCoordsForDisplay(wp.x, wp.y ?? null, wp.z);
+  coordsEl.appendChild(coordsSpan);
+  const copyBtn = document.createElement("button");
+  copyBtn.type = "button";
+  copyBtn.className = "icon-btn";
+  copyBtn.style.cssText = "width:22px;height:22px;font-size:10px";
+  copyBtn.title = "Copy coordinates";
+  copyBtn.setAttribute("aria-label", "Copy coordinates");
+  copyBtn.innerHTML = '<i class="fa-solid fa-copy" aria-hidden="true"></i>';
+  copyBtn.addEventListener("click", () => copyTextToClipboard(formatCoordsForCopy(wp.x, wp.y ?? null, wp.z), copyBtn));
+  coordsEl.appendChild(copyBtn);
+
+  const convEl = $("#waypointDetailConversion");
+  const conv = conversionText(wp);
+  convEl.hidden = !conv;
+  if (conv) convEl.textContent = conv;
+
+  renderDetailActions();
+  waypointDetailModal.hidden = false;
+  loadGallery(wp.id);
+  loadCollaborators(wp.id);
+}
+
+function closeWaypointDetail() {
+  waypointDetailModal.hidden = true;
+  detailWaypoint = null;
+  galleryImages = [];
+  detailCollabs = [];
+  closePersonSearch();
+}
+$("#waypointDetailClose").addEventListener("click", closeWaypointDetail);
+closeOnBackdropClick(waypointDetailModal, closeWaypointDetail);
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !waypointDetailModal.hidden) closeWaypointDetail();
+});
+$("#waypointDetailImage").addEventListener("click", () => {
+  const el = $("#waypointDetailImage");
+  if (!el.hidden && el.src) openImageLightbox(el.src, el.alt);
+});
+
+function renderDetailActions() {
+  const el = $("#waypointDetailActions");
+  el.innerHTML = "";
+  const wp = detailWaypoint;
+  if (!wp) return;
+  const defs = [
+    {
+      label: "Jump to",
+      icon: "fa-location-crosshairs",
+      onClick: (e) => {
+        e.stopPropagation();
+        grid.setSelectedWaypoint(wp);
+        grid.jumpTo(wp.x, wp.z);
+        showTooltip(wp);
+        closeWaypointDetail();
+      },
+    },
+  ];
+  if (Auth.canEditWaypoint(wp)) {
+    defs.push({
+      label: "Edit",
+      icon: "fa-pen",
+      onClick: () => {
+        closeWaypointDetail();
+        openWaypointForm(wp);
+      },
+    });
+  }
+  if (Auth.canTransferWaypoint(wp)) {
+    defs.push({
+      label: "Transfer ownership",
+      icon: "fa-arrow-right-arrow-left",
+      onClick: () => {
+        collabMode = "transfer";
+        openPersonSearch("Search for the new owner");
+      },
+    });
+  }
+  if (Auth.canDeleteWaypoint(wp)) {
+    defs.push({
+      label: "Delete",
+      icon: "fa-trash",
+      danger: true,
+      iconOnly: true,
+      onClick: () => {
+        closeWaypointDetail();
+        handleDelete(wp);
+      },
+    });
+  }
+  for (const def of defs) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = `btn btn-sm ${def.danger ? "btn-danger" : "btn-ghost"}${def.iconOnly ? " waypoint-card-action-end" : ""}`;
+    if (def.iconOnly) btn.setAttribute("aria-label", def.label);
+    btn.title = def.label;
+    btn.innerHTML = `<i class="fa-solid ${def.icon}" aria-hidden="true"></i>${def.iconOnly ? "" : escapeHtml(def.label)}`;
+    btn.addEventListener("click", def.onClick);
+    el.appendChild(btn);
+  }
+}
+
+// ---------- gallery ----------
+
+async function loadGallery(waypointId) {
+  try {
+    galleryImages = await listGalleryImages(waypointId);
+  } catch (err) {
+    console.error(err);
+    galleryImages = [];
+  }
+  renderGallery();
+}
+
+function renderGallery() {
+  const wp = detailWaypoint;
+  const el = $("#waypointGallery");
+  el.innerHTML = "";
+  if (!wp) return;
+  const canEdit = Auth.canEditWaypoint(wp);
+  $("#waypointGalleryAddBtn").hidden = !canEdit;
+  $("#waypointGalleryCount").textContent = String(galleryImages.length);
+  $("#waypointGalleryEmpty").hidden = galleryImages.length > 0;
+  if (!galleryImages.length) return;
+  const frag = document.createDocumentFragment();
+  for (const image of galleryImages) {
+    frag.appendChild(
+      galleryTileHtml(image, {
+        canDelete: canEdit,
+        onDelete: handleGalleryDelete,
+        canSetDisplay: canEdit,
+        isDisplay: wp.display_image_url != null && image.url === wp.display_image_url,
+        onSetDisplay: handleSetDisplayImage,
+      }),
+    );
+  }
+  el.appendChild(frag);
+}
+
+async function handleSetDisplayImage(image) {
+  const wp = detailWaypoint;
+  if (!wp) return;
+  const next = wp.display_image_url === image.url ? null : image.url;
+  try {
+    await updateWaypoint(wp.id, { display_image_url: next });
+    detailWaypoint = { ...wp, display_image_url: next };
+    renderGallery();
+    applyWaypointDisplayImage();
+    toast(next ? "Display image set." : "Display image cleared.");
+  } catch (err) {
+    toast(err.message || "Could not set display image.", "error");
+  }
+}
+
+function applyWaypointDisplayImage() {
+  const wp = detailWaypoint;
+  if (!wp) return;
+  const img = waypointImage(wp);
+  for (const cardEl of [...document.querySelectorAll(`#waypointList [data-wp-id="${wp.id}"]`)]) {
+    const prev = cardEl.querySelector(".waypoint-card-image");
+    if (img) {
+      if (prev) {
+        prev.src = img.src;
+        prev.alt = img.alt;
+      } else {
+        const el = document.createElement("img");
+        el.className = "waypoint-card-image";
+        el.src = img.src;
+        el.alt = img.alt;
+        el.loading = "lazy";
+        el.title = "Click to enlarge";
+        el.dataset.action = "image";
+        el.addEventListener("click", () => openImageLightbox(img.src, img.alt));
+        const anchor = cardEl.querySelector(".waypoint-card-desc") || cardEl.querySelector(".waypoint-card-top");
+        anchor?.insertAdjacentElement("afterend", el);
+      }
+    } else if (prev) {
+      prev.remove();
+    }
+  }
+  if (openTooltipWaypoint?.id === wp.id) {
+    showTooltip({ ...openTooltipWaypoint, display_image_url: wp.display_image_url });
+  }
+  const detailImg = $("#waypointDetailImage");
+  detailImg.hidden = !img;
+  if (img) {
+    detailImg.src = img.src;
+    detailImg.alt = img.alt;
+  }
+}
+
+async function handleGalleryDelete(image) {
+  if (!detailWaypoint) return;
+  const ok = await confirmAction(`Delete this screenshot${image.caption ? ` "${image.caption}"` : ""}?`, { title: "Delete screenshot?", confirmLabel: "Delete" });
+  if (!ok) return;
+  try {
+    await deleteGalleryImage(image);
+    if (detailWaypoint.display_image_url === image.url) {
+      detailWaypoint = { ...detailWaypoint, display_image_url: null };
+      renderGallery();
+      applyWaypointDisplayImage();
+    } else {
+      await loadGallery(detailWaypoint.id);
+    }
+    toast("Screenshot removed.");
+  } catch (err) {
+    toast(err.message || "Could not delete screenshot.", "error");
+  }
+}
+
+$("#waypointGalleryAddBtn").addEventListener("click", () => {
+  if (!detailWaypoint || !Auth.canEditWaypoint(detailWaypoint)) return;
+  $("#wpGalleryFileInput").click();
+});
+
+$("#wpGalleryFileInput").addEventListener("change", async (e) => {
+  const input = e.currentTarget;
+  const file = input.files?.[0];
+  input.value = "";
+  const wp = detailWaypoint;
+  if (!file || !wp || !Auth.canEditWaypoint(wp)) return;
+  const state = Auth.getState();
+  try {
+    const url = await uploadGalleryImage(file, wp.id, state.session.user.id);
+    await addGalleryImage({ waypointId: wp.id, url, caption: null, uploadedBy: state.session.user.id, uploadedByUsername: state.profile.username });
+    toast("Screenshot added.");
+    await loadGallery(wp.id);
+  } catch (err) {
+    toast(err.message || "Could not upload screenshot.", "error");
+  }
+});
+
+// ---------- collaborators ----------
+
+async function loadCollaborators(waypointId) {
+  try {
+    detailCollabs = await listCollaborators(waypointId);
+  } catch (err) {
+    console.error(err);
+    detailCollabs = [];
+  }
+  renderCollaborators();
+}
+
+function mcHeadAvatar(username) {
+  return `<img class="waypoint-collab-avatar" src="https://mc-heads.net/avatar/${encodeURIComponent(username || "Steve")}/64" alt="" width="26" height="26" loading="lazy" />`;
+}
+
+function renderCollaborators() {
+  const wp = detailWaypoint;
+  const el = $("#waypointCollaborators");
+  el.innerHTML = "";
+  if (!wp) return;
+  const isOwner = Auth.canManageWaypointUsers(wp);
+  $("#waypointCollabAddBtn").hidden = !isOwner;
+  $("#waypointCollabCount").textContent = String(detailCollabs.length + 1);
+  $("#waypointCollabEmpty").hidden = detailCollabs.length > 0;
+  const frag = document.createDocumentFragment();
+  frag.appendChild(buildCreatorRow(wp));
+  for (const c of detailCollabs) frag.appendChild(buildCollabRow(c, isOwner));
+  el.appendChild(frag);
+}
+
+function buildCreatorRow(wp) {
+  const row = document.createElement("div");
+  row.className = "waypoint-collab-row waypoint-collab-row--creator";
+  row.innerHTML = `
+    ${mcHeadAvatar(wp.owner_username || wp.created_by_username)}
+    <span class="waypoint-collab-name">${escapeHtml(wp.owner_username || wp.created_by_username || "Unknown")}</span>
+    <span class="waypoint-collab-tag"><i class="fa-solid fa-crown" aria-hidden="true"></i>Owner</span>
+  `;
+  return row;
+}
+
+function buildCollabRow(c, isOwner) {
+  const row = document.createElement("div");
+  row.className = "waypoint-collab-row";
+  row.innerHTML = `
+    ${mcHeadAvatar(c.username)}
+    <span class="waypoint-collab-name">${escapeHtml(c.username || "Unknown")}</span>
+    ${isOwner ? `<button type="button" class="waypoint-collab-remove icon-btn icon-btn--danger" aria-label="Remove collaborator"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>` : ""}
+  `;
+  row.querySelector(".waypoint-collab-remove")?.addEventListener("click", async () => {
+    const ok = await confirmAction(`Remove ${c.username ?? "this user"} from collaborators?`, { title: "Remove collaborator?", confirmLabel: "Remove" });
+    if (!ok) return;
+    try {
+      await removeCollaborator(detailWaypoint.id, c.user_id);
+      const uid = Auth.getState().session?.user?.id;
+      if (c.user_id === uid) forceCollaboratorRole(detailWaypoint.id, null);
+      toast("Collaborator removed.");
+      await loadCollaborators(detailWaypoint.id);
+      await refreshCollabCache();
+    } catch (err) {
+      toast(err.message || "Could not remove collaborator.", "error");
+    }
+  });
+  return row;
+}
+
+function refreshCollabCache() {
+  const state = Auth.getState();
+  return loadCollaboratorRoles(state.session?.user?.id);
+}
+
+// ---------- user search (invite collaborator / transfer ownership) ----------
+
+function openPersonSearch(placeholder) {
+  $("#waypointPersonSearch").value = "";
+  $("#waypointPersonSearch").placeholder = placeholder;
+  $("#waypointCollabSearchWrap").hidden = false;
+  runPersonSearch("", 100);
+  $("#waypointPersonSearch").focus();
+}
+
+function closePersonSearch() {
+  $("#waypointCollabSearchWrap").hidden = true;
+  $("#waypointPersonResults").innerHTML = "";
+}
+
+function runPersonSearch(query, limit) {
+  const results = $("#waypointPersonResults");
+  Auth.searchProfilesByUsername(query, limit)
+    .then((users) => renderPersonResults(users))
+    .catch((err) => {
+      console.error(err);
+      results.innerHTML = "";
+    });
+}
+
+$("#waypointCollabAddBtn").addEventListener("click", () => {
+  if (!detailWaypoint || !Auth.canManageWaypointUsers(detailWaypoint)) return;
+  collabMode = "add";
+  openPersonSearch("Search a username to invite");
+});
+
+$("#waypointPersonSearch").addEventListener(
+  "input",
+  debounce(() => {
+    const q = $("#waypointPersonSearch").value.trim();
+    runPersonSearch(q);
+  }, 150),
+);
+
+function renderPersonResults(users) {
+  const el = $("#waypointPersonResults");
+  el.innerHTML = "";
+  const wp = detailWaypoint;
+  if (!wp) return;
+  const ownerId = wp.owner_id;
+  const uid = Auth.getState().session?.user?.id;
+  const existing = new Set(detailCollabs.map((c) => c.user_id));
+  let addedAny = false;
+  for (const u of users) {
+    if (u.id === ownerId || u.id === uid) continue;
+    if (collabMode !== "transfer" && existing.has(u.id)) continue;
+    addedAny = true;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "waypoint-person-result";
+    const avatar = document.createElement("img");
+    avatar.className = "waypoint-person-avatar";
+    avatar.src = `https://mc-heads.net/avatar/${encodeURIComponent(u.username)}/64`;
+    avatar.alt = "";
+    avatar.width = 22;
+    avatar.height = 22;
+    avatar.loading = "lazy";
+    const span = document.createElement("span");
+    span.textContent = u.username;
+    btn.appendChild(avatar);
+    btn.appendChild(span);
+    btn.addEventListener("click", () => {
+      if (collabMode === "transfer") confirmTransfer(u);
+      else inviteCollab(u);
+    });
+    el.appendChild(btn);
+  }
+  if (!addedAny) {
+    el.innerHTML = '<div class="waypoint-person-empty">No new users found.</div>';
+  }
+}
+
+async function inviteCollab(user) {
+  const wp = detailWaypoint;
+  if (!wp) return;
+  try {
+    const state = Auth.getState();
+    await addCollaborator({ waypointId: wp.id, userId: user.id, username: user.username, role: "collaborator", addedBy: state.session.user.id });
+    toast(`${user.username} can now see this waypoint.`);
+    closePersonSearch();
+    await loadCollaborators(wp.id);
+    await refreshCollabCache();
+  } catch (err) {
+    toast(err.message || "Could not add collaborator.", "error");
+  }
+}
+
+async function confirmTransfer(user) {
+  const wp = detailWaypoint;
+  if (!wp) return;
+  const ok = await confirmAction(`Transfer "${wp.name}" to ${user.username}? You will stay on as an editor.`, { title: "Transfer ownership?", confirmLabel: "Transfer" });
+  if (!ok) return;
+  try {
+    await transferOwnership(wp.id, user.id, user.username);
+    toast(`Ownership transferred to ${user.username}.`);
+    closePersonSearch();
+    await refreshCollabCache();
+    await loadWaypointsForDim(currentDim);
+    const updated = currentWaypoints.find((w) => String(w.id) === String(wp.id));
+    if (updated) openWaypointDetail(updated);
+  } catch (err) {
+    console.error("Transfer failed:", err);
+    toast("Could not transfer ownership.", "error");
+  }
+}
 
 // ---------- mobile sidebar drawer ----------
 
@@ -541,6 +1104,21 @@ sidebarScrim.addEventListener("click", closeSidebarDrawer);
 
 // ---------- waypoint form ----------
 
+const visibilityPicker = $("#visibilityPicker");
+
+function setVisibilityValue(val) {
+  $("#wpVisibility").value = val;
+  for (const btn of visibilityPicker.querySelectorAll(".visibility-picker-option")) {
+    btn.dataset.active = String(btn.dataset.visibility === val);
+  }
+}
+
+visibilityPicker.addEventListener("click", (e) => {
+  const btn = e.target.closest(".visibility-picker-option");
+  if (!btn) return;
+  setVisibilityValue(btn.dataset.visibility);
+});
+
 function openWaypointForm(seed) {
   if (seed.id && !Auth.canEditWaypoint(seed)) return;
   editingWaypoint = seed.id ? seed : null;
@@ -567,7 +1145,9 @@ function openWaypointForm(seed) {
   closeCategoryPickerMenu();
   $("#wpColor").value = seed.color ?? "#9683e0";
   updateColorValue();
-  $("#wpDeleteBtn").hidden = !editingWaypoint || !Auth.canEditWaypoint(editingWaypoint);
+  setVisibilityValue(seed.visibility || "public");
+  document.querySelector(".visibility-picker-field").hidden = editingWaypoint ? !Auth.canManageWaypoint(editingWaypoint) : false;
+  $("#wpDeleteBtn").hidden = !editingWaypoint || !Auth.canDeleteWaypoint(editingWaypoint);
   updateNetherPreview();
   waypointModal.hidden = false;
   $("#wpName").focus();
@@ -608,7 +1188,7 @@ function updateColorValue() {
 }
 
 $("#wpDeleteBtn").addEventListener("click", async () => {
-  if (!editingWaypoint || !Auth.canEditWaypoint(editingWaypoint)) return;
+  if (!editingWaypoint || !Auth.canDeleteWaypoint(editingWaypoint)) return;
   const ok = await confirmAction(`Delete "${editingWaypoint.name}"?`, { title: "Delete waypoint?", confirmLabel: "Delete" });
   if (!ok) return;
   try {
@@ -628,21 +1208,29 @@ $("#waypointForm").addEventListener("submit", async (e) => {
     zEl = $("#wpZ");
   const xRaw = xEl.value.trim() === "" ? xEl.placeholder : xEl.value;
   const zRaw = zEl.value.trim() === "" ? zEl.placeholder : zEl.value;
+  const rawDesc = $("#wpDescription").value.trim();
   const payload = {
     name: $("#wpName").value.trim(),
-    description: $("#wpDescription").value.trim() || null,
+    description: rawDesc === "" ? null : rawDesc,
     x: Math.round(Number(xRaw)) || 0,
     y: yRaw === "" ? null : Math.round(Number(yRaw)),
     z: Math.round(Number(zRaw)) || 0,
     category_id: categoryRaw === "" ? null : categoryRaw,
     color: $("#wpColor").value,
   };
+  const state = Auth.getState();
+  if (!editingWaypoint) {
+    payload.owner_id = state.session.user.id;
+    payload.owner_username = state.profile.username;
+    payload.visibility = $("#wpVisibility").value;
+  } else if (Auth.canManageWaypoint(editingWaypoint)) {
+    payload.visibility = $("#wpVisibility").value;
+  }
   try {
     if (editingWaypoint) {
       if (!Auth.canEditWaypoint(editingWaypoint)) throw new Error("You cannot edit this waypoint.");
       await updateWaypoint(editingWaypoint.id, payload, editingWaypoint);
     } else {
-      const state = Auth.getState();
       await createWaypoint({ ...payload, dimension: currentDim, created_by: state.session.user.id, created_by_username: state.profile.username });
     }
     closeWaypointForm();
@@ -663,9 +1251,18 @@ addWaypointBtn.addEventListener("click", () => {
 
 // ---------- auth-driven UI ----------
 
-Auth.onAuthChange(() => {
+Auth.onAuthChange((state) => {
   addWaypointBtn.hidden = !Auth.can("addWaypoint");
-  renderSidebar();
+  const uid = state.session?.user?.id;
+  if (uid) {
+    loadCollaboratorRoles(uid)
+      .catch((err) => console.error(err))
+      .finally(() => {
+        if (Auth.isLoggedIn()) renderSidebar();
+      });
+  } else {
+    renderSidebar();
+  }
 });
 
 // ---------- access-code share link (/c/:code -> rewritten to this page) ----------
@@ -721,8 +1318,10 @@ async function consumeJumpParams() {
   if (!wpId) return;
   const wp = currentWaypoints.find((w) => String(w.id) === wpId);
   if (wp) {
+    grid.setSelectedWaypoint(wp);
     grid.jumpTo(wp.x, wp.z);
     showTooltip(wp);
+    openWaypointDetail(wp);
   }
 }
 

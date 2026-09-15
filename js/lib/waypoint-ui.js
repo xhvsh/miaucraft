@@ -15,6 +15,40 @@ export function categoryBadgeHtml(category) {
   return `<span class="category-badge" style="--badge-color:${sanitizeColor(category.color)}"><i class="${escapeHtml(categoryIconClass(category.icon))}" aria-hidden="true"></i>${escapeHtml(category.name)}</span>`;
 }
 
+export function visibilityBadgeHtml(visibility) {
+  if (visibility !== "private") return "";
+  return `<span class="waypoint-visibility-badge" title="Only you can see this waypoint"><i class="fa-solid fa-lock" aria-hidden="true"></i>Private</span>`;
+}
+
+export function galleryTileHtml(image, { canDelete = false, onDelete = null, canSetDisplay = false, isDisplay = false, onSetDisplay = null } = {}) {
+  const tile = document.createElement("div");
+  tile.className = `waypoint-gallery-tile${isDisplay ? " waypoint-gallery-tile--display" : ""}`;
+  tile.innerHTML = `
+    <img src="${escapeHtml(image.url)}" alt="${escapeHtml(image.caption || "Waypoint screenshot")}" loading="lazy" />
+    ${image.caption ? `<span class="waypoint-gallery-caption">${escapeHtml(image.caption)}</span>` : ""}
+    ${canSetDisplay ? `<button type="button" class="waypoint-gallery-star icon-btn${isDisplay ? " active" : ""}" aria-label="${isDisplay ? "Clear display image" : "Set as display image"}"><i class="fa-solid fa-star" aria-hidden="true"></i></button>` : ""}
+    ${canDelete ? `<button type="button" class="waypoint-gallery-delete icon-btn icon-btn--danger" aria-label="Delete screenshot"><i class="fa-solid fa-trash" aria-hidden="true"></i></button>` : ""}
+  `;
+  tile.querySelector("img").addEventListener("click", () => {
+    const lightbox = document.getElementById("imageLightbox");
+    if (lightbox) {
+      const img = document.getElementById("imageLightboxImg");
+      img.src = image.url;
+      img.alt = image.caption || "Waypoint screenshot";
+      lightbox.hidden = false;
+    }
+  });
+  tile.querySelector(".waypoint-gallery-star")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    onSetDisplay?.(image);
+  });
+  tile.querySelector(".waypoint-gallery-delete")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    onDelete?.(image);
+  });
+  return tile;
+}
+
 // The custom category dropdown used by the waypoint-list filters on the map
 // sidebar and the profile page. Renders each option as a badge-style row
 // (colored icon chip + name, like .category-badge) instead of a native
@@ -237,11 +271,20 @@ export function buildWaypointCard(wp, opts = {}) {
   };
   const actionsHtml = actions.length
     ? `<div class="waypoint-card-actions">${actions
-        .map((a) => `<button type="button" class="btn ${a.variant === "danger" ? "btn-danger" : "btn-ghost"} btn-sm" data-action="${escapeHtml(a.action)}">${a.icon ? `<i class="fa-solid ${escapeHtml(a.icon)}" aria-hidden="true"></i> ` : ""}${escapeHtml(a.label)}</button>`)
+        .map((a) => {
+          const iconOnly = Boolean(a.iconOnly);
+          const btnClass = `${a.variant === "danger" ? "btn-danger" : "btn-ghost"} btn-sm${iconOnly ? " waypoint-card-action-end" : ""}`;
+          const inner = iconOnly
+            ? `<i class="fa-solid ${escapeHtml(a.icon)}" aria-hidden="true"></i>`
+            : `${a.icon ? `<i class="fa-solid ${escapeHtml(a.icon)}" aria-hidden="true"></i> ` : ""}${escapeHtml(a.label)}`;
+          const a11y = iconOnly ? ` aria-label="${escapeHtml(a.label)}" title="${escapeHtml(a.label)}"` : "";
+          return `<button type="button" class="btn ${btnClass}" data-action="${escapeHtml(a.action)}"${a11y}>${inner}</button>`;
+        })
         .join("")}</div>`
     : "";
   const dimBadgeHtml = dimensionBadge ? `<span class="players-dim-badge" style="--dim-badge-color:${sanitizeColor(dimensionBadge.color)}">${escapeHtml(dimensionBadge.label)}</span>` : "";
   const metaHtml = `<div class="waypoint-card-meta">
+      ${visibilityBadgeHtml(wp.visibility)}
       ${categoryBadgeHtml(category)}
       ${author ? `<span class="waypoint-card-author">${escapeHtml(author)}</span>` : ""}
     </div>`;
@@ -260,6 +303,7 @@ export function buildWaypointCard(wp, opts = {}) {
         <span class="waypoint-card-name">${escapeHtml(wp.name)}</span>
         <span class="waypoint-card-meta waypoint-card-meta--right">
           ${dimBadgeHtml}
+          ${visibilityBadgeHtml(wp.visibility)}
           ${categoryBadgeHtml(category)}
         </span>
       </div>

@@ -1,5 +1,6 @@
 import { getPlayerProfile, getAllPlayerStats, getTop3Summary, getAchievementsCatalog, getAchievementCriteriaCatalog, getPlayerAchievements, getPlayerAchievementCriteria } from "../lib/live.js";
 import { listWaypointsByUsername, listCategories, categoryIconClass } from "../lib/waypoints.js";
+import * as Auth from "../lib/auth.js";
 import { getStatDisplayName, formatStatValue, titleCaseStatKey, STAT_PREFIX_LABELS, guessStatFormat } from "../lib/statPresets.js";
 import { formatCoordsForCopy, formatCoordsForDisplay } from "../lib/settings.js";
 import { escapeHtml, copyTextToClipboard, formatAbsoluteTime, formatRelativeTime, isResetArtifact } from "../lib/ui.js";
@@ -677,8 +678,12 @@ let waypointsDimensionFilter = null;
 let waypointsSearchBound = false;
 
 async function renderWaypoints(username) {
+  const me = Auth.getState();
+  const myUsername = me.profile?.username ?? "";
+  const myId = me.session?.user?.id ?? null;
+  const userId = username.toLowerCase() === myUsername.toLowerCase() ? myId : null;
   try {
-    [waypointsCache, waypointCategoriesCache] = await Promise.all([listWaypointsByUsername(username), listCategories()]);
+    [waypointsCache, waypointCategoriesCache] = await Promise.all([listWaypointsByUsername(username, userId), listCategories()]);
   } catch (err) {
     console.error(err);
     waypointsCache = [];

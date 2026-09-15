@@ -1,6 +1,7 @@
 import { supabase } from "./supabaseClient.js";
 import { REGISTER_FUNCTION_URL, SIGNIN_FUNCTION_URL, DELETE_ACCOUNT_FUNCTION_URL, SUPABASE_ANON_KEY } from "./config.js";
 import { toast } from "./ui.js";
+import { collaboratorRoleFor } from "./waypoints.js";
 
 // Supabase error messages can leak SQL/schema details; log the raw error for
 // debugging but only surface a generic, user-safe message.
@@ -153,11 +154,64 @@ export function can(action) {
   }
 }
 
+// Mirrors the database `wp_can_edit` check: the waypoint owner or original
+// creator can always edit, collaborators can always edit (any visibility), and
+// site owner/admin roles can edit other people's PUBLIC waypoints.
 export function canEditWaypoint(waypoint) {
-  const r = role();
-  if (r === "owner" || r === "admin") return true;
-  if (r === "user") return waypoint.created_by === state.session?.user?.id;
+  const uid = state.session?.user?.id;
+  if (!uid || !waypoint) return false;
+  if (waypoint.created_by === uid) return true;
+  if (waypoint.owner_id === uid) return true;
+  if (collaboratorRoleFor(waypoint.id) !== null) return true;
+  if (waypoint.visibility === "public") {
+    const r = role();
+    if (r === "owner" || r === "admin") return true;
+  }
   return false;
+}
+
+export function isWaypointOwner(waypoint) {
+  const uid = state.session?.user?.id;
+  return Boolean(uid && waypoint?.owner_id === uid);
+}
+
+// Mirrors the database `wp_delete_owner` policy: only the waypoint
+// owner/creator can delete it; site owner/admin roles can additionally delete
+// other people's waypoints - but ONLY when they are public.
+export function canDeleteWaypoint(waypoint) {
+  const uid = state.session?.user?.id;
+  if (!uid || !waypoint) return false;
+  if (waypoint.owner_id === uid || waypoint.created_by === uid) return true;
+  if (waypoint.visibility === "private") return false;
+  const r = role();
+  return r === "owner" || r === "admin";
+}
+
+// Only the waypoint owner may change its public/private visibility. Enforced
+// here in the UI (visibility picker is hidden and the field is omitted from
+// edit submissions) and server-side by trg_visibility_owner_only.
+export function canManageWaypoint(waypoint) {
+  const uid = state.session?.user?.id;
+  if (!uid || !waypoint) return false;
+  return waypoint.owner_id === uid || waypoint.created_by === uid;
+}
+
+// Mirrors the database `wp_is_owner` check (owner_id OR created_by). Only the
+// waypoint owner/creator may manage the waypoint's user list (add/remove
+// collaborators) - enforced both here and by the wpc_insert/wpc_delete RLS.
+export function canManageWaypointUsers(waypoint) {
+  const uid = state.session?.user?.id;
+  if (!uid || !waypoint) return false;
+  return waypoint.owner_id === uid || waypoint.created_by === uid;
+}
+
+// Ownership transfer is allowed for the current owner or the original creator
+// only - admins/owners of other people's waypoints must go through the owner.
+// Mirrors wp_transfer_waypoint's `wp_is_owner` check (owner_id OR created_by).
+export function canTransferWaypoint(waypoint) {
+  const uid = state.session?.user?.id;
+  if (!uid || !waypoint) return false;
+  return waypoint.owner_id === uid || waypoint.created_by === uid;
 }
 
 async function loadProfile(userId) {
@@ -340,6 +394,18 @@ export async function listProfiles() {
       for (const profile of data) profile.discord_username = byId.get(profile.id) ?? null;
     }
   } catch {}
+  return data ?? [];
+}
+
+export async function searchProfilesByUsername(prefix, limit = 50) {
+  const clean = String(prefix ?? "").trim();
+  const max = Number.isFinite(Number(limit)) && limit > 0 ? limit : 50;
+  let query = supabase.from("profiles").select("id, username");
+  if (clean) {
+    query = query.ilike("username", `${clean}%`);
+  }
+  const { data, error } = await query.order("username", { ascending: true }).limit(max);
+  if (error) throw new Error(friendlyError(error, "Couldn't search users."));
   return data ?? [];
 }
 

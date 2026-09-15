@@ -80,7 +80,7 @@
 .log-filter-avatar {
   width: 20px;
   height: 20px;
-  border-radius: 5px;
+  border-radius: 2px;
   image-rendering: pixelated;
   flex-shrink: 0;
 }
@@ -163,6 +163,19 @@
   border: 1px solid color-mix(in srgb, var(--dim-badge-color, var(--text-muted)) 30%, transparent);
   background: color-mix(in srgb, var(--dim-badge-color, var(--text-muted)) 12%, transparent);
 }
+.log-entry-vis {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  margin-left: 5px;
+  border-radius: 4px;
+  color: var(--accent, var(--text-muted));
+  border: 1px solid color-mix(in srgb, var(--accent, var(--text-muted)) 30%, transparent);
+  background: color-mix(in srgb, var(--accent, var(--text-muted)) 12%, transparent);
+}
 .log-entry-meta {
   font-size: var(--fs-2xs);
   color: var(--text-dim);
@@ -240,6 +253,19 @@
 }
 .log-detail-actions {
   margin-top: 8px;
+}
+.log-detail-none {
+  font-size: var(--fs-2xs);
+  color: var(--text-dim);
+  font-style: italic;
+}
+.log-detail-link {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.log-detail-link:hover {
+  color: var(--accent-strong);
 }
 .log-detail-restore-btn {
   font-size: var(--fs-2xs);

@@ -135,6 +135,14 @@
               <div class="category-picker-menu" id="categoryPickerMenu" role="listbox" hidden></div>
             </div>
           </label>
+          <label class="visibility-picker-field">
+            Visibility
+            <input type="hidden" id="wpVisibility" value="public" />
+            <div class="visibility-picker" id="visibilityPicker">
+              <button type="button" class="visibility-picker-option" data-visibility="public" data-active="true"><i class="fa-solid fa-globe" aria-hidden="true"></i>Public</button>
+              <button type="button" class="visibility-picker-option" data-visibility="private"><i class="fa-solid fa-lock" aria-hidden="true"></i>Private</button>
+            </div>
+          </label>
           <label>
             Color
             <span class="color-picker">
@@ -154,6 +162,59 @@
 
     <div class="modal-backdrop image-lightbox-backdrop" id="imageLightbox" hidden>
       <img class="image-lightbox-img" id="imageLightboxImg" src="" alt="" />
+    </div>
+
+    <input type="file" id="wpGalleryFileInput" accept="image/jpeg,image/png,image/webp" hidden />
+
+    <!-- Waypoint detail view: full info + gallery + collaborators -->
+    <div class="modal-backdrop waypoint-detail-backdrop" id="waypointDetailModal" hidden>
+      <div class="modal waypoint-detail-card">
+        <button class="modal-close" id="waypointDetailClose" type="button" aria-label="Close">&times;</button>
+
+        <div class="waypoint-detail-head">
+          <span class="waypoint-card-dot waypoint-detail-dot" id="waypointDetailDot"></span>
+          <h3 class="waypoint-detail-name" id="waypointDetailName"></h3>
+        </div>
+
+        <img class="waypoint-detail-image" id="waypointDetailImage" alt="" hidden />
+
+        <p class="waypoint-detail-desc" id="waypointDetailDesc" hidden></p>
+        <div class="waypoint-detail-meta" id="waypointDetailMeta"></div>
+        <div class="waypoint-detail-coords" id="waypointDetailCoords"></div>
+        <div class="waypoint-detail-conversion" id="waypointDetailConversion" hidden></div>
+
+        <div class="waypoint-detail-actions" id="waypointDetailActions"></div>
+
+        <section class="waypoint-detail-section">
+          <div class="waypoint-detail-section-head">
+            <span class="waypoint-detail-section-title">Gallery <span class="waypoint-detail-count" id="waypointGalleryCount">0</span></span>
+            <button type="button" class="btn btn-ghost btn-sm" id="waypointGalleryAddBtn" hidden><i class="fa-solid fa-plus" aria-hidden="true"></i>Add screenshot</button>
+          </div>
+          <div class="waypoint-gallery" id="waypointGallery"></div>
+          <div class="waypoint-detail-empty" id="waypointGalleryEmpty" hidden>
+            <span>No screenshots yet.</span>
+          </div>
+        </section>
+
+        <section class="waypoint-detail-section">
+          <div class="waypoint-detail-section-head">
+            <span class="waypoint-detail-section-title">Users <span class="waypoint-detail-count" id="waypointCollabCount">1</span></span>
+            <button type="button" class="btn btn-ghost btn-sm" id="waypointCollabAddBtn" hidden><i class="fa-solid fa-user-plus" aria-hidden="true"></i>Invite</button>
+          </div>
+          <div class="waypoint-collaborators" id="waypointCollaborators"></div>
+          <div class="waypoint-detail-empty" id="waypointCollabEmpty" hidden>
+            <span>No other users yet.</span>
+          </div>
+
+          <div class="waypoint-person-search" id="waypointCollabSearchWrap" hidden>
+            <div class="search-field">
+              <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+              <input type="search" id="waypointPersonSearch" placeholder="Search username" aria-label="Search username" autocomplete="off" />
+            </div>
+            <div class="waypoint-person-results" id="waypointPersonResults"></div>
+          </div>
+        </section>
+      </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
