@@ -376,8 +376,8 @@ tr.is-editing .users-role {
   background: var(--surface-2);
 }
 .users-role-trigger:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
+  outline-offset: -2px;
 }
 .users-role-trigger:disabled {
   opacity: 0.5;
@@ -428,7 +428,7 @@ tr.is-editing .users-role {
   background: var(--surface-3);
 }
 .users-role-option:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
   outline-offset: -2px;
 }
 .users-role-option[aria-selected="true"] {

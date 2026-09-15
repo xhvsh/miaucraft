@@ -461,6 +461,21 @@ export async function initNav(pageId) {
   wireMoreMenu(pageId);
   wireBottomNav(pageId);
 
+  // skip link: jump past the nav without polluting the URL with a #fragment
+  const skipLink = document.querySelector(".skip-link");
+  const mainContent = document.getElementById("mainContent");
+  if (skipLink && mainContent) {
+    const activateSkip = (e) => {
+      e.preventDefault();
+      mainContent.focus({ preventScroll: true });
+      mainContent.scrollIntoView({ behavior: "instant", block: "start" });
+    };
+    skipLink.addEventListener("click", activateSkip);
+    skipLink.addEventListener("keydown", (e) => {
+      if (e.key === " " || e.code === "Space") activateSkip(e);
+    });
+  }
+
   await Auth.init();
   Auth.onAuthChange(() => {
     renderAuthSlot();
