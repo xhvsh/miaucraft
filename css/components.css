@@ -1190,6 +1190,13 @@ mark {
   background: var(--surface-3);
   color: var(--text-dim);
 }
+.category-pill-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 2px;
+  image-rendering: pixelated;
+  flex-shrink: 0;
+}
 .category-pill-label {
   white-space: nowrap;
   overflow: hidden;
@@ -1521,6 +1528,22 @@ mark {
   width: 26px;
   height: 26px;
   border-radius: var(--radius-sm);
+}
+
+.waypoint-gallery-caption-edit {
+  position: absolute;
+  top: 5px;
+  left: 36px;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-xs);
+  opacity: 0;
+  transition: opacity var(--dur) var(--ease);
+}
+.waypoint-gallery-tile:hover .waypoint-gallery-caption-edit,
+.waypoint-gallery-caption-edit:focus-visible {
+  opacity: 1;
 }
 
 .waypoint-gallery-star {

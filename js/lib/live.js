@@ -73,7 +73,7 @@ export async function getTop3Summary() {
 // live positions
 
 export async function listLivePositions() {
-  const { data, error } = await db("live_positions").select("*, players!inner(username, afk)").eq("players.hidden", false);
+  const { data, error } = await db("live_positions").select("*, players!inner(username, afk, online)").eq("players.hidden", false);
   if (error) throw error;
   return data;
 }

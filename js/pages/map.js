@@ -1,11 +1,12 @@
 import * as Auth from "../lib/auth.js";
 import { Grid } from "../lib/grid.js";
-import { listWaypoints, createWaypoint, updateWaypoint, deleteWaypoint, listCategories, categoryIconClass, sanitizeIconClass, loadCollaboratorRoles, forceCollaboratorRole, listCollaborators, addCollaborator, removeCollaborator, transferOwnership, listGalleryImages, addGalleryImage, deleteGalleryImage, uploadGalleryImage } from "../lib/waypoints.js";
+import { listWaypoints, createWaypoint, updateWaypoint, deleteWaypoint, listCategories, categoryIconClass, sanitizeIconClass, loadCollaboratorRoles, forceCollaboratorRole, listCollaborators, addCollaborator, removeCollaborator, transferOwnership, listGalleryImages, addGalleryImage, deleteGalleryImage, uploadGalleryImage, validateGalleryFile, updateGalleryCaption } from "../lib/waypoints.js";
 import { listLivePositions, subscribeLivePositions, subscribePlayers, getServerStatus, subscribeServerStatus } from "../lib/live.js";
 import { supabase } from "../lib/supabaseClient.js";
 import { settings, saveSettings, formatCoordsForCopy, formatCoordsForDisplay } from "../lib/settings.js";
 import { toast, confirmAction, closeOnBackdropClick, copyTextToClipboard, escapeHtml, sanitizeColor, debounce } from "../lib/ui.js";
-import { buildWaypointCard, buildCategoryFilter, categoryBadgeHtml, visibilityBadgeHtml, galleryTileHtml } from "../lib/waypoint-ui.js";
+import { buildWaypointCard, buildCategoryFilter, buildUserFilter, categoryBadgeHtml, visibilityBadgeHtml, galleryTileHtml } from "../lib/waypoint-ui.js";
+import { openGalleryViewer, openSingleImage } from "../lib/gallery-viewer.js";
 import { initNav, openAuthModal } from "../lib/nav.js";
 
 const $ = (sel) => document.querySelector(sel);
@@ -39,6 +40,7 @@ const waypointListEl = $("#waypointList");
 const waypointListEmptyEl = $("#waypointListEmpty");
 const waypointSearchEl = $("#waypointSearch");
 const categoryFilterRowEl = $("#categoryFilterRow");
+const userFilterRowEl = $("#userFilterRow");
 const pinTooltip = $("#pinTooltip");
 const sidebarToggleBtn = $("#sidebarToggleBtn");
 const sidebarCloseBtn = $("#sidebarCloseBtn");
@@ -46,12 +48,12 @@ const sidebarScrim = $("#sidebarScrim");
 const addWaypointBtn = $("#addWaypointBtn");
 const waypointModal = $("#waypointModal");
 const imageLightbox = $("#imageLightbox");
-const imageLightboxImg = $("#imageLightboxImg");
 
 let currentDim = "overworld";
 let currentWaypoints = [];
 let categories = [];
 let categoryFilter = null;
+let authorFilter = null;
 let openTooltipWaypoint = null;
 let tooltipPointerStartedInside = false;
 let editingWaypoint = null;
@@ -111,7 +113,9 @@ function renderLivePins() {
     grid.setPlayers([]);
     return;
   }
-  const pins = livePositions.filter((p) => p.dimension === currentDim).map((p) => ({ id: p.player_id, username: p.players?.username ?? "Player", x: p.x, z: p.z, afk: p.players?.afk ?? false }));
+  const pins = livePositions
+    .filter((p) => p.dimension === currentDim && p.players?.online !== false)
+    .map((p) => ({ id: p.player_id, username: p.players?.username ?? "Player", x: p.x, z: p.z, afk: p.players?.afk ?? false }));
   grid.setPlayers(pins);
 }
 
@@ -135,9 +139,11 @@ subscribePlayers((payload) => {
   const np = payload.new;
   let changed = false;
   for (const p of livePositions) {
-    if (p.player_id === np.id && p.players && "afk" in np && p.players.afk !== np.afk) {
-      p.players.afk = np.afk;
-      changed = true;
+    if (p.player_id === np.id && p.players) {
+      let dirty = false;
+      if ("afk" in np && p.players.afk !== np.afk) { p.players.afk = np.afk; dirty = true; }
+      if ("online" in np && p.players.online !== np.online) { p.players.online = np.online; dirty = true; }
+      if (dirty) changed = true;
     }
   }
   if (changed) renderLivePins();
@@ -207,6 +213,7 @@ function queueCollabSync() {
 
 function queueGallerySync(waypointId) {
   if (!waypointId) return;
+  galleryCache.delete(String(waypointId));
   clearTimeout(gallerySyncTimer);
   gallerySyncTimer = setTimeout(() => {
     if (detailWaypoint && String(detailWaypoint.id) === String(waypointId)) loadGallery(waypointId);
@@ -269,6 +276,35 @@ function renderCategoryFilterRow() {
       includeUncategorized: true,
       onChange: (value) => {
         categoryFilter = value === "" ? null : value === "__none__" ? "__none__" : value;
+        renderSidebar();
+        updateMapWaypoints();
+      },
+    }),
+  );
+}
+
+function waypointAuthor(wp) {
+  return wp.owner_username || wp.created_by_username || "";
+}
+
+function renderUserFilterRow() {
+  userFilterRowEl.innerHTML = "";
+  const authors = [...new Set(currentWaypoints.map(waypointAuthor).filter(Boolean))].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+  if (authorFilter !== null && !authors.includes(authorFilter)) {
+    authorFilter = null;
+  }
+  if (authors.length < 2) {
+    userFilterRowEl.hidden = true;
+    return;
+  }
+  userFilterRowEl.hidden = false;
+
+  userFilterRowEl.appendChild(
+    buildUserFilter({
+      users: authors.map((name) => ({ value: name, label: name })),
+      selected: authorFilter ?? "",
+      onChange: (value) => {
+        authorFilter = value === "" ? null : value;
         renderSidebar();
         updateMapWaypoints();
       },
@@ -416,6 +452,7 @@ async function loadWaypointsForDim(dim) {
   }
   waypointsLoaded = true;
   $("#waypointSkeleton").hidden = true;
+  renderUserFilterRow();
   updateMapWaypoints();
   renderSidebar();
 }
@@ -426,8 +463,15 @@ function matchesCategoryFilter(wp) {
   return wp.category_id === categoryFilter;
 }
 
+function matchesAuthorFilter(wp) {
+  if (authorFilter === null) return true;
+  return waypointAuthor(wp) === authorFilter;
+}
+
 function updateMapWaypoints() {
-  const forMap = settings.hideFilteredWaypoints ? currentWaypoints.filter(matchesCategoryFilter) : currentWaypoints;
+  const forMap = settings.hideFilteredWaypoints
+    ? currentWaypoints.filter((wp) => matchesCategoryFilter(wp) && matchesAuthorFilter(wp))
+    : currentWaypoints;
   grid.setWaypoints(forMap);
 }
 
@@ -441,6 +485,7 @@ function renderSidebar() {
     .filter(
       (wp) =>
         matchesCategoryFilter(wp) &&
+        matchesAuthorFilter(wp) &&
         [wp.name, wp.description, wp.created_by_username, wp.owner_username, wp.x, wp.y, wp.z]
           .filter((v) => v !== null && v !== undefined)
           .join(" ")
@@ -449,7 +494,7 @@ function renderSidebar() {
     )
     .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base", numeric: true }));
 
-  const isFiltered = Boolean(query) || categoryFilter !== null;
+  const isFiltered = Boolean(query) || categoryFilter !== null || authorFilter !== null;
   waypointCountEl.textContent = isFiltered ? `${visible.length}/${currentWaypoints.length}` : String(currentWaypoints.length);
   waypointCountPillEl.textContent = String(currentWaypoints.length);
   waypointCountPillEl.dataset.zero = String(currentWaypoints.length === 0);
@@ -494,7 +539,7 @@ function buildWaypointListItem(wp) {
   });
   card.querySelector('[data-action="image"]')?.addEventListener("click", (e) => {
     e.stopPropagation();
-    if (img) openImageLightbox(img.src, img.alt);
+    if (img) openWaypointGallery(wp, img.src, img.alt);
   });
   card.querySelector('[data-action="jump"]')?.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -546,7 +591,7 @@ function showTooltip(wp) {
   });
 
   card.querySelector('[data-action="copy"]')?.addEventListener("click", (e) => copyTextToClipboard(formatCoordsForCopy(wp.x, wp.y ?? null, wp.z), e.currentTarget));
-  card.querySelector('[data-action="image"]')?.addEventListener("click", () => img && openImageLightbox(img.src, img.alt));
+  card.querySelector('[data-action="image"]')?.addEventListener("click", () => img && openWaypointGallery(wp, img.src, img.alt));
   card.querySelector('[data-action="view"]')?.addEventListener("click", () => {
     hideTooltip();
     openWaypointDetail(wp);
@@ -567,10 +612,24 @@ function positionTooltip(wp) {
   const p = grid.worldToScreen(wp.x, wp.z);
   const tw = pinTooltip.offsetWidth;
   const th = pinTooltip.offsetHeight;
-  const left = p.x - tw / 2;
-  const top = p.y - th - 40;
-  pinTooltip.style.left = `${Math.max(8, Math.min(left, window.innerWidth - tw - 8))}px`;
-  pinTooltip.style.top = `${Math.max(8, Math.min(top, window.innerHeight - th - 8))}px`;
+  const w = mapWorkspaceEl.clientWidth;
+  const h = mapWorkspaceEl.clientHeight;
+  // Always center the tooltip on the waypoint, directly above it. It may
+  // overflow the map edges (map-main / grid-panel clip it); we never clamp it
+  // back inside the viewport, that's what made it slide away from the pin.
+  let left = p.x - tw / 2;
+  let top = p.y - th - 40;
+  // ...but keep the always-on controls usable: dim tabs up top (~64px) and the
+  // zoom/center cluster in the bottom-right corner (~62x150px).
+  const toolbarH = 64;
+  const controlsW = 62;
+  const controlsH = 150;
+  top = Math.max(top, toolbarH);
+  if (left + tw > w - controlsW && top + th > h - controlsH) {
+    top = Math.max(toolbarH, h - controlsH - th - 12);
+  }
+  pinTooltip.style.left = `${left}px`;
+  pinTooltip.style.top = `${top}px`;
 }
 
 function formatWaypointDate(value) {
@@ -594,20 +653,9 @@ document.addEventListener("click", (e) => {
   tooltipPointerStartedInside = false;
 });
 
-function openImageLightbox(src, alt) {
-  imageLightboxImg.src = src;
-  imageLightboxImg.alt = alt;
-  imageLightbox.hidden = false;
-}
-function closeImageLightbox() {
-  imageLightbox.hidden = true;
-  imageLightboxImg.src = "";
-}
-closeOnBackdropClick(imageLightbox, closeImageLightbox);
-imageLightboxImg.addEventListener("click", closeImageLightbox);
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && !imageLightbox.hidden) closeImageLightbox();
-});
+// The lightbox itself is the shared gallery viewer (js/lib/gallery-viewer.js);
+// openWaypointGallery decides whether it opens with one image or with the
+// waypoint's whole gallery so the user can page through everything.
 document.addEventListener(
   "error",
   (e) => {
@@ -693,11 +741,15 @@ function closeWaypointDetail() {
 $("#waypointDetailClose").addEventListener("click", closeWaypointDetail);
 closeOnBackdropClick(waypointDetailModal, closeWaypointDetail);
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && !waypointDetailModal.hidden) closeWaypointDetail();
+  // the gallery viewer sits above this modal and handles its own Escape
+  if (e.key === "Escape" && !waypointDetailModal.hidden && imageLightbox.hidden) closeWaypointDetail();
 });
 $("#waypointDetailImage").addEventListener("click", () => {
   const el = $("#waypointDetailImage");
-  if (!el.hidden && el.src) openImageLightbox(el.src, el.alt);
+  if (el.hidden || !el.src || !detailWaypoint) return;
+  // the display image is one of the gallery shots, so open the whole gallery
+  // (with credits) positioned on it
+  openWaypointGallery(detailWaypoint, el.src, el.alt);
 });
 
 function renderDetailActions() {
@@ -764,6 +816,34 @@ function renderDetailActions() {
 
 // ---------- gallery ----------
 
+// waypoint_id -> its gallery rows, so every image belonging to a waypoint
+// (card image, tooltip image, display shot, gallery tile) opens the same full
+// viewer without refetching
+const galleryCache = new Map();
+
+// Opens the viewer with the waypoint's whole gallery, positioned on the image
+// that was clicked. Falls back to a plain single-image lightbox when the
+// waypoint has no gallery rows (or the clicked URL is not one of them).
+async function openWaypointGallery(wp, startUrl, startAlt = "") {
+  if (!wp) return;
+  let images = galleryCache.get(String(wp.id));
+  if (!images) {
+    try {
+      images = await listGalleryImages(wp.id);
+    } catch (err) {
+      console.error(err);
+      images = [];
+    }
+    galleryCache.set(String(wp.id), images);
+  }
+  const idx = startUrl ? images.findIndex((image) => image.url === startUrl) : -1;
+  if (!images.length || idx === -1) {
+    openSingleImage(startUrl, startAlt);
+    return;
+  }
+  openGalleryViewer(images, idx);
+}
+
 async function loadGallery(waypointId) {
   try {
     galleryImages = await listGalleryImages(waypointId);
@@ -771,6 +851,7 @@ async function loadGallery(waypointId) {
     console.error(err);
     galleryImages = [];
   }
+  galleryCache.set(String(waypointId), galleryImages);
   renderGallery();
 }
 
@@ -786,13 +867,17 @@ function renderGallery() {
   if (!galleryImages.length) return;
   const frag = document.createDocumentFragment();
   for (const image of galleryImages) {
+    const index = galleryImages.indexOf(image);
     frag.appendChild(
       galleryTileHtml(image, {
+        canEdit,
+        onEditCaption: handleEditCaption,
         canDelete: canEdit,
         onDelete: handleGalleryDelete,
         canSetDisplay: canEdit,
         isDisplay: wp.display_image_url != null && image.url === wp.display_image_url,
         onSetDisplay: handleSetDisplayImage,
+        onOpen: () => openGalleryViewer(galleryImages, index),
       }),
     );
   }
@@ -832,7 +917,7 @@ function applyWaypointDisplayImage() {
         el.loading = "lazy";
         el.title = "Click to enlarge";
         el.dataset.action = "image";
-        el.addEventListener("click", () => openImageLightbox(img.src, img.alt));
+        el.addEventListener("click", () => openWaypointGallery(wp, img.src, img.alt));
         const anchor = cardEl.querySelector(".waypoint-card-desc") || cardEl.querySelector(".waypoint-card-top");
         anchor?.insertAdjacentElement("afterend", el);
       }
@@ -870,6 +955,23 @@ async function handleGalleryDelete(image) {
   }
 }
 
+async function handleEditCaption(image) {
+  if (!detailWaypoint || !Auth.canEditWaypoint(detailWaypoint)) return;
+  const input = window.prompt("Caption for this screenshot:", image.caption || "");
+  if (input === null) return;
+  const caption = input.trim();
+  if (caption === (image.caption || "").trim()) return;
+  try {
+    await updateGalleryCaption(image.id, caption === "" ? null : caption);
+    image.caption = caption === "" ? null : caption;
+    galleryCache.set(String(detailWaypoint.id), galleryImages);
+    renderGallery();
+    toast("Caption saved.");
+  } catch (err) {
+    toast(err.message || "Could not save caption.", "error");
+  }
+}
+
 $("#waypointGalleryAddBtn").addEventListener("click", () => {
   if (!detailWaypoint || !Auth.canEditWaypoint(detailWaypoint)) return;
   $("#wpGalleryFileInput").click();
@@ -877,18 +979,29 @@ $("#waypointGalleryAddBtn").addEventListener("click", () => {
 
 $("#wpGalleryFileInput").addEventListener("change", async (e) => {
   const input = e.currentTarget;
-  const file = input.files?.[0];
+  const files = [...(input.files ?? [])];
   input.value = "";
   const wp = detailWaypoint;
-  if (!file || !wp || !Auth.canEditWaypoint(wp)) return;
+  if (!files.length || !wp || !Auth.canEditWaypoint(wp)) return;
   const state = Auth.getState();
-  try {
-    const url = await uploadGalleryImage(file, wp.id, state.session.user.id);
-    await addGalleryImage({ waypointId: wp.id, url, caption: null, uploadedBy: state.session.user.id, uploadedByUsername: state.profile.username });
-    toast("Screenshot added.");
+  let added = 0;
+  for (const file of files) {
+    const invalid = validateGalleryFile(file);
+    if (invalid) {
+      toast(invalid, "error");
+      continue;
+    }
+    try {
+      const url = await uploadGalleryImage(file, wp.id, state.session.user.id);
+      await addGalleryImage({ waypointId: wp.id, url, caption: null, uploadedBy: state.session.user.id, uploadedByUsername: state.profile.username });
+      added += 1;
+    } catch (err) {
+      toast(err.message || "Could not upload screenshot.", "error");
+    }
+  }
+  if (added) {
+    toast(added === 1 ? "Screenshot added." : `${added} screenshots added.`);
     await loadGallery(wp.id);
-  } catch (err) {
-    toast(err.message || "Could not upload screenshot.", "error");
   }
 });
 

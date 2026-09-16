@@ -9,6 +9,7 @@
 
 import { categoryIconClass } from "./waypoints.js";
 import { escapeHtml, sanitizeColor, copyTextToClipboard } from "./ui.js";
+import { openGalleryViewer } from "./gallery-viewer.js";
 
 export function categoryBadgeHtml(category) {
   if (!category) return "";
@@ -20,23 +21,26 @@ export function visibilityBadgeHtml(visibility) {
   return `<span class="waypoint-visibility-badge" title="Only you can see this waypoint"><i class="fa-solid fa-lock" aria-hidden="true"></i>Private</span>`;
 }
 
-export function galleryTileHtml(image, { canDelete = false, onDelete = null, canSetDisplay = false, isDisplay = false, onSetDisplay = null } = {}) {
+export function galleryTileHtml(image, { canDelete = false, onDelete = null, canEdit = false, onEditCaption = null, canSetDisplay = false, isDisplay = false, onSetDisplay = null, onOpen = null } = {}) {
   const tile = document.createElement("div");
   tile.className = `waypoint-gallery-tile${isDisplay ? " waypoint-gallery-tile--display" : ""}`;
   tile.innerHTML = `
     <img src="${escapeHtml(image.url)}" alt="${escapeHtml(image.caption || "Waypoint screenshot")}" loading="lazy" />
     ${image.caption ? `<span class="waypoint-gallery-caption">${escapeHtml(image.caption)}</span>` : ""}
+    ${canEdit ? `<button type="button" class="waypoint-gallery-caption-edit icon-btn" aria-label="Edit caption" title="Edit caption"><i class="fa-solid fa-pen" aria-hidden="true"></i></button>` : ""}
     ${canSetDisplay ? `<button type="button" class="waypoint-gallery-star icon-btn${isDisplay ? " active" : ""}" aria-label="${isDisplay ? "Clear display image" : "Set as display image"}"><i class="fa-solid fa-star" aria-hidden="true"></i></button>` : ""}
     ${canDelete ? `<button type="button" class="waypoint-gallery-delete icon-btn icon-btn--danger" aria-label="Delete screenshot"><i class="fa-solid fa-trash" aria-hidden="true"></i></button>` : ""}
   `;
   tile.querySelector("img").addEventListener("click", () => {
-    const lightbox = document.getElementById("imageLightbox");
-    if (lightbox) {
-      const img = document.getElementById("imageLightboxImg");
-      img.src = image.url;
-      img.alt = image.caption || "Waypoint screenshot";
-      lightbox.hidden = false;
+    if (onOpen) {
+      onOpen();
+    } else {
+      openGalleryViewer([image], 0);
     }
+  });
+  tile.querySelector(".waypoint-gallery-caption-edit")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    onEditCaption?.(image);
   });
   tile.querySelector(".waypoint-gallery-star")?.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -176,6 +180,85 @@ export function buildCategoryFilter({ categories = [], selected = "", includeUnc
     btn.setAttribute("role", "option");
     btn.setAttribute("aria-selected", String(selected === def.value));
     btn.innerHTML = categoryFilterPillInner(def.label, def.icon, def.color);
+    btn.addEventListener("click", () => setSelected(def.value));
+    menu.appendChild(btn);
+    return btn;
+  });
+
+  refreshTrigger();
+  trigger.addEventListener("click", () => (menu.hidden ? openCategoryFilterMenu(root) : closeCategoryFilterMenu(root)));
+
+  return root;
+}
+
+/**
+ * "All users" author filter for the waypoint list - the same avatar dropdown
+ * used on the logs page, reusing the `.category-filter` styles so several
+ * filters can sit in one row.
+ * @param {object} opts
+ * @param {Array<{value:string,label:string}>} [opts.users] - unique author ids/names
+ * @param {string} [opts.selected] - current value: "" = all users
+ * @param {string} [opts.allLabel]
+ * @param {string} [opts.ariaLabel]
+ * @param {(value: string) => void} [opts.onChange]
+ */
+export function buildUserFilter({ users = [], selected = "", allLabel = "All users", ariaLabel = "Filter by author", onChange = () => {} } = {}) {
+  const root = document.createElement("div");
+  root.className = "category-filter";
+  root.setAttribute("aria-label", ariaLabel);
+
+  const trigger = document.createElement("button");
+  trigger.type = "button";
+  trigger.className = "category-filter-trigger";
+  trigger.setAttribute("aria-haspopup", "listbox");
+  trigger.setAttribute("aria-expanded", "false");
+
+  const triggerPill = document.createElement("span");
+  triggerPill.className = "category-pill";
+  trigger.appendChild(triggerPill);
+  trigger.insertAdjacentHTML("beforeend", '<i class="fa-solid fa-chevron-down category-filter-chevron" aria-hidden="true"></i>');
+
+  const menu = document.createElement("div");
+  menu.className = "category-filter-menu";
+  menu.setAttribute("role", "listbox");
+  menu.hidden = true;
+  root.appendChild(trigger);
+  root.appendChild(menu);
+
+  const optionDefs = [{ value: "", label: allLabel, icon: "fa-solid fa-border-all", color: null, avatar: null }, ...users.map((u) => ({ value: u.value, label: u.label, icon: null, color: null, avatar: u.label }))];
+
+  function pillInner(def) {
+    if (def.avatar) {
+      return `<img class="category-pill-avatar" src="https://mc-heads.net/avatar/${encodeURIComponent(def.avatar)}/64" alt="" width="20" height="20" loading="lazy" /><span class="category-pill-label">${escapeHtml(def.label)}</span>`;
+    }
+    const colored = Boolean(def.color);
+    const chipStyle = colored ? ` style="background:color-mix(in srgb, ${escapeHtml(def.color)} 18%, transparent);color:${escapeHtml(def.color)}"` : "";
+    const labelStyle = colored ? ` style="color:${escapeHtml(def.color)}"` : "";
+    const icon = def.icon ? `<i class="fa-solid ${escapeHtml(def.icon)}" aria-hidden="true"></i>` : "";
+    return `<span class="category-pill-icon${colored ? "" : " category-pill-icon--none"}"${chipStyle}>${icon}</span><span class="category-pill-label"${labelStyle}>${escapeHtml(def.label)}</span>`;
+  }
+
+  function setSelected(value) {
+    selected = value;
+    for (const btn of optionButtons) btn.setAttribute("aria-selected", String(btn.dataset.value === value));
+    refreshTrigger();
+    closeCategoryFilterMenu(root);
+    onChange(value);
+  }
+
+  function refreshTrigger() {
+    const def = optionDefs.find((d) => d.value === selected) || optionDefs[0];
+    triggerPill.innerHTML = pillInner(def);
+  }
+
+  const optionButtons = optionDefs.map((def) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "category-filter-option";
+    btn.dataset.value = def.value;
+    btn.setAttribute("role", "option");
+    btn.setAttribute("aria-selected", String(selected === def.value));
+    btn.innerHTML = pillInner(def);
     btn.addEventListener("click", () => setSelected(def.value));
     menu.appendChild(btn);
     return btn;

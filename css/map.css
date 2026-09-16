@@ -168,24 +168,217 @@ body[data-page="map"] {
 
 .pin-tooltip {
   position: absolute;
-  z-index: var(--z-tooltip);
+  z-index: calc(var(--z-tooltip) + 2);
   background: var(--surface-2);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
   box-shadow: var(--shadow-lg);
   padding: var(--space-3) var(--space-4);
   pointer-events: auto;
+  /* Anchor to top-left of map-workspace, positioned via JS */
+  will-change: left, top;
 }
 
+/* ---------- gallery viewer ---------- */
+
 .image-lightbox-backdrop {
-  background: rgba(2, 1, 3, 0.9);
+  background: rgba(2, 1, 3, 0.92);
   z-index: calc(var(--z-modal) + 1);
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: calc(var(--space-5) + env(safe-area-inset-top, 0px)) var(--space-4) calc(var(--space-3) + var(--safe-b));
 }
-.image-lightbox-img {
-  max-width: min(92vw, 900px);
-  max-height: 88dvh;
+.gallery-viewer-viewport {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: min(92vw, 1000px);
+  overflow: hidden;
+  position: relative;
+  border-radius: var(--radius);
+}
+.gallery-viewer-track {
+  display: flex;
+  height: 100%;
+  transition: transform 0.3s var(--ease);
+  will-change: transform;
+  /* Keep vertical page gestures native, but let horizontal drags be ours.
+     Without this the browser claims the swipe, sends pointercancel, and
+     touch swiping never pages the carousel. */
+  touch-action: pan-y;
+}
+.gallery-viewer-track.dragging {
+  transition: none;
+}
+.gallery-viewer-slide {
+  flex: 0 0 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: pan-y;
+}
+.gallery-viewer-slide img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
   border-radius: var(--radius);
   box-shadow: var(--shadow-lg);
+  user-select: none;
+  -webkit-user-drag: none;
+  touch-action: pan-y;
+}
+.gallery-viewer-close {
+  position: absolute;
+  top: calc(var(--space-3) + env(safe-area-inset-top, 0px));
+  right: var(--space-3);
+  width: 38px;
+  height: 38px;
+  font-size: 1.25rem;
+  z-index: 2;
+}
+.gallery-viewer-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-pill);
+  font-size: 1rem;
+  z-index: 2;
+  box-shadow: var(--shadow-lg);
+}
+.gallery-viewer-arrow:active {
+  transform: translateY(-50%) scale(0.94);
+}
+.gallery-viewer-arrow:disabled {
+  opacity: 0.25;
+  pointer-events: none;
+}
+.gallery-viewer-arrow--prev {
+  left: clamp(10px, 3vw, 32px);
+}
+.gallery-viewer-arrow--next {
+  right: clamp(10px, 3vw, 32px);
+}
+.gallery-viewer-bar {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  background: linear-gradient(to top, rgba(2, 1, 3, 0.88), rgba(2, 1, 3, 0.35) 60%, transparent);
+  border-radius: 0 0 var(--radius) var(--radius);
+  padding: var(--space-4) var(--space-3) var(--space-2);
+  z-index: 2;
+}
+.gallery-viewer-bar-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.gallery-viewer-caption {
+  font-weight: 600;
+  font-size: var(--fs-sm);
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gallery-viewer-credit {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+.gallery-viewer-credit-label {
+  color: var(--text-dim);
+}
+.gallery-viewer-credit strong {
+  color: var(--text);
+  font-weight: 600;
+}
+.gallery-viewer-counter {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  background: var(--surface-3);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-pill);
+  padding: 3px 10px;
+}
+/* The bar/thumbs/caption/credit use display:flex in their rules above, which
+   would mask the [hidden] attribute; re-assert it here. */
+.gallery-viewer-bar[hidden],
+.gallery-viewer-thumbs[hidden],
+.gallery-viewer-caption[hidden],
+.gallery-viewer-credit[hidden] {
+  display: none;
+}
+/* Thumbnail strip */
+.gallery-viewer-thumbs {
+  width: min(92vw, 1000px);
+  flex-shrink: 0;
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 2px 0;
+  -webkit-overflow-scrolling: touch;
+}
+.gallery-viewer-thumbs::-webkit-scrollbar { display: none; }
+.gallery-viewer-thumb {
+  flex: 0 0 48px;
+  height: 32px;
+  border-radius: 4px;
+  overflow: hidden;
+  cursor: pointer;
+  opacity: 0.45;
+  border: 2px solid transparent;
+  transition: opacity var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.gallery-viewer-thumb:hover {
+  opacity: 0.75;
+}
+.gallery-viewer-thumb.active {
+  opacity: 1;
+  border-color: var(--accent);
+}
+.gallery-viewer-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+/* Touch devices page by swiping instead of the arrow buttons */
+@media (hover: none) and (pointer: coarse) {
+  .gallery-viewer-arrow {
+    display: none;
+  }
+}
+@media (max-width: 560px) {
+  .image-lightbox-backdrop {
+    padding-left: var(--space-2);
+    padding-right: var(--space-2);
+  }
+  .gallery-viewer-viewport {
+    width: 100%;
+  }
+  .gallery-viewer-bar {
+    width: 100%;
+    padding: var(--space-2);
+  }
+  .gallery-viewer-caption {
+    font-size: var(--fs-xs);
+  }
+  .gallery-viewer-thumbs {
+    width: 100%;
+  }
 }
 
 /* ---------- sidebar ---------- */
@@ -268,8 +461,22 @@ body[data-page="map"] {
 
 /* category-filter-row itself lives in components.css (shared with the
    profile waypoints tab) - this just fine-tunes the map sidebar's padding */
-.category-filter-row {
+.sidebar-filter-wrap {
   padding: var(--space-3) var(--space-4);
+  flex-shrink: 0;
+}
+.sidebar-filter-wrap .category-filter-row {
+  padding: 0;
+  margin-bottom: 0;
+}
+.sidebar-filter-wrap .category-filter-row + .category-filter-row {
+  margin-top: var(--space-3);
+}
+.sidebar-filter-wrap:not(:has(.category-filter-row:not([hidden]))) {
+  display: none;
+}
+.sidebar-filter-wrap:has(.category-filter-row:not([hidden])) {
+  margin-bottom: var(--space-3);
 }
 
 
