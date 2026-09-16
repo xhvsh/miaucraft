@@ -251,6 +251,15 @@
   text-decoration: line-through;
   color: var(--text-dim);
 }
+.log-detail-value-before a,
+.log-detail-value-before .log-detail-link {
+  color: var(--text-dim);
+  text-decoration: line-through;
+  text-underline-offset: 2px;
+}
+.log-detail-value-before a:hover {
+  color: var(--text);
+}
 .log-detail-actions {
   margin-top: 8px;
 }
