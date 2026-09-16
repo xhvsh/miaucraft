@@ -866,8 +866,9 @@ function renderGallery() {
   $("#waypointGalleryEmpty").hidden = galleryImages.length > 0;
   if (!galleryImages.length) return;
   const frag = document.createDocumentFragment();
-  for (const image of galleryImages) {
-    const index = galleryImages.indexOf(image);
+  const currentImages = galleryImages;
+  for (const image of currentImages) {
+    const index = currentImages.indexOf(image);
     frag.appendChild(
       galleryTileHtml(image, {
         canEdit,
@@ -877,7 +878,7 @@ function renderGallery() {
         canSetDisplay: canEdit,
         isDisplay: wp.display_image_url != null && image.url === wp.display_image_url,
         onSetDisplay: handleSetDisplayImage,
-        onOpen: () => openGalleryViewer(galleryImages, index),
+        onOpen: () => openGalleryViewer(currentImages, index),
       }),
     );
   }

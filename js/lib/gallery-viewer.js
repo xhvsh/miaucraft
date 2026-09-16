@@ -243,13 +243,15 @@ export function openGalleryViewer(images, index = 0) {
   clearPendingSnap();
   buildSlides();
   buildThumbs();
-  // no transition jump straight to the starting slide
+  // Unhide first: offsetFor() reads the track's clientWidth, which is 0 while
+  // the lightbox is display:none. Laying out every slide one after the other
+  // makes the whole strip visible on entry, so position it before any paint.
+  root.hidden = false;
   applyOffset(offsetFor(state.pos), false);
   render();
   (window.requestAnimationFrame || ((cb) => setTimeout(cb, 0)))(() => {
     trackEl.classList.remove("dragging");
   });
-  root.hidden = false;
   closeBtn.focus();
 }
 
