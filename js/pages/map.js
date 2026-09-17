@@ -612,22 +612,11 @@ function positionTooltip(wp) {
   const p = grid.worldToScreen(wp.x, wp.z);
   const tw = pinTooltip.offsetWidth;
   const th = pinTooltip.offsetHeight;
-  const w = mapWorkspaceEl.clientWidth;
-  const h = mapWorkspaceEl.clientHeight;
   // Always center the tooltip on the waypoint, directly above it. It may
-  // overflow the map edges (map-main / grid-panel clip it); we never clamp it
-  // back inside the viewport, that's what made it slide away from the pin.
-  let left = p.x - tw / 2;
-  let top = p.y - th - 40;
-  // ...but keep the always-on controls usable: dim tabs up top (~64px) and the
-  // zoom/center cluster in the bottom-right corner (~62x150px).
-  const toolbarH = 64;
-  const controlsW = 62;
-  const controlsH = 150;
-  top = Math.max(top, toolbarH);
-  if (left + tw > w - controlsW && top + th > h - controlsH) {
-    top = Math.max(toolbarH, h - controlsH - th - 12);
-  }
+  // overflow the map edges (map-main clips it); we never clamp it back inside
+  // the viewport, that's what made it slide away from the pin.
+  const left = p.x - tw / 2;
+  const top = p.y - th - 40;
   pinTooltip.style.left = `${left}px`;
   pinTooltip.style.top = `${top}px`;
 }

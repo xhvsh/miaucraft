@@ -2,19 +2,15 @@
   display: flex;
   flex-direction: column;
   flex: 0 1 auto;
-  height: calc(100vh - var(--nav-h) - var(--safe-t) - 2 * var(--space-4));
-  height: calc(100svh - var(--nav-h) - var(--safe-t) - 2 * var(--space-4));
-  margin: var(--space-4);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
+  height: calc(100vh - var(--nav-h) - var(--safe-t));
+  height: calc(100svh - var(--nav-h) - var(--safe-t));
+  margin: 0;
   position: relative;
 }
 @media (max-width: 860px) {
   .map-main {
     height: calc(100vh - var(--nav-h) - var(--safe-t) - var(--bottom-nav-h) - var(--safe-b));
     height: calc(100svh - var(--nav-h) - var(--safe-t) - var(--bottom-nav-h) - var(--safe-b));
-    margin: 0;
-    border-radius: 0;
   }
 }
 
@@ -125,6 +121,7 @@ body[data-page="map"] {
   position: absolute;
   left: var(--space-3);
   bottom: var(--space-3);
+  z-index: 5;
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
   background: rgba(9, 9, 11, 0.85);
@@ -168,7 +165,10 @@ body[data-page="map"] {
 
 .pin-tooltip {
   position: absolute;
-  z-index: calc(var(--z-tooltip) + 2);
+  /* Lowest overlay layer: above the map canvas (z:auto) but below every piece
+     of map UI (readout/controls/sidebar/toolbar), so the popup slides UNDER
+     them instead of covering them */
+  z-index: 1;
   background: var(--surface-2);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
@@ -384,6 +384,8 @@ body[data-page="map"] {
 /* ---------- sidebar ---------- */
 
 .sidebar {
+  position: relative;
+  z-index: 5;
   width: 360px;
   flex-shrink: 0;
   background: var(--bg-elev);
