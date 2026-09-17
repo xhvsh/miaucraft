@@ -966,6 +966,12 @@ mark {
   cursor: zoom-in;
   border: 1px solid var(--border);
 }
+/* Compact tooltip variant: aspect-ratio + fixed width reserve the image's
+   layout space before it loads, so the popup is measured once at its final
+   size and never re-anchors with a visible jump. */
+.waypoint-card--compact .waypoint-card-image {
+  max-height: none;
+}
 .waypoint-card-meta {
   display: flex;
   align-items: center;

@@ -65,15 +65,32 @@
   padding: 4px;
 }
 .stat-picker-option {
-  display: block;
+  display: flex;
+  align-items: center;
   width: 100%;
   text-align: left;
-  padding: 9px 10px;
+  padding: 7px 10px;
   border-radius: var(--radius-xs);
   background: none;
   border: none;
   color: var(--text);
   font-size: var(--fs-sm);
+}
+.stat-picker-option-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.stat-picker-option-name {
+  display: inline;
+  white-space: normal;
+}
+.stat-picker-option-icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 .stat-picker-option:hover,
 .stat-picker-option[data-highlighted="true"] {
@@ -100,6 +117,15 @@
 .leaderboard-card-head h2 {
   min-height: 0;
   font-size: var(--fs-lg);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.leaderboard-title-icon {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 @media (max-width: 480px) {
   .leaderboard-card-head h2 {

@@ -74,6 +74,8 @@ export const STAT_NAME_OVERRIDES = {
   NOTEBLOCK_PLAYED: "Note Blocks Played",
   NOTEBLOCK_TUNED: "Note Blocks Tuned",
   SLEEP_IN_BED: "Times Slept in a Bed",
+  INTERACT_WITH_BREWINGSTAND: "Interactions with Brewing Stand",
+  BREWINGSTAND_INTERACTION: "Interactions with Brewing Stand",
 };
 
 export function titleCaseStatKey(str) {
@@ -85,6 +87,219 @@ export function titleCaseStatKey(str) {
     .filter(Boolean)
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(" ");
+}
+
+// Blocks Minecraft draws with a block-entity renderer (code, not a JSON model)
+// so blockrender.dev has nothing to rasterise and 404s. Those fall back to the
+// Minecraft Wiki's file for that block instead. Plain "banner" has no wiki file
+// (only the coloured variants), so it maps to the white banner, and the wood
+// chest variants all share the generic chest sprite.
+const WIKI_BLOCK_FALLBACKS = {
+  chest: "Chest.png",
+  oak_chest: "Chest.png",
+  spruce_chest: "Chest.png",
+  birch_chest: "Chest.png",
+  jungle_chest: "Chest.png",
+  acacia_chest: "Chest.png",
+  dark_oak_chest: "Chest.png",
+  crimson_chest: "Chest.png",
+  warped_chest: "Chest.png",
+  mangrove_chest: "Chest.png",
+  cherry_chest: "Chest.png",
+  pale_oak_chest: "Chest.png",
+  copper_chest: "Copper_Chest.png",
+  exposed_copper_chest: "Exposed_Copper_Chest.png",
+  weathered_copper_chest: "Weathered_Copper_Chest.png",
+  oxidized_copper_chest: "Oxidized_Copper_Chest.png",
+  trapped_chest: "Trapped_Chest.png",
+  ender_chest: "Ender_Chest.png",
+  shulker_box: "Shulker_Box.png",
+  white_shulker_box: "White_Shulker_Box.png",
+  orange_shulker_box: "Orange_Shulker_Box.png",
+  magenta_shulker_box: "Magenta_Shulker_Box.png",
+  light_blue_shulker_box: "Light_Blue_Shulker_Box.png",
+  yellow_shulker_box: "Yellow_Shulker_Box.png",
+  lime_shulker_box: "Lime_Shulker_Box.png",
+  pink_shulker_box: "Pink_Shulker_Box.png",
+  gray_shulker_box: "Gray_Shulker_Box.png",
+  light_gray_shulker_box: "Light_Gray_Shulker_Box.png",
+  cyan_shulker_box: "Cyan_Shulker_Box.png",
+  purple_shulker_box: "Purple_Shulker_Box.png",
+  blue_shulker_box: "Blue_Shulker_Box.png",
+  brown_shulker_box: "Brown_Shulker_Box.png",
+  green_shulker_box: "Green_Shulker_Box.png",
+  red_shulker_box: "Red_Shulker_Box.png",
+  black_shulker_box: "Black_Shulker_Box.png",
+  decorated_pot: "Decorated_Pot.png",
+  skeleton_skull: "Skeleton_Skull.png",
+  wither_skeleton_skull: "Wither_Skeleton_Skull.png",
+  zombie_head: "Zombie_Head.png",
+  player_head: "Player_Head.png",
+  creeper_head: "Creeper_Head.png",
+  dragon_head: "Dragon_Head.png",
+  piglin_head: "Piglin_Head.png",
+  conduit: "Conduit.png",
+  shield: "Shield.png",
+  trident: "Trident_(item).png",
+  banner: "White_Banner.png",
+  white_banner: "White_Banner.png",
+  orange_banner: "Orange_Banner.png",
+  magenta_banner: "Magenta_Banner.png",
+  light_blue_banner: "Light_Blue_Banner.png",
+  yellow_banner: "Yellow_Banner.png",
+  lime_banner: "Lime_Banner.png",
+  pink_banner: "Pink_Banner.png",
+  gray_banner: "Gray_Banner.png",
+  light_gray_banner: "Light_Gray_Banner.png",
+  cyan_banner: "Cyan_Banner.png",
+  purple_banner: "Purple_Banner.png",
+  blue_banner: "Blue_Banner.png",
+  brown_banner: "Brown_Banner.png",
+  green_banner: "Green_Banner.png",
+  red_banner: "Red_Banner.png",
+  black_banner: "Black_Banner.png",
+};
+
+// The DB occasionally emits stat targets without their word separator, and wall
+// variants (which are just the standing block mounted on a wall surface and have
+// no separate render) share the standing model's icon.
+const BLOCK_ID_ALIASES = {
+  enderchest: "ender_chest",
+  trappedchest: "trapped_chest",
+  shulkerbox: "shulker_box",
+  decoratedpot: "decorated_pot",
+  brewingstand: "brewing_stand",
+  noteblock: "note_block",
+  wall_head: "player_head",
+  wall_skull: "skeleton_skull",
+  wall_banner: "white_banner",
+};
+
+const INVISIBLE_ID_RE = /^(air|cave_air|void_air)$/;
+
+// A 1x1 transparent PNG: air has no icon slot content, but the slot still
+// needs to exist so rows keep their alignment.
+const TRANSPARENT_PNG =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+
+function canonicalBlockId(id) {
+  const lower = (id || "").toLowerCase();
+  const wallMatch = lower.match(/^(.+)_wall_(head|skull|banner)$/);
+  if (wallMatch) return `${wallMatch[1]}_${wallMatch[2]}`;
+  return BLOCK_ID_ALIASES[lower] || lower;
+}
+
+// Flat or sparse block models (rails, webs) render as a squashed sliver through
+// the block endpoint, so draw them with their item sprite instead.
+const FLAT_RENDER_IDS = new Set(["rail", "powered_rail", "detector_rail", "activator_rail", "cobweb"]);
+
+// Blocks whose block-renderer output comes out sideways/cropped (bell hangs at
+// a weird angle as a block) - every stat targeting them uses their item sprite.
+const ITEM_RENDER_BLOCK_IDS = new Set(["bell"]);
+
+function blockRenderUrl(id) {
+  const canonical = canonicalBlockId(id);
+  if (INVISIBLE_ID_RE.test(canonical)) return TRANSPARENT_PNG;
+  const wikiFile = WIKI_BLOCK_FALLBACKS[canonical];
+  if (wikiFile) return `https://minecraft.wiki/Special:FilePath/${wikiFile}`;
+  if (FLAT_RENDER_IDS.has(canonical)) return itemRenderUrl(canonical);
+  if (ITEM_RENDER_BLOCK_IDS.has(canonical)) return itemRenderUrl(canonical);
+  return `https://blockrender.dev/render/block/${encodeURIComponent(canonical)}.png?size=512&crop=true`;
+}
+
+function itemRenderUrl(id) {
+  const canonical = canonicalBlockId(id);
+  if (INVISIBLE_ID_RE.test(canonical)) return TRANSPARENT_PNG;
+  const wikiFile = WIKI_BLOCK_FALLBACKS[canonical];
+  if (wikiFile) return `https://minecraft.wiki/Special:FilePath/${wikiFile}`;
+  return `https://blockrender.dev/render/item/${encodeURIComponent(canonical)}.png?size=512&crop=true`;
+}
+
+// General stats whose key doesn't decompose into a target via a clean
+// verb suffix/prefix, or whose verb maps to several possible blocks.
+// Everything here renders as an item sprite unless marked "block".
+const GENERAL_STAT_TARGETS = {
+  ARMOR_CLEANED: { id: "leather_chestplate", render: "item" },
+  BLOCKS_MINED_TOTAL: { id: "iron_pickaxe", render: "item" },
+  CAKE_SLICES_EATEN: { id: "cake", render: "item" },
+  DAMAGE_BLOCKED_BY_SHIELD: { id: "shield", render: "item" },
+  DAMAGE_DEALT: { id: "iron_sword", render: "item" },
+  DAMAGE_TAKEN: { id: "iron_sword", render: "item" },
+  ITEMS_CRAFTED_TOTAL: { id: "crafting_table", render: "block" },
+  FLOWER_POTTED: { id: "flower_pot", render: "block" },
+  RECORD_PLAYED: { id: "music_disc_13", render: "item" },
+  SLEEP_IN_BED: { id: "red_bed", render: "item" },
+  TIME_SINCE_REST: { id: "red_bed", render: "item" },
+};
+
+// Distance stats ("X_ONE_CM") keyed by the transport/mechanism base, which
+// gets its own icon where one exists (minecart, boat, elytra, ladder).
+const DISTANCE_ICON_TARGETS = {
+  AVIATE: "elytra",
+  BOAT: "oak_boat",
+  MINECART: "minecart",
+  CLIMB: "ladder",
+};
+
+// Strip the trailing verb and treat the rest as a block id: Dispensers
+// Searched -> dispenser, Hopper/Noteblock Played -> note_block, Bells Rung
+// -> bell, Cauldrons Filled/Used -> cauldron, Chests Opened -> chest, etc.
+const GENERAL_SUFFIX_RE = /^(.+)_(OPENED|INSPECTED|FILLED|USED|RING|PLAYED|TUNED)$/;
+
+// Barrels Opened (OPEN_BARREL) puts the verb first, so flip it around.
+const GENERAL_PREFIX_RE = /^OPEN_(.+)$/;
+
+// Block/item stats get a real Minecraft render from blockrender.dev;
+// entities and general stats have no block/item model, so they keep the
+// FontAwesome fallback (the <img> is simply removed on 404).
+export function statIconUrl(statKey) {
+  const key = (statKey || "").trim();
+  if (!key) return null;
+  if (key.includes(":")) {
+    const colon = key.indexOf(":");
+    const prefix = key.slice(0, colon).trim().toUpperCase();
+    const id = key.slice(colon + 1).trim();
+    if (!id) return null;
+    if (prefix === "MINE_BLOCK") return blockRenderUrl(id);
+    if (["USE_ITEM", "BREAK_ITEM", "CRAFT_ITEM", "DROP", "PICKUP"].includes(prefix)) {
+      return itemRenderUrl(id);
+    }
+    return null;
+  }
+  // "Interactions with X" keys come in two shapes the DB emits:
+  // CAMPFIRE_INTERACTION and INTERACT_WITH_CAMPFIRE. Both are general counters
+  // whose target is a block, so render it as a block. Entity targets (e.g.
+  // villager) 404 and the onerror fallback hides the icon.
+  let interactKey = null;
+  const interactionSuffix = key.match(/^(.+)_INTERACTION$/);
+  const interactPrefix = key.match(/^INTERACT_WITH_(.+)$/);
+  if (interactionSuffix) interactKey = interactionSuffix[1];
+  else if (interactPrefix) interactKey = interactPrefix[1];
+  if (interactKey) {
+    return blockRenderUrl(interactKey);
+  }
+  const targetOverride = GENERAL_STAT_TARGETS[key];
+  if (targetOverride) {
+    return targetOverride.render === "item" ? itemRenderUrl(targetOverride.id) : blockRenderUrl(targetOverride.id);
+  }
+  // General counters whose key is "<BLOCK>_<VERB>": strip the verb and render
+  // the target as a block (Chests Opened, Dispensers Searched, Hopper/Note
+  // Block Played, Bells Rung, Cauldrons Filled/Used...). Unknown rest remain
+  // iconless - the onerror fallback hides the img if the render 404s.
+  const suffixMatch = key.match(GENERAL_SUFFIX_RE);
+  if (suffixMatch) {
+    return blockRenderUrl(suffixMatch[1]);
+  }
+  const prefixMatch = key.match(GENERAL_PREFIX_RE);
+  if (prefixMatch) {
+    return blockRenderUrl(prefixMatch[1]);
+  }
+  const distanceMatch = key.match(/^(.+)_ONE_CM$/);
+  if (distanceMatch) {
+    const distanceIcon = DISTANCE_ICON_TARGETS[distanceMatch[1]];
+    if (distanceIcon) return itemRenderUrl(distanceIcon);
+  }
+  return null;
 }
 
 export function getStatDisplayName(key) {

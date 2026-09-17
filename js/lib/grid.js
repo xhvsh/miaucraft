@@ -47,6 +47,8 @@ export class Grid {
 
     this.waypoints = [];
     this.selectedWaypoint = null;
+    this._pinSizes = new Map();
+    this._pinAnimFrame = null;
     this.players = [];
     this.playerHeadCache = new Map();
     this.playerAnimations = new Map();
@@ -134,8 +136,33 @@ export class Grid {
   }
 
   setSelectedWaypoint(wp) {
+    const previousId = this.selectedWaypoint == null ? null : String(this.selectedWaypoint.id);
+    const nextId = wp == null ? null : String(wp.id);
     this.selectedWaypoint = wp;
-    this.draw();
+    if (previousId === nextId) return;
+    cancelAnimationFrame(this._pinAnimFrame);
+    this._pinAnimFrame = null;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      this._pinSizes.clear();
+      this.draw();
+      return;
+    }
+    if (previousId !== null && !this._pinSizes.has(previousId)) this._pinSizes.set(previousId, 30);
+    if (nextId !== null && !this._pinSizes.has(nextId)) this._pinSizes.set(nextId, PIN_ICON_HEIGHT);
+    const initialSizes = new Map(this._pinSizes);
+    const startedAt = performance.now();
+    const step = (now) => {
+      const progress = Math.min((now - startedAt) / 180, 1);
+      const eased = easeOutCubic(progress);
+      for (const [id, size] of initialSizes) {
+        const target = id === nextId ? 30 : PIN_ICON_HEIGHT;
+        this._pinSizes.set(id, size + (target - size) * eased);
+      }
+      if (progress === 1) this._pinSizes.clear();
+      this.draw();
+      this._pinAnimFrame = progress < 1 ? requestAnimationFrame(step) : null;
+    };
+    this._pinAnimFrame = requestAnimationFrame(step);
   }
 
   setPlayers(players) {
@@ -636,7 +663,7 @@ export class Grid {
       const color = wp.color || this.dimensionColor;
       const icon = "\uf3c5";
       const isSelected = this.selectedWaypoint && String(this.selectedWaypoint.id) === String(wp.id);
-      const fontSize = isSelected ? 30 : 24;
+      const fontSize = this._pinSizes.get(String(wp.id)) ?? (isSelected ? 30 : PIN_ICON_HEIGHT);
       ctx.save();
       ctx.fillStyle = color;
       ctx.font = `900 ${fontSize}px 'Font Awesome 6 Free'`;

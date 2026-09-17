@@ -604,8 +604,12 @@ function showTooltip(wp) {
 
   pinTooltip.innerHTML = "";
   pinTooltip.appendChild(card);
+  // Measure and place while still hidden so a first-frame flash never appears
+  // at (0,0) or a stale offset; the position is final before first paint.
   pinTooltip.hidden = false;
+  pinTooltip.style.visibility = "hidden";
   positionTooltip(wp);
+  pinTooltip.style.visibility = "";
 }
 
 function positionTooltip(wp) {

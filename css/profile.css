@@ -279,6 +279,18 @@
   text-align: left;
   white-space: normal;
 }
+.stat-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  vertical-align: middle;
+}
+.stat-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  object-fit: contain;
+}
 .profile-stat-table thead th {
   color: var(--text-dim);
   font-weight: 700;
@@ -393,6 +405,11 @@
 .profile-top-item[data-rank="3"] .profile-top-item-icon {
   background: rgba(214, 154, 106, 0.14);
   color: #d69a6a;
+}
+.profile-top-item .stat-icon--lg {
+  width: 26px;
+  height: 26px;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
 }
 .profile-top-item-body {
   flex: 1;

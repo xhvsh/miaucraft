@@ -1,5 +1,5 @@
 import { listPlayerStats, listStatKeys, listDistanceLeaderboard, getLeaderboardLastUpdated } from "../lib/live.js";
-import { PRESET_STATS, getStatDisplayName, formatStatValue, guessStatFormat } from "../lib/statPresets.js";
+import { PRESET_STATS, getStatDisplayName, formatStatValue, guessStatFormat, statIconUrl } from "../lib/statPresets.js";
 import { escapeHtml, copyTextToClipboard, formatRelativeTime } from "../lib/ui.js";
 import { initNav } from "../lib/nav.js";
 
@@ -88,7 +88,7 @@ async function selectLeaderboardStat(id) {
       activeCustomStatKey = canonicalKey;
       const name = getStatDisplayName(canonicalKey);
       leaderboardCustomInputEl.value = name;
-      leaderboardStatTitleEl.textContent = name;
+      setLeaderboardTitle(canonicalKey, name);
       loadLeaderboard(() => listPlayerStats([canonicalKey], 10), guessStatFormat(canonicalKey));
     }
     return;
@@ -97,7 +97,7 @@ async function selectLeaderboardStat(id) {
   closeStatPicker();
   const preset = PRESET_STATS.find((s) => s.id === id);
   if (preset) {
-    leaderboardStatTitleEl.textContent = preset.label;
+    setLeaderboardTitle(activeStatKeyForIcon(), preset.label);
     if (preset.aggregateCm) loadLeaderboard(() => listDistanceLeaderboard(10), preset.format);
     else loadLeaderboard(() => listPlayerStats(preset.keys, 10), preset.format);
   }
@@ -184,7 +184,9 @@ function renderStatPickerOptions(rawQuery) {
     opt.setAttribute("role", "option");
     opt.dataset.index = String(idx);
     opt.dataset.key = s.key;
-    opt.innerHTML = highlightMatch(s.name, tokens);
+    const iconUrl = statIconUrl(s.key);
+    const icon = iconUrl ? `<img class="stat-picker-option-icon" src="${iconUrl}" alt="" width="18" height="18" loading="lazy" onerror="this.remove()" />` : "";
+    opt.innerHTML = `<span class="stat-picker-option-label">${icon}<span class="stat-picker-option-name">${highlightMatch(s.name, tokens)}</span></span>`;
     opt.addEventListener("mousedown", (e) => {
       e.preventDefault();
       selectStatKey(s.key, s.name);
@@ -225,7 +227,7 @@ function selectStatKey(key, name) {
   activeCustomStatKey = key;
   leaderboardCustomInputEl.value = name;
   closeStatPicker();
-  leaderboardStatTitleEl.textContent = name;
+  setLeaderboardTitle(key, name);
   updateLeaderboardShareLink();
   loadLeaderboard(() => listPlayerStats([key], 10), guessStatFormat(key));
 }
@@ -255,7 +257,7 @@ leaderboardCustomInputEl.addEventListener("input", () => {
     const name = getStatDisplayName(key);
     leaderboardCustomInputEl.value = name;
     renderStatPickerOptions(leaderboardCustomInputEl.value);
-    leaderboardStatTitleEl.textContent = name;
+    setLeaderboardTitle(key, name);
     updateLeaderboardShareLink();
     loadLeaderboard(() => listPlayerStats([key], 10), guessStatFormat(key));
   }, 250);
@@ -316,6 +318,18 @@ async function loadLeaderboard(fetchRows, format) {
   rows.forEach((row, index) => leaderboardListEl.appendChild(buildLeaderboardRow(row, index + 1, format)));
 }
 
+function activeStatKeyForIcon() {
+  if (activeLeaderboardStatId === "custom") return activeCustomStatKey;
+  const preset = PRESET_STATS.find((s) => s.id === activeLeaderboardStatId);
+  if (preset?.keys?.length === 1) return preset.keys[0];
+  return null;
+}
+
+function setLeaderboardTitle(key, name) {
+  const iconUrl = statIconUrl(key);
+  leaderboardStatTitleEl.innerHTML = `${iconUrl ? `<img class="leaderboard-title-icon" src="${iconUrl}" alt="" width="24" height="24" loading="lazy" onerror="this.remove()" />` : ""}${escapeHtml(name)}`;
+}
+
 function buildLeaderboardRow(row, rank, format) {
   const item = document.createElement("div");
   item.className = "leaderboard-row";
@@ -358,7 +372,7 @@ function initFromDeepLink(value) {
   activeCustomStatKey = canonicalKey;
   renderLeaderboardChips();
   leaderboardCustomInputEl.value = getStatDisplayName(canonicalKey);
-  leaderboardStatTitleEl.textContent = getStatDisplayName(canonicalKey);
+  setLeaderboardTitle(canonicalKey, getStatDisplayName(canonicalKey));
   loadLeaderboard(() => listPlayerStats([canonicalKey], 10), guessStatFormat(canonicalKey));
   updateLeaderboardShareLink();
 }

@@ -409,7 +409,7 @@ export function buildWaypointCard(wp, opts = {}) {
       ${shareBtnHtml}
     </div>
     ${wp.description ? `<div class="waypoint-card-desc">${escapeHtml(wp.description)}</div>` : ""}
-    ${image ? `<img class="waypoint-card-image" src="${escapeHtml(image.src)}" alt="${escapeHtml(image.alt)}" loading="lazy" title="Click to enlarge" data-action="image" />` : ""}
+    ${image ? `<img class="waypoint-card-image" src="${escapeHtml(image.src)}" alt="${escapeHtml(image.alt)}" loading="lazy" title="Click to enlarge" data-action="image" style="aspect-ratio: 16 / 9" />` : ""}
     <div class="waypoint-card-coords" style="margin-top:6px;display:flex;align-items:center;gap:6px">
       <span>${escapeHtml(coordsText)}</span>
       ${copyBtnHtml}

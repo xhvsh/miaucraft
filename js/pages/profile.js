@@ -1,7 +1,7 @@
 import { getPlayerProfile, getAllPlayerStats, getTop3Summary, getAchievementsCatalog, getAchievementCriteriaCatalog, getPlayerAchievements, getPlayerAchievementCriteria } from "../lib/live.js";
 import { listWaypointsByUsername, listCategories, categoryIconClass } from "../lib/waypoints.js";
 import * as Auth from "../lib/auth.js";
-import { getStatDisplayName, formatStatValue, titleCaseStatKey, STAT_PREFIX_LABELS, guessStatFormat } from "../lib/statPresets.js";
+import { getStatDisplayName, formatStatValue, titleCaseStatKey, statIconUrl, STAT_PREFIX_LABELS, guessStatFormat } from "../lib/statPresets.js";
 import { formatCoordsForCopy, formatCoordsForDisplay } from "../lib/settings.js";
 import { escapeHtml, copyTextToClipboard, formatAbsoluteTime, formatRelativeTime, isResetArtifact } from "../lib/ui.js";
 import { buildWaypointCard, buildCategoryFilter, buildDimensionFilter } from "../lib/waypoint-ui.js";
@@ -208,6 +208,24 @@ function getSortArrow(key) {
 // General tab uses the exact same table look as Items/Mobs - one "Stat" +
 // "Value" column pair - instead of the old two-column flex rows, so all
 // three tabs read as the same component.
+function statIconHtml(statKey) {
+  const url = statIconUrl(statKey);
+  if (!url) return "";
+  return `<img class="stat-icon" src="${url}" alt="" width="20" height="20" loading="lazy" onerror="this.remove()" />`;
+}
+
+// The item/mob tables group rows by their bare suffix (e.g. redstone_torch),
+// so rebuild a full PREFIX:suffix key for the icon: prefer MINE_BLOCK (block
+// render), then the first present item prefix (item render). Mob prefixes
+// (KILL_ENTITY/ENTITY_KILLED_BY) have no render, so those rows stay icontess.
+function rowIconKey(row, columns) {
+  const present = columns.filter((prefix) => row.values[prefix] !== undefined);
+  if (present.includes("MINE_BLOCK")) return `MINE_BLOCK:${row.suffix}`;
+  const itemPrefix = present.find((prefix) => ITEM_COLUMNS.includes(prefix));
+  if (itemPrefix) return `${itemPrefix}:${row.suffix}`;
+  return `${present[0] ?? ""}:${row.suffix}`;
+}
+
 function renderGeneralTable(listEl, rows) {
   if (!rows.length) return 0;
   const sorted = [...rows];
@@ -245,7 +263,7 @@ function renderGeneralTable(listEl, rows) {
     const format = guessStatFormat(row.stat_key);
     const tr = document.createElement("tr");
     tr.dataset.search = label.toLowerCase();
-    tr.innerHTML = `<td>${escapeHtml(label)}</td><td>${escapeHtml(formatStatValue(format, row.stat_value))}</td>`;
+    tr.innerHTML = `<td><span class="stat-label">${statIconHtml(row.stat_key)}${escapeHtml(label)}</span></td><td>${escapeHtml(formatStatValue(format, row.stat_value))}</td>`;
     tbody.appendChild(tr);
   }
   table.appendChild(tbody);
@@ -305,7 +323,7 @@ function renderStatsTable(listEl, groupMap, columns) {
     const searchText = [row.label, ...presentColumns.map((prefix) => STAT_PREFIX_LABELS[prefix] || "")].join(" ").toLowerCase();
     const tr = document.createElement("tr");
     tr.dataset.search = searchText;
-    tr.innerHTML = `<td><span>${escapeHtml(row.label)}</span></td>${columns.map((prefix) => `<td>${row.values[prefix] === undefined ? "-" : row.values[prefix].toLocaleString()}</td>`).join("")}`;
+    tr.innerHTML = `<td><span class="stat-label">${statIconHtml(rowIconKey(row, columns))}${escapeHtml(row.label)}</span></td>${columns.map((prefix) => `<td>${row.values[prefix] === undefined ? "-" : row.values[prefix].toLocaleString()}</td>`).join("")}`;
     tbody.appendChild(tr);
   }
   table.appendChild(tbody);
@@ -444,8 +462,9 @@ function applyTopCategoriesFilter() {
       item.type = "button";
       item.className = `profile-top-item ${RANK_CLASSES[rank]}`;
       item.dataset.rank = rank;
+      const iconUrl = statIconUrl(key);
       item.innerHTML = `
-        <span class="profile-top-item-icon"><i class="fa-solid ${RANK_ICONS[rank]}" aria-hidden="true"></i></span>
+        <span class="profile-top-item-icon">${iconUrl ? `<img class="stat-icon stat-icon--lg" src="${iconUrl}" alt="" width="26" height="26" loading="lazy" onerror="this.replaceWith(document.createRange().createContextualFragment('<i class=&quot;fa-solid ${RANK_ICONS[rank]}&quot; aria-hidden=&quot;true&quot;></i>'))" />` : `<i class="fa-solid ${RANK_ICONS[rank]}" aria-hidden="true"></i>`}</span>
         <span class="profile-top-item-body">
           <span class="profile-top-item-title">${escapeHtml(getStatDisplayName(key))}</span>
           <span class="profile-top-item-link">View leaderboard <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></span>
