@@ -51,14 +51,16 @@ export async function listWaypointsByUsername(username, userId) {
     rows = data ?? [];
   }
   try {
-    const { data: collab, error: collabError } = await supabase.from("waypoint_collaborators").select("waypoint_id").eq("user_id", userId);
-    if (collabError) throw collabError;
-    const ids = (collab ?? []).map((c) => c.waypoint_id);
-    if (ids.length) {
-      const { data: collabWps, error: cErr } = await supabase.from("waypoints").select("*").in("id", ids);
-      if (!cErr && collabWps) {
-        const seen = new Set(rows.map((w) => w.id));
-        rows = rows.concat(collabWps.filter((w) => !seen.has(w.id)));
+    if (userId) {
+      const { data: collab, error: collabError } = await supabase.from("waypoint_collaborators").select("waypoint_id").eq("user_id", userId);
+      if (collabError) throw collabError;
+      const ids = (collab ?? []).map((c) => c.waypoint_id);
+      if (ids.length) {
+        const { data: collabWps, error: cErr } = await supabase.from("waypoints").select("*").in("id", ids);
+        if (!cErr && collabWps) {
+          const seen = new Set(rows.map((w) => w.id));
+          rows = rows.concat(collabWps.filter((w) => !seen.has(w.id)));
+        }
       }
     }
   } catch (err) {
