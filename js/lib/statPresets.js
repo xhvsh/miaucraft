@@ -208,8 +208,156 @@ function canonicalBlockId(id) {
 const FLAT_RENDER_IDS = new Set(["rail", "powered_rail", "detector_rail", "activator_rail", "cobweb"]);
 
 // Blocks whose block-renderer output comes out sideways/cropped (bell hangs at
-// a weird angle as a block) - every stat targeting them uses their item sprite.
-const ITEM_RENDER_BLOCK_IDS = new Set(["bell"]);
+// a weird angle as a block), flattened into a sliver (glass panes), rendered in
+// half (doors, 2-block plants), or just wrong (pistons, beds, coral fans) by
+// the block endpoint - every stat targeting them uses their item sprite, which
+// is always a clean front-facing render.
+const ITEM_RENDER_BLOCK_IDS = new Set([
+  "bell",
+  // pistons render fine as blocks except when their arm is extended
+  "piston",
+  "sticky_piston",
+  // panes/bars flatten into a squashed sliver
+  "glass_pane",
+  "white_stained_glass_pane",
+  "orange_stained_glass_pane",
+  "magenta_stained_glass_pane",
+  "light_blue_stained_glass_pane",
+  "yellow_stained_glass_pane",
+  "lime_stained_glass_pane",
+  "pink_stained_glass_pane",
+  "gray_stained_glass_pane",
+  "light_gray_stained_glass_pane",
+  "cyan_stained_glass_pane",
+  "purple_stained_glass_pane",
+  "blue_stained_glass_pane",
+  "brown_stained_glass_pane",
+  "green_stained_glass_pane",
+  "red_stained_glass_pane",
+  "black_stained_glass_pane",
+  "iron_bars",
+  // doors render as a single half
+  "oak_door",
+  "spruce_door",
+  "birch_door",
+  "jungle_door",
+  "acacia_door",
+  "dark_oak_door",
+  "crimson_door",
+  "warped_door",
+  "mangrove_door",
+  "cherry_door",
+  "bamboo_door",
+  "pale_oak_door",
+  "copper_door",
+  "exposed_copper_door",
+  "weathered_copper_door",
+  "oxidized_copper_door",
+  "waxed_copper_door",
+  "waxed_exposed_copper_door",
+  "waxed_weathered_copper_door",
+  "waxed_oxidized_copper_door",
+  "iron_door",
+  // beds render as a tilted two-block model
+  "bed",
+  "white_bed",
+  "orange_bed",
+  "magenta_bed",
+  "light_blue_bed",
+  "yellow_bed",
+  "lime_bed",
+  "pink_bed",
+  "gray_bed",
+  "light_gray_bed",
+  "cyan_bed",
+  "purple_bed",
+  "blue_bed",
+  "brown_bed",
+  "green_bed",
+  "red_bed",
+  "black_bed",
+  // coral fans flatten into a sliver (horn especially)
+  "tube_coral_fan",
+  "brain_coral_fan",
+  "bubble_coral_fan",
+  "fire_coral_fan",
+  "horn_coral_fan",
+  "dead_tube_coral_fan",
+  "dead_brain_coral_fan",
+  "dead_bubble_coral_fan",
+  "dead_fire_coral_fan",
+  "dead_horn_coral_fan",
+  // the item sprite is the classic top-down sheet for this one
+  "pointed_dripstone",
+  "spyglass",
+]);
+
+// Cross-model plants/vegetation (flowers, grass, roots, saplings, fungi, kelp,
+// vines, dripleaf...) render as a flat top-down X or clip hard - every stat
+// targeting them uses their item sprite instead.
+const PLANT_ITEM_RENDER_IDS = new Set([
+  "dandelion",
+  "poppy",
+  "blue_orchid",
+  "allium",
+  "azure_bluet",
+  "red_tulip",
+  "orange_tulip",
+  "white_tulip",
+  "pink_tulip",
+  "oxeye_daisy",
+  "cornflower",
+  "lily_of_the_valley",
+  "torchflower",
+  "wither_rose",
+  "closed_eyeblossom",
+  "open_eyeblossom",
+  "pale_hibiscus",
+  "sunflower",
+  "lilac",
+  "rose_bush",
+  "peony",
+  "pitcher_plant",
+  "short_grass",
+  "grass",
+  "tall_grass",
+  "fern",
+  "large_fern",
+  "short_dry_grass",
+  "tall_dry_grass",
+  "dead_bush",
+  "pink_petals",
+  "sugar_cane",
+  "kelp",
+  "seagrass",
+  "tall_seagrass",
+  "crimson_roots",
+  "warped_roots",
+  "nether_sprouts",
+  "weeping_vines",
+  "twisting_vines",
+  "vine",
+  "hanging_roots",
+  "glow_lichen",
+  "small_dripleaf",
+  "big_dripleaf",
+  "mangrove_propagule",
+  "azalea",
+  "flowering_azalea",
+  "bamboo",
+  "oak_sapling",
+  "spruce_sapling",
+  "birch_sapling",
+  "jungle_sapling",
+  "acacia_sapling",
+  "dark_oak_sapling",
+  "cherry_sapling",
+  "pale_oak_sapling",
+  "brown_mushroom",
+  "red_mushroom",
+  "crimson_fungus",
+  "warped_fungus",
+]);
 
 function blockRenderUrl(id) {
   const canonical = canonicalBlockId(id);
@@ -218,6 +366,7 @@ function blockRenderUrl(id) {
   if (wikiFile) return `https://minecraft.wiki/Special:FilePath/${wikiFile}`;
   if (FLAT_RENDER_IDS.has(canonical)) return itemRenderUrl(canonical);
   if (ITEM_RENDER_BLOCK_IDS.has(canonical)) return itemRenderUrl(canonical);
+  if (PLANT_ITEM_RENDER_IDS.has(canonical)) return itemRenderUrl(canonical);
   return `https://blockrender.dev/render/block/${encodeURIComponent(canonical)}.png?size=512&crop=true`;
 }
 

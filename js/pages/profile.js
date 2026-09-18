@@ -211,7 +211,7 @@ function getSortArrow(key) {
 function statIconHtml(statKey) {
   const url = statIconUrl(statKey);
   if (!url) return "";
-  return `<img class="stat-icon" src="${url}" alt="" width="20" height="20" loading="lazy" onerror="this.remove()" />`;
+  return `<img class="stat-icon" src="${url}" alt="" width="26" height="26" loading="lazy" onerror="this.remove()" />`;
 }
 
 // The item/mob tables group rows by their bare suffix (e.g. redstone_torch),

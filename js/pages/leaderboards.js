@@ -185,7 +185,7 @@ function renderStatPickerOptions(rawQuery) {
     opt.dataset.index = String(idx);
     opt.dataset.key = s.key;
     const iconUrl = statIconUrl(s.key);
-    const icon = iconUrl ? `<img class="stat-picker-option-icon" src="${iconUrl}" alt="" width="18" height="18" loading="lazy" onerror="this.remove()" />` : "";
+    const icon = iconUrl ? `<img class="stat-picker-option-icon" src="${iconUrl}" alt="" width="20" height="20" loading="lazy" onerror="this.remove()" />` : "";
     opt.innerHTML = `<span class="stat-picker-option-label">${icon}<span class="stat-picker-option-name">${highlightMatch(s.name, tokens)}</span></span>`;
     opt.addEventListener("mousedown", (e) => {
       e.preventDefault();
@@ -327,7 +327,7 @@ function activeStatKeyForIcon() {
 
 function setLeaderboardTitle(key, name) {
   const iconUrl = statIconUrl(key);
-  leaderboardStatTitleEl.innerHTML = `${iconUrl ? `<img class="leaderboard-title-icon" src="${iconUrl}" alt="" width="24" height="24" loading="lazy" onerror="this.remove()" />` : ""}${escapeHtml(name)}`;
+  leaderboardStatTitleEl.innerHTML = `${iconUrl ? `<img class="leaderboard-title-icon" src="${iconUrl}" alt="" width="26" height="26" loading="lazy" onerror="this.remove()" />` : ""}${escapeHtml(name)}`;
 }
 
 function buildLeaderboardRow(row, rank, format) {

@@ -140,6 +140,23 @@ img {
   scrollbar-color: var(--border-strong) transparent;
 }
 
+/* Touch devices: drop the scrollbar chrome entirely. Horizontal strips (tab
+   bars, filter rows, stat chips, ...) stay swipe-scrollable but no longer draw
+   a bar that eats a slice of the strip and can swallow taps along its edge;
+   vertical regions keep scrolling natively too. Desktop keeps the styled
+   themed scrollbars above. */
+@media (hover: none), (pointer: coarse) {
+  * {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  *::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+  }
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;

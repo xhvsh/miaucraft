@@ -35,6 +35,12 @@ let suppressNextClick = false;
 
 let lastFocused = null;
 
+// Tracks a pushed history entry while the viewer is open so the browser's back
+// button (or back gesture) closes the gallery instead of leaving the page.
+// When the viewer is dismissed any other way the entry is popped with
+// history.back(), so a stale entry can never linger in the session.
+let historyActive = false;
+
 // When a loop-step lands on a clone slide (one past either end) we wait for
 // the transition to finish and then snap the strip back, no animation, to the
 // identical-looking real slide (the "middle copy"). Kept as a single handler
@@ -253,6 +259,8 @@ export function openGalleryViewer(images, index = 0) {
     trackEl.classList.remove("dragging");
   });
   closeBtn.focus();
+  history.pushState(null, "");
+  historyActive = true;
 }
 
 export function openSingleImage(src, alt = "") {
@@ -261,7 +269,7 @@ export function openSingleImage(src, alt = "") {
 }
 
 if (ready) {
-  function closeViewer() {
+  function closeViewer(viaHistory = false) {
     root.hidden = true;
     state.images = [];
     state.index = 0;
@@ -270,13 +278,23 @@ if (ready) {
     trackEl.innerHTML = "";
     trackEl.style.transform = "";
     trackEl.classList.remove("dragging");
+    if (historyActive && !viaHistory) {
+      // Dismissed with X/backdrop/Escape/keys, not the back button: pop the
+      // entry pushed on open so the URL stays put and the next back press
+      // really leaves instead of hitting a ghost entry. The popstate from
+      // this call arrives after root is hidden, so it is ignored below.
+      historyActive = false;
+      history.back();
+    } else {
+      historyActive = false;
+    }
     if (lastFocused && document.contains(lastFocused)) lastFocused.focus();
     lastFocused = null;
   }
 
   prevBtn.addEventListener("click", () => go(-1));
   nextBtn.addEventListener("click", () => go(1));
-  closeBtn.addEventListener("click", closeViewer);
+  closeBtn.addEventListener("click", () => closeViewer());
   root.addEventListener("click", (e) => {
     if (suppressNextClick) {
       suppressNextClick = false;
@@ -308,6 +326,14 @@ if (ready) {
       e.preventDefault();
       jumpTo(state.images.length - 1);
     }
+  });
+
+  // Back button / swipe-back gesture while the viewer is open: close the
+  // gallery instead of leaving the page. The popstate from opening's pushed
+  // entry is consumed here, so no history.back() is issued in this path.
+  window.addEventListener("popstate", () => {
+    if (root.hidden) return;
+    closeViewer(true);
   });
 
   // Horizontal drag/swipe: pointer events cover touch and mouse alike; CSS

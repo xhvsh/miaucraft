@@ -253,16 +253,31 @@
 /* ---------- one shared table look for General / Items / Mobs ---------- */
 
 .profile-stats-grid {
-  overflow-x: auto;
-}
-.profile-stat-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--fs-sm);
+  /* The stats tables can outgrow the viewport, so the grid scrolls on its own
+     (both axes) instead of stretching the page; the table <thead> then sticks
+     to the top of this box so the column names are always readable while you
+     browse rows. */
+  overflow: auto;
+  max-height: min(65vh, 680px);
+  overscroll-behavior: contain;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  overflow: hidden;
+}
+.profile-stat-table {
+  width: 100%;
+  /* separate borders so the sticky <thead> works reliably in every engine
+     (border-collapse + position:sticky is broken in some) - the per-cell
+     border-bottom below keeps the same row-hairline look */
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--fs-sm);
+  background: transparent;
+}
+.profile-stat-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
 .profile-stat-table th,
 .profile-stat-table td {
@@ -286,8 +301,8 @@
   vertical-align: middle;
 }
 .stat-icon {
-  width: 20px;
-  height: 20px;
+  width: 26px;
+  height: 26px;
   flex-shrink: 0;
   object-fit: contain;
 }
@@ -331,6 +346,43 @@
   #profileWaypointsCategoryRow .dim-tab {
     flex: 1;
     justify-content: center;
+  }
+}
+
+/* On desktop the waypoint search + filters behave like the other toolbar
+   variants: filters on the left, compact search on the right. On mobile the
+   toolbar is a notch wrapper (search first, filters below) so the order/look
+   stays exactly as before. */
+@media (min-width: 861px) {
+  .profile-waypoints-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    flex-wrap: nowrap;
+    margin-bottom: var(--space-4);
+  }
+  .profile-waypoints-toolbar .category-filter-row {
+    flex: 1 1 auto;
+    flex-wrap: nowrap;
+    min-width: 0;
+    margin: 0;
+    justify-content: flex-start;
+    order: 1;
+  }
+  .profile-waypoints-toolbar .category-filter-row .dim-tabs {
+    flex-shrink: 0;
+  }
+  .profile-waypoints-toolbar .category-filter-row .category-filter {
+    flex: 0 1 190px;
+    min-width: 0;
+  }
+  .profile-waypoints-toolbar .search-field {
+    flex: 0 1 220px;
+    max-width: 220px;
+    min-width: 0;
+    margin: 0;
+    order: 2;
   }
 }
 

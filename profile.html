@@ -103,11 +103,13 @@
             </section>
 
             <section class="profile-panel" id="profileWaypointsPanel" hidden>
-              <div class="search-field profile-panel-search">
-                <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
-                <input type="search" id="profileWaypointsSearch" placeholder="Search waypoints" aria-label="Search waypoints" />
+              <div class="profile-waypoints-toolbar">
+                <div class="search-field profile-panel-search">
+                  <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                  <input type="search" id="profileWaypointsSearch" placeholder="Search waypoints" aria-label="Search waypoints" />
+                </div>
+                <div class="category-filter-row" id="profileWaypointsCategoryRow"></div>
               </div>
-              <div class="category-filter-row" id="profileWaypointsCategoryRow"></div>
               <div class="waypoint-list profile-waypoints-list" id="profileWaypointsList"></div>
               <div class="empty-state" id="profileWaypointsEmpty" hidden>
                 <i class="fa-solid fa-map-pin" aria-hidden="true"></i>
