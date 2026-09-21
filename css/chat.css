@@ -107,13 +107,20 @@
 .chat-msg-system.online {
   color: var(--success);
 }
-.chat-msg-system.join {
-  color: var(--success);
+.chat-msg-system.join,
+.chat-msg-system.left {
+  justify-content: flex-start;
+  padding: var(--space-1) var(--space-2);
+  color: #ffff55;
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  font-style: normal;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.3;
+  text-transform: none;
 }
 .chat-msg-system.offline {
-  color: var(--warn);
-}
-.chat-msg-system.left {
   color: var(--warn);
 }
 

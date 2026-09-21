@@ -1,6 +1,6 @@
 import * as Auth from "../lib/auth.js";
 import { initNav, openAuthModal } from "../lib/nav.js";
-import { listChatMessages, subscribeChatMessages, sendWebMessage, insertSystemChatMessage, CHAT_MESSAGE_MAX } from "../lib/chat.js";
+import { listChatMessages, subscribeChatMessages, sendWebMessage, CHAT_MESSAGE_MAX } from "../lib/chat.js";
 import { getServerStatus, subscribeServerStatus, listPlayers, subscribePlayers } from "../lib/live.js";
 import { escapeHtml, formatAbsoluteTime, toast } from "../lib/ui.js";
 
@@ -9,8 +9,6 @@ const STATUS_STALE_MS = 30000;
 const STATUS_REPOLL_MS = 15000;
 const MAX_MESSAGES = 500;
 const SEND_COOLDOWN_MS = 1200;
-const STATUS_NOTICE_KEY = "mc-chat-status-notice";
-const STATUS_NOTICE_DEDUP_MS = 5 * 60 * 1000;
 
 await initNav("chat");
 
@@ -21,7 +19,6 @@ let messages = [];
 const seenIds = new Set();
 let listLoaded = false;
 let serverOnline = null; // null = unknown (treated as offline for sending)
-let lastStatusNoticeSentAt = 0;
 let lastSendAt = 0;
 
 let onlinePlayers = [];
@@ -132,7 +129,6 @@ async function pollServerStatus() {
 
 function setServerOnline(online) {
   if (serverOnline === online) return;
-  const initial = serverOnline === null;
   serverOnline = online;
 
   const pill = $("#chatStatusPill");
@@ -141,30 +137,6 @@ function setServerOnline(online) {
   pill.textContent = online ? "Server online" : "Server offline";
 
   updateComposer();
-
-  // on first load only report an initial outage (avoid "came online" spam on
-  // every reload); real transitions always report both ways
-  if (!initial || !online) pushStatusNotice(online ? "online" : "offline");
-}
-
-function pushStatusNotice(kind) {
-  if (!isAuthed()) return;
-  const now = Date.now();
-  if (now - lastStatusNoticeSentAt < STATUS_NOTICE_DEDUP_MS) return;
-  let saved = null;
-  try {
-    saved = JSON.parse(localStorage.getItem(STATUS_NOTICE_KEY) || "null");
-  } catch {
-    saved = null;
-  }
-  if (saved && saved.kind === kind && now - saved.at < STATUS_NOTICE_DEDUP_MS) return;
-  lastStatusNoticeSentAt = now;
-  try {
-    localStorage.setItem(STATUS_NOTICE_KEY, JSON.stringify({ kind, at: now }));
-  } catch {
-    /* storage unavailable */
-  }
-  insertSystemChatMessage(kind === "online" ? "Server came online" : "Server went offline").catch((err) => console.error(err));
 }
 
 // ---------- composer ----------
@@ -229,8 +201,8 @@ function buildRow(m) {
   row.title = formatAbsoluteTime(m.created_at);
   if (m.kind === "system") {
     row.className = "chat-msg chat-msg-system";
-    const joined = / joined the server/i.test(m.message);
-    const left = / left the server/i.test(m.message);
+    const joined = / joined the game/i.test(m.message);
+    const left = / left the game/i.test(m.message);
     const offline = /offline/i.test(m.message);
     let cls = "online";
     let icon = "fa-circle-check";
@@ -239,13 +211,13 @@ function buildRow(m) {
       icon = "fa-plug-circle-xmark";
     } else if (joined) {
       cls = "join";
-      icon = "fa-arrow-right-to-bracket";
+      icon = "";
     } else if (left) {
       cls = "left";
-      icon = "fa-arrow-right-from-bracket";
+      icon = "";
     }
     row.classList.add(cls);
-    row.innerHTML = `<i class="fa-solid ${icon}" aria-hidden="true"></i>${escapeHtml(m.message)}`;
+    row.innerHTML = (icon ? `<i class="fa-solid ${icon}" aria-hidden="true"></i>` : "") + escapeHtml(m.message);
     return row;
   }
   row.className = "chat-msg";
