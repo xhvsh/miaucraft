@@ -72,6 +72,7 @@ function tpsChartColors() {
     bad: v("--tps-bad", "#e2685f"),
     textDim: v("--text-dim", "#9aa1ab"),
     border: v("--border", "rgba(255,255,255,0.12)"),
+    bg: v("--surface-3", "#151b26"),
   };
 }
 
