@@ -201,8 +201,8 @@ function buildRow(m) {
   row.title = formatAbsoluteTime(m.created_at);
   if (m.kind === "system") {
     row.className = "chat-msg chat-msg-system";
-    const joined = / joined the game/i.test(m.message);
-    const left = / left the game/i.test(m.message);
+    const joined = / joined the (game|server)/i.test(m.message);
+    const left = / left the (game|server)/i.test(m.message);
     const offline = /offline/i.test(m.message);
     let cls = "online";
     let icon = "fa-circle-check";
