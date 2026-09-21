@@ -190,22 +190,6 @@ function drawTpsChart(canvas) {
 
   const segments = splitSegments(points);
 
-  // gradient area fill, one pass per contiguous segment (no smearing across gaps)
-  for (const seg of segments) {
-    if (seg.length < 2) continue;
-    const segColor = bandOf(seg[seg.length - 1].tps, good, warn, bad);
-    const grad = ctx.createLinearGradient(0, PAD_T, 0, PAD_T + H);
-    grad.addColorStop(0, hexToRgba(segColor, 0.22));
-    grad.addColorStop(1, hexToRgba(segColor, 0.02));
-    ctx.beginPath();
-    ctx.moveTo(px(seg[0].t), PAD_T + H);
-    strokeSmoothPath(ctx, seg, px, py);
-    ctx.lineTo(px(seg[seg.length - 1].t), PAD_T + H);
-    ctx.closePath();
-    ctx.fillStyle = grad;
-    ctx.fill();
-  }
-
   // banded smooth line, split into runs per color AND per segment
   ctx.lineWidth = 1.75;
   ctx.lineJoin = "round";
@@ -230,14 +214,6 @@ function drawTpsChart(canvas) {
     ctx.beginPath();
     strokeSmoothPath(ctx, run, px, py);
     ctx.stroke();
-    if (r === runs.length - 1) {
-      ctx.strokeStyle = hexToRgba(color, 0.2);
-      ctx.lineWidth = 5;
-      ctx.stroke();
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 1.75;
-      ctx.stroke();
-    }
   }
 
   // last-value pulse dot + label
