@@ -6,6 +6,7 @@ import { escapeHtml, formatAbsoluteTime, toast } from "../lib/ui.js";
 
 const $ = (sel) => document.querySelector(sel);
 const STATUS_STALE_MS = 30000;
+const STATUS_REPOLL_MS = 15000;
 const MAX_MESSAGES = 500;
 const SEND_COOLDOWN_MS = 1200;
 const STATUS_NOTICE_KEY = "mc-chat-status-notice";
@@ -15,6 +16,7 @@ await initNav("chat");
 
 let chatUnsub = null;
 let statusUnsub = null;
+let statusTimer = null;
 let messages = [];
 const seenIds = new Set();
 let listLoaded = false;
@@ -70,6 +72,8 @@ async function loadChat() {
     setServerOnline(false);
   }
 
+  startStatusTicker();
+
   chatUnsub = subscribeChatMessages((payload) => {
     if (payload?.eventType === "INSERT" && payload.new) appendMessage(payload.new);
   });
@@ -87,6 +91,7 @@ function teardown() {
   chatUnsub = null;
   statusUnsub?.();
   statusUnsub = null;
+  stopStatusTicker();
   messages = [];
   seenIds.clear();
   listLoaded = false;
@@ -102,6 +107,27 @@ function teardown() {
 function isStatusStale(status) {
   if (!status || !status.updated_at) return true;
   return Date.now() - new Date(status.updated_at).getTime() > STATUS_STALE_MS;
+}
+
+function startStatusTicker() {
+  stopStatusTicker();
+  statusTimer = setInterval(pollServerStatus, STATUS_REPOLL_MS);
+}
+
+function stopStatusTicker() {
+  if (statusTimer !== null) {
+    clearInterval(statusTimer);
+    statusTimer = null;
+  }
+}
+
+async function pollServerStatus() {
+  try {
+    setServerOnline(!isStatusStale(await getServerStatus()));
+  } catch (err) {
+    console.error(err);
+    setServerOnline(false);
+  }
 }
 
 function setServerOnline(online) {
