@@ -246,11 +246,13 @@ function insertSortedElement(row) {
   }
   messages.splice(lo, 0, row);
   const list = $("#chatMessages");
-  list.insertBefore(buildRow(row), list.children[lo] ?? null);
+  // #chatSkeleton / #chatEmpty are also children, so address rows via their
+  // index among the actual messages to keep DOM order aligned with `messages`.
+  list.insertBefore(buildRow(row), list.querySelectorAll(".chat-msg")[lo] ?? null);
   const over = messages.length - MAX_MESSAGES;
   if (over > 0) {
     messages.splice(0, over);
-    for (let i = 0; i < over; i++) list.firstChild?.remove();
+    for (let i = 0; i < over; i++) list.querySelector(".chat-msg")?.remove();
   }
 }
 
