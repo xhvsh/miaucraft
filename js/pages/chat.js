@@ -1,12 +1,11 @@
 import * as Auth from "../lib/auth.js";
 import { initNav, openAuthModal } from "../lib/nav.js";
 import { listChatMessages, subscribeChatMessages, sendWebMessage, CHAT_MESSAGE_MAX } from "../lib/chat.js";
-import { getServerStatus, subscribeServerStatus, listPlayers, subscribePlayers } from "../lib/live.js";
+import { getServerStatus, subscribeServerStatus, listPlayers, subscribePlayers, createStatusStaleChecker } from "../lib/live.js";
 import { escapeHtml, formatAbsoluteTime, toast } from "../lib/ui.js";
 
 const $ = (sel) => document.querySelector(sel);
-const STATUS_STALE_MS = 30000;
-const STATUS_REPOLL_MS = 15000;
+const STATUS_REPOLL_MS = 5000;
 const MAX_MESSAGES = 500;
 const SEND_COOLDOWN_MS = 1200;
 
@@ -101,10 +100,7 @@ function teardown() {
 
 // ---------- server online/offline ----------
 
-function isStatusStale(status) {
-  if (!status || !status.updated_at) return true;
-  return Date.now() - new Date(status.updated_at).getTime() > STATUS_STALE_MS;
-}
+const isStatusStale = createStatusStaleChecker();
 
 function startStatusTicker() {
   stopStatusTicker();

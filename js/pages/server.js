@@ -1,13 +1,12 @@
 import * as Auth from "../lib/auth.js";
 import { getServerInfo } from "../lib/waypoints.js";
-import { listPlayers, subscribePlayers, listLivePositions, subscribeLivePositions, getServerStatus, subscribeServerStatus, listTpsSeries } from "../lib/live.js";
+import { listPlayers, subscribePlayers, listLivePositions, subscribeLivePositions, getServerStatus, subscribeServerStatus, listTpsSeries, createStatusStaleChecker } from "../lib/live.js";
 import { SERVER_VERSION } from "../lib/config.js";
 import { escapeHtml, formatRelativeTime, formatAbsoluteTime, formatUptime, isResetArtifact, copyTextToClipboard } from "../lib/ui.js";
 import { initNav } from "../lib/nav.js";
 import { renderTpsChart } from "../lib/tps-chart.js";
 
 const $ = (sel) => document.querySelector(sel);
-const STATUS_STALE_MS = 30000;
 
 const DIM_COLORS = { overworld: "#6bbf8a", nether: "#e2685f", end: "#d9c775" };
 const DIM_LABELS = { overworld: "Overworld", nether: "Nether", end: "End" };
@@ -26,10 +25,7 @@ let tpsHours = 1;
 let tpsPoints = [];
 let tpsRequestId = 0;
 
-function isStatusStale(status) {
-  if (!status || !status.updated_at) return true;
-  return Date.now() - new Date(status.updated_at).getTime() > STATUS_STALE_MS;
-}
+const isStatusStale = createStatusStaleChecker();
 
 function getTpsClass(tps) {
   if (tps >= 18) return "tps-good";

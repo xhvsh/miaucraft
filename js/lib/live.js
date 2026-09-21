@@ -192,6 +192,39 @@ export async function getServerStatus() {
   return data;
 }
 
+/**
+ * Returns a per-page staleness checker that learns the server's real heartbeat
+ * interval from consecutive status updates. Stale threshold = 2.2x the median
+ * observed beat (floor 10s, ceiling 60s), so it behaves correctly whether the
+ * plugin currently heartbeats every 8s or every 25s - no hardcoded window that
+ * can drift into false "offline" states.
+ */
+export function createStatusStaleChecker() {
+  let lastAt = 0;
+  const deltas = [];
+  let median = 0;
+  return (status) => {
+    if (!status || !status.updated_at) return true;
+    const t = new Date(status.updated_at).getTime();
+    if (Number.isFinite(t)) {
+      if (lastAt > 0 && t > lastAt) {
+        const delta = t - lastAt;
+        if (delta > 0 && delta < 600000) {
+          deltas.push(delta);
+          if (deltas.length > 5) deltas.splice(0, deltas.length - 5);
+          const sorted = [...deltas].sort((a, b) => a - b);
+          median = sorted[Math.floor(sorted.length / 2)];
+        }
+      }
+      lastAt = Math.max(lastAt, t);
+    }
+    const staleMs = median <= 0
+      ? 30000
+      : Math.max(10000, Math.min(60000, Math.round(median * 2.2)));
+    return Date.now() - t > staleMs;
+  };
+}
+
 export async function listTpsSeries(hours) {
   const bucketSeconds = hours <= 1 ? 10 : 300;
   const { data, error } = await supabase.rpc("get_tps_series", { p_hours: hours, p_bucket_seconds: bucketSeconds });

@@ -1,7 +1,7 @@
 import * as Auth from "../lib/auth.js";
 import { Grid } from "../lib/grid.js";
 import { listWaypoints, createWaypoint, updateWaypoint, deleteWaypoint, listCategories, categoryIconClass, sanitizeIconClass, loadCollaboratorRoles, forceCollaboratorRole, listCollaborators, addCollaborator, removeCollaborator, transferOwnership, listGalleryImages, addGalleryImage, deleteGalleryImage, uploadGalleryImage, validateGalleryFile, updateGalleryCaption } from "../lib/waypoints.js";
-import { listLivePositions, subscribeLivePositions, subscribePlayers, getServerStatus, subscribeServerStatus } from "../lib/live.js";
+import { listLivePositions, subscribeLivePositions, subscribePlayers, getServerStatus, subscribeServerStatus, createStatusStaleChecker } from "../lib/live.js";
 import { supabase } from "../lib/supabaseClient.js";
 import { settings, saveSettings, formatCoordsForCopy, formatCoordsForDisplay } from "../lib/settings.js";
 import { toast, confirmAction, closeOnBackdropClick, copyTextToClipboard, escapeHtml, sanitizeColor, debounce } from "../lib/ui.js";
@@ -25,7 +25,6 @@ function waypointImage(wp) {
   if (wp?.display_image_url) return { src: wp.display_image_url, alt: `${wp.name} display image` };
   return null;
 }
-const STATUS_STALE_MS = 30000;
 
 await initNav("map");
 
@@ -103,10 +102,7 @@ async function refreshLivePositions() {
   renderLivePins();
 }
 
-function isStatusStale(status) {
-  if (!status || !status.updated_at) return true;
-  return Date.now() - new Date(status.updated_at).getTime() > STATUS_STALE_MS;
-}
+const isStatusStale = createStatusStaleChecker();
 
 function renderLivePins() {
   if (isStatusStale(lastServerStatus)) {

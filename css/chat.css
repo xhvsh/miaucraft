@@ -121,7 +121,7 @@
   text-transform: none;
 }
 .chat-msg-system.offline {
-  color: var(--warn);
+  color: var(--danger);
 }
 
 .chat-composer {
