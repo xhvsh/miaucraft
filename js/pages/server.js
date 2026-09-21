@@ -1,9 +1,10 @@
 import * as Auth from "../lib/auth.js";
 import { getServerInfo } from "../lib/waypoints.js";
-import { listPlayers, subscribePlayers, listLivePositions, subscribeLivePositions, getServerStatus, subscribeServerStatus } from "../lib/live.js";
+import { listPlayers, subscribePlayers, listLivePositions, subscribeLivePositions, getServerStatus, subscribeServerStatus, listTpsSeries } from "../lib/live.js";
 import { SERVER_VERSION } from "../lib/config.js";
 import { escapeHtml, formatRelativeTime, formatAbsoluteTime, formatUptime, isResetArtifact, copyTextToClipboard } from "../lib/ui.js";
 import { initNav } from "../lib/nav.js";
+import { renderTpsChart } from "../lib/tps-chart.js";
 
 const $ = (sel) => document.querySelector(sel);
 const STATUS_STALE_MS = 30000;
@@ -21,6 +22,9 @@ let lastDims = new Map();
 let tickTimer = null;
 let serverLoaded = false;
 let playersLoaded = false;
+let tpsHours = 1;
+let tpsPoints = [];
+let tpsRequestId = 0;
 
 function isStatusStale(status) {
   if (!status || !status.updated_at) return true;
@@ -59,6 +63,70 @@ function setServerConnectionField(id, text, shouldBlur) {
   el.classList.remove("is-revealed");
 }
 
+function tpsChartColors() {
+  const s = getComputedStyle(document.documentElement);
+  const v = (name, fb) => s.getPropertyValue(name).trim() || fb;
+  return {
+    good: v("--tps-good", "#6bbf8a"),
+    warn: v("--tps-warn", "#d4a05a"),
+    bad: v("--tps-bad", "#e2685f"),
+    textDim: v("--text-dim", "#9aa1ab"),
+    border: v("--border", "rgba(255,255,255,0.12)"),
+  };
+}
+
+async function loadTpsChart() {
+  const requestId = ++tpsRequestId;
+  const wrap = $("#tpsChartWrap");
+  const empty = $("#tpsChartEmpty");
+  const canvas = $("#tpsChart");
+  if (wrap) wrap.hidden = false;
+  try {
+    const points = await listTpsSeries(tpsHours);
+    if (requestId !== tpsRequestId) return;
+    tpsPoints = points;
+    if (!points || points.length < 2) {
+      empty.textContent = tpsHours >= 24
+        ? "Not enough TPS history for the last day yet - it fills in as the server runs."
+        : "Not enough TPS history yet - it fills in as the server runs.";
+      empty.hidden = false;
+      renderTpsChart(canvas, [], { rangeHours: tpsHours, colors: tpsChartColors() });
+    } else {
+      empty.hidden = true;
+      renderTpsChart(canvas, points, { rangeHours: tpsHours, colors: tpsChartColors() });
+    }
+  } catch (err) {
+    if (requestId !== tpsRequestId) return;
+    console.error(err);
+    empty.textContent = "Could not load TPS history.";
+    empty.hidden = false;
+  }
+}
+
+function drawTpsChart() {
+  renderTpsChart($("#tpsChart"), tpsPoints, { rangeHours: tpsHours, colors: tpsChartColors() });
+}
+
+document.querySelectorAll(".tps-range-btn").forEach((button) => {
+  button.addEventListener("click", () => {
+    tpsHours = Number(button.dataset.hours);
+    document.querySelectorAll(".tps-range-btn").forEach((b) => b.classList.toggle("is-active", b === button));
+    loadTpsChart();
+  });
+});
+
+let tpsResizePending = false;
+if (typeof ResizeObserver !== "undefined" && document.getElementById("tpsChart")) {
+  new ResizeObserver(() => {
+    if (tpsResizePending || tpsPoints.length < 2) return;
+    tpsResizePending = true;
+    requestAnimationFrame(() => {
+      tpsResizePending = false;
+      drawTpsChart();
+    });
+  }).observe(document.getElementById("tpsChart"));
+}
+
 document.addEventListener("click", (e) => {
   const value = e.target.closest(".server-field-value.ip-blur");
   if (value && !value.classList.contains("is-revealed")) value.classList.add("is-revealed");
@@ -79,8 +147,21 @@ async function loadServerPanel() {
   }
 
   loadPlayersPanel();
+  loadTpsChart();
+  if (document.visibilityState === "visible") startTpsTicker();
   startServerTicker();
 }
+
+let tpsTickTimer = null;
+function startTpsTicker() {
+  if (tpsTickTimer) return;
+  tpsTickTimer = setInterval(() => {
+    if (document.visibilityState === "visible") loadTpsChart();
+  }, 60000);
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") startTpsTicker();
+});
 
 async function refreshServerStatus() {
   try {

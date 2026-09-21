@@ -30,6 +30,7 @@ function renderTopbar(pageId) {
   };
 
   const primaryLinks = PAGES.map((p) => linkHtml(p.href, p.id === pageId, p.icon, p.label)).join("");
+  const chatLink = linkHtml("/chat", pageId === "chat", "fa-message", "Chat", "navChatLink").replace(">", " hidden>");
   const logsLink = linkHtml("/logs", pageId === "logs", "fa-clock-rotate-left", "Logs", "navLogsLink").replace(">", " hidden>");
   const adminLink = linkHtml("/admin", pageId === "admin", "fa-shield-halved", "Admin", "navAdminLink").replace(">", " hidden>");
 
@@ -41,6 +42,7 @@ function renderTopbar(pageId) {
       </a>
       <nav class="nav-primary" id="navPrimary" aria-label="Primary">
         ${primaryLinks}
+        ${chatLink}
         ${logsLink}
         ${adminLink}
       </nav>
@@ -89,6 +91,7 @@ function moreMenuItems(pageId, isMobile) {
       items.push({ href: "/admin", icon: "fa-shield-halved", label: "Admin dashboard" });
     }
     if (loggedIn) {
+      items.push({ href: "/chat", icon: "fa-message", label: "Chat" });
       items.push({ href: "/logs", icon: "fa-clock-rotate-left", label: "Logs" });
     }
   }
@@ -294,6 +297,8 @@ function renderAuthSlot() {
 }
 
 function updateRoleVisibility() {
+  const chatLink = document.getElementById("navChatLink");
+  if (chatLink) chatLink.hidden = !Auth.isLoggedIn();
   const adminLink = document.getElementById("navAdminLink");
   if (adminLink) adminLink.hidden = !(Auth.can("manageWhitelist") || Auth.can("manageCategories"));
   const logsLink = document.getElementById("navLogsLink");

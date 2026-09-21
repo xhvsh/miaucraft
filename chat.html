@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Chat - Miaucraft</title>
+    <meta name="description" content="Live chat with the Miaucraft server - send messages that appear in game." />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" href="img/icon.webp" type="image/webp" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <script src="https://kit.fontawesome.com/384138011e.js" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="css/tokens.css" />
+    <link rel="stylesheet" href="css/base.css" />
+    <link rel="stylesheet" href="css/components.css" />
+    <link rel="stylesheet" href="css/nav.css" />
+    <link rel="stylesheet" href="css/chat.css" />
+  </head>
+  <body data-page="chat">
+    <a class="skip-link" href="#mainContent">Skip to content</a>
+    <div class="app-shell">
+      <div id="navRoot"></div>
+
+      <main class="page-main" id="mainContent" tabindex="-1">
+        <div class="page-container">
+          <div class="page-head">
+            <div>
+              <h1>Chat</h1>
+              <p>Live chat - messages from the server appear here, and you can reply from the web.</p>
+            </div>
+          </div>
+
+          <div class="chat-layout">
+            <div class="chat-main">
+              <section class="card chat-gate" id="chatGate" hidden>
+                <div class="chat-gate-inner">
+                  <i class="fa-solid fa-message" aria-hidden="true"></i>
+                  <h2>Sign in to chat</h2>
+                  <p>Live chat is available to logged-in users.</p>
+                  <button class="btn btn-primary" type="button" id="chatSignInBtn">Sign in</button>
+                </div>
+              </section>
+
+              <section class="card chat-card" id="chatCard" hidden>
+                <div class="chat-top">
+                  <h2 class="section-title" style="margin:0">Chat</h2>
+                  <span class="badge" id="chatStatusPill" hidden></span>
+                </div>
+
+                <div class="chat-messages" id="chatMessages" aria-live="polite">
+                  <div class="chat-skeleton" id="chatSkeleton">
+                    <div class="skeleton sk-line" style="width:52%"></div>
+                    <div class="skeleton sk-line" style="width:38%"></div>
+                    <div class="skeleton sk-line" style="width:70%"></div>
+                    <div class="skeleton sk-line" style="width:30%"></div>
+                    <div class="skeleton sk-line" style="width:58%"></div>
+                  </div>
+                  <div class="empty-state chat-empty" id="chatEmpty" hidden>
+                    <i class="fa-solid fa-comments" aria-hidden="true"></i>
+                    <span>No messages yet.</span>
+                  </div>
+                </div>
+
+                <form class="chat-composer" id="chatComposer">
+                  <input
+                    type="text"
+                    class="chat-input"
+                    id="chatInput"
+                    placeholder="Say something to the server..."
+                    aria-label="Chat message"
+                    maxlength="300"
+                    autocomplete="off"
+                    disabled
+                  />
+                  <div class="chat-composer-side">
+                    <span class="chat-count" id="chatCount">0/300</span>
+                    <button class="btn btn-primary" id="chatSend" type="submit" disabled>Send</button>
+                  </div>
+                </form>
+                <p class="chat-offline-hint" id="chatOfflineHint" hidden>
+                  <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+                  The server is offline - messages can't be delivered.
+                </p>
+                <p class="chat-format-hint">
+                  Your messages show as <span class="chat-prefix">[web]</span> on the website and in game; server messages show normally.
+                </p>
+              </section>
+            </div>
+
+            <aside class="chat-side" id="chatSide" hidden>
+              <section class="card online-card">
+                <div class="chat-top">
+                  <h2 class="section-title" style="margin:0">Online</h2>
+                  <span class="players-online-count" id="onlineCount">-</span>
+                </div>
+                <div class="players-list online-list" id="onlinePlayersList">
+                  <div class="skeleton-list chat-skeleton" id="onlineSkeleton">
+                    <div class="skeleton sk-row">
+                      <span class="skeleton sk-avatar"></span>
+                      <span class="skeleton sk-line" style="width:42%"></span>
+                    </div>
+                    <div class="skeleton sk-row">
+                      <span class="skeleton sk-avatar"></span>
+                      <span class="skeleton sk-line" style="width:58%"></span>
+                    </div>
+                    <div class="skeleton sk-row">
+                      <span class="skeleton sk-avatar"></span>
+                      <span class="skeleton sk-line" style="width:34%"></span>
+                    </div>
+                  </div>
+                  <div class="empty-state chat-empty" id="onlineEmpty" hidden>
+                    <i class="fa-solid fa-user-slash" aria-hidden="true"></i>
+                    <span>No players online.</span>
+                  </div>
+                </div>
+              </section>
+            </aside>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+    <script type="module" src="js/pages/chat.js"></script>
+  </body>
+</html>

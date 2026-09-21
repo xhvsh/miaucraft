@@ -49,6 +49,20 @@
                     <span class="server-stat-value tabular is-skeleton" id="serverDays">312</span>
                   </div>
                 </div>
+
+                <div class="server-tps-chart" id="tpsChartWrap" hidden>
+                  <div class="server-tps-chart-head">
+                    <span class="server-tps-chart-title">TPS history</span>
+                    <div class="tps-chart-ranges" role="group" aria-label="TPS chart range">
+                      <button type="button" class="tps-range-btn is-active" data-hours="1">Last hour</button>
+                      <button type="button" class="tps-range-btn" data-hours="24">Last day</button>
+                    </div>
+                  </div>
+                  <div class="tps-chart-body">
+                    <canvas class="tps-chart-canvas" id="tpsChart" role="img" aria-label="TPS over time"></canvas>
+                    <p class="tps-chart-empty" id="tpsChartEmpty" hidden></p>
+                  </div>
+                </div>
               </section>
 
               <section class="card server-connect-card">

@@ -192,6 +192,13 @@ export async function getServerStatus() {
   return data;
 }
 
+export async function listTpsSeries(hours) {
+  const bucketSeconds = hours <= 1 ? 10 : 300;
+  const { data, error } = await supabase.rpc("get_tps_series", { p_hours: hours, p_bucket_seconds: bucketSeconds });
+  if (error) throw error;
+  return (data ?? []).map((r) => ({ t: Date.parse(r.bucket), tps: Number(r.tps), players: Number(r.players_online) }));
+}
+
 export async function getLeaderboardLastUpdated() {
   const { data, error } = await db("player_stats").select("updated_at").order("updated_at", { ascending: false }).limit(1).maybeSingle();
   if (error) throw error;

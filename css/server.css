@@ -223,3 +223,84 @@
   gap: 6px;
   flex-shrink: 0;
 }
+
+/* ---------- TPS history chart ---------- */
+
+.server-tps-chart {
+  margin-top: var(--space-5);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--border);
+}
+
+.server-tps-chart-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.server-tps-chart-title {
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.tps-chart-ranges {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.tps-range-btn {
+  background: none;
+  border: none;
+  padding: 4px 10px;
+  border-radius: calc(var(--radius-sm) - 2px);
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.tps-range-btn:hover {
+  color: var(--text);
+}
+.tps-range-btn.is-active {
+  background: var(--surface-3);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+
+.tps-chart-body {
+  position: relative;
+}
+
+.tps-chart-canvas {
+  display: block;
+  width: 100%;
+  height: 180px;
+}
+
+.tps-chart-empty {
+  margin: 0;
+  padding: var(--space-5) 0;
+  text-align: center;
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+}
+
+@media (max-width: 560px) {
+  .tps-chart-canvas {
+    height: 150px;
+  }
+}
