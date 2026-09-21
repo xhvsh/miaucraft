@@ -205,27 +205,28 @@ function buildRow(m) {
     const left = / left the (game|server)/i.test(m.message);
     const offline = /offline/i.test(m.message);
     let cls = "online";
-    let icon = "fa-circle-check";
     if (offline) {
       cls = "offline";
-      icon = "fa-plug-circle-xmark";
     } else if (joined) {
       cls = "join";
-      icon = "";
     } else if (left) {
       cls = "left";
-      icon = "";
     }
     row.classList.add(cls);
-    row.innerHTML = (icon ? `<i class="fa-solid ${icon}" aria-hidden="true"></i>` : "") + escapeHtml(m.message);
+    row.textContent = m.message;
     return row;
   }
   row.className = "chat-msg";
   const isWeb = m.kind === "web";
-  const author = escapeHtml(m.username || "?");
-  const prefix = isWeb ? '<span class="chat-prefix">[web]</span>' : "";
-  const authorClass = isWeb ? "chat-author chat-author--web" : "chat-author";
-  row.innerHTML = `${prefix}<span class="${authorClass}">${author}</span><span class="chat-colon">:</span>&nbsp;<span class="chat-text">${escapeHtml(m.message)}</span>`;
+  const author = m.username || "?";
+  const suffix = author + ": " + m.message;
+  if (isWeb) {
+    const b = document.createElement("span");
+    b.className = "chat-prefix";
+    b.textContent = "[web] ";
+    row.appendChild(b);
+  }
+  row.appendChild(document.createTextNode(suffix));
   return row;
 }
 
