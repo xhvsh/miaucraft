@@ -203,9 +203,22 @@ function buildRow(m) {
   row.title = formatAbsoluteTime(m.created_at);
   if (m.kind === "system") {
     row.className = "chat-msg chat-msg-system";
+    const joined = / joined the server/i.test(m.message);
+    const left = / left the server/i.test(m.message);
     const offline = /offline/i.test(m.message);
-    row.classList.add(offline ? "offline" : "online");
-    const icon = offline ? "fa-plug-circle-xmark" : "fa-circle-check";
+    let cls = "online";
+    let icon = "fa-circle-check";
+    if (offline) {
+      cls = "offline";
+      icon = "fa-plug-circle-xmark";
+    } else if (joined) {
+      cls = "join";
+      icon = "fa-arrow-right-to-bracket";
+    } else if (left) {
+      cls = "left";
+      icon = "fa-arrow-right-from-bracket";
+    }
+    row.classList.add(cls);
     row.innerHTML = `<i class="fa-solid ${icon}" aria-hidden="true"></i>${escapeHtml(m.message)}`;
     return row;
   }

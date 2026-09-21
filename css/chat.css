@@ -81,10 +81,11 @@
   font-weight: 700;
 }
 .chat-msg .chat-author--web {
-  color: var(--accent);
+  color: var(--text);
 }
 .chat-msg .chat-colon {
-  color: var(--text-dim);
+  color: var(--text);
+  font-weight: 700;
 }
 .chat-msg .chat-text {
   color: var(--text-soft);
@@ -106,7 +107,13 @@
 .chat-msg-system.online {
   color: var(--success);
 }
+.chat-msg-system.join {
+  color: var(--success);
+}
 .chat-msg-system.offline {
+  color: var(--warn);
+}
+.chat-msg-system.left {
   color: var(--warn);
 }
 
