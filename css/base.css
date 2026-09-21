@@ -235,3 +235,20 @@ img {
   font-variant-numeric: tabular-nums;
   font-family: var(--font-mono);
 }
+
+/* Cross-document page fade (native View Transitions, enabled per-page via
+   <meta name="view-transition" content="same-origin">). No-op feature-wise
+   on browsers without support; disabled for reduced motion. */
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 220ms;
+    animation-timing-function: ease-out;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
+}
