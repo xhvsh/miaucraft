@@ -1,7 +1,7 @@
 import * as Auth from "../lib/auth.js";
 import { initNav, openAuthModal } from "../lib/nav.js";
 import { listChatMessages, subscribeChatMessages, sendWebMessage, CHAT_MESSAGE_MAX } from "../lib/chat.js";
-import { getServerStatus, subscribeServerStatus, listPlayers, subscribePlayers, createStatusStaleChecker } from "../lib/live.js";
+import { getServerStatus, subscribeServerStatus, listPlayers, subscribePlayers } from "../lib/live.js";
 import { escapeHtml, formatAbsoluteTime, toast } from "../lib/ui.js";
 
 const $ = (sel) => document.querySelector(sel);
@@ -51,6 +51,7 @@ async function loadChat() {
     for (const m of messages) seenIds.add(m.id);
     listLoaded = true;
     $("#chatEmpty").querySelector("span").textContent = "No messages yet.";
+    seedServerState();
     renderAll();
   } catch (err) {
     console.error(err);
@@ -62,7 +63,7 @@ async function loadChat() {
 
   try {
     const status = await getServerStatus();
-    setServerOnline(!isStatusStale(status));
+    setServerOnline(serverOnline ?? (status ? true : false));
   } catch (err) {
     console.error(err);
     setServerOnline(false);
@@ -82,7 +83,7 @@ async function loadChat() {
   });
 
   statusUnsub = subscribeServerStatus((payload) => {
-    if (payload?.new) setServerOnline(!isStatusStale(payload.new));
+    if (payload?.new && noteServerStatus(payload.new)) setServerOnline(true);
   });
 
   subscribePlayers(debounceRefreshPlayers);
@@ -106,8 +107,48 @@ function teardown() {
 }
 
 // ---------- server online/offline ----------
+//
+// The pill is driven by the plugin's authoritative "Server online"/"Server
+// offline" system chat rows, with a heartbeat-silence fallback for hard crashes.
+// Silence is measured with the client's monotonic clock since the last *new*
+// status row - never by comparing Date.now() to the server's watermark - so a
+// skewed client clock can't leave the badge stuck on "Server online".
 
-const isStatusStale = createStatusStaleChecker();
+let lastStatusAt = 0;
+let lastStatusArrival = 0;
+const statusDeltas = [];
+let statusMedian = 0;
+
+function staleAfterMs() {
+  return statusMedian > 0
+    ? Math.max(10000, Math.min(60000, Math.round(statusMedian * 2.2)))
+    : 30000;
+}
+
+/** Records a status row. Returns true when it's a NEWER row than the last one
+ *  seen this session - i.e. the server is demonstrably alive right now. */
+function noteServerStatus(status) {
+  if (!status || !status.updated_at) return false;
+  const t = new Date(status.updated_at).getTime();
+  if (!Number.isFinite(t)) return false;
+  if (lastStatusAt > 0 && t > lastStatusAt) {
+    const delta = t - lastStatusAt;
+    if (delta > 0 && delta < 600000) {
+      statusDeltas.push(delta);
+      if (statusDeltas.length > 5) statusDeltas.splice(0, statusDeltas.length - 5);
+      const sorted = [...statusDeltas].sort((a, b) => a - b);
+      statusMedian = sorted[Math.floor(sorted.length / 2)];
+    }
+    lastStatusAt = t;
+    lastStatusArrival = performance.now();
+    return true;
+  }
+  if (lastStatusAt === 0) {
+    lastStatusAt = t;
+    lastStatusArrival = performance.now();
+  }
+  return false;
+}
 
 function startStatusTicker() {
   stopStatusTicker();
@@ -123,10 +164,22 @@ function stopStatusTicker() {
 
 async function pollServerStatus() {
   try {
-    setServerOnline(!isStatusStale(await getServerStatus()));
+    if (noteServerStatus(await getServerStatus())) setServerOnline(true);
   } catch (err) {
     console.error(err);
+  }
+  if (lastStatusArrival > 0 && performance.now() - lastStatusArrival > staleAfterMs()) {
     setServerOnline(false);
+  }
+}
+
+/** Initial pill from the latest system online/offline message in the log. */
+function seedServerState() {
+  serverOnline = null;
+  for (const m of messages) {
+    if (m.kind !== "system" || !m.message) continue;
+    if (/server online|started|booted/i.test(m.message)) serverOnline = true;
+    else if (/offline/i.test(m.message)) serverOnline = false;
   }
 }
 
@@ -155,7 +208,6 @@ function updateComposer() {
       ? "Say something to the server..."
       : "Server offline - your message stays on the web chat"
     : "Sign in to send messages";
-  $("#chatOfflineHint").hidden = !(authed && serverOnline !== true);
 }
 
 function updateCount() {
