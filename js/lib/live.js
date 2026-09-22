@@ -86,26 +86,24 @@ export function subscribeLivePositions(onChange) {
 // biome map
 
 /**
- * Reads one stride x stride biome cell grid covering the chunk box. PostgREST
- * caps RPC output at 1000 rows/page, so cells are paged until the box is fully
- * drained. Returns rows of {cell_x, cell_z, biome}.
+ * Fetches one stride x stride biome cell grid covering the chunk box in a
+ * SINGLE HTTP round trip: biomes_snapshot packs the whole box into one row
+ * (text[] of "cell_x,cell_z,biome"), so a viewport never turns into a chain
+ * of paginated requests. Returns rows of {cell_x, cell_z, biome}.
  */
 export async function listBiomeCells(dimension, minCx, maxCx, minCz, maxCz, stride) {
-  const pageSize = 1000;
   const args = { p_dimension: dimension, p_stride: stride, p_min_cx: minCx, p_max_cx: maxCx, p_min_cz: minCz, p_max_cz: maxCz };
-  let all = [];
-  let from = 0;
-  while (true) {
-    const rpc = SCHEMA === "public" ? supabase.rpc("biomes_sample", args) : supabase.schema(SCHEMA).rpc("biomes_sample", args);
-    const { data, error } = await rpc.range(from, from + pageSize - 1);
-    if (error) throw error;
-    const page = data ?? [];
-    if (page.length === 0) break;
-    all = all.concat(page);
-    if (page.length < pageSize) break;
-    from += pageSize;
+  const rpc = SCHEMA === "public" ? supabase.rpc("biomes_snapshot", args) : supabase.schema(SCHEMA).rpc("biomes_snapshot", args);
+  const { data, error } = await rpc;
+  if (error) throw error;
+  const cells = data && data[0] && data[0].cells;
+  if (!Array.isArray(cells) || cells.length === 0) return [];
+  const rows = new Array(cells.length);
+  for (let i = 0; i < cells.length; i++) {
+    const [cell_x, cell_z, biome] = cells[i].split(",");
+    rows[i] = { cell_x: Number(cell_x), cell_z: Number(cell_z), biome };
   }
-  return all;
+  return rows;
 }
 
 export async function getPlayerByUsername(username) {

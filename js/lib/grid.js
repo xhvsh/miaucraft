@@ -85,7 +85,7 @@ export class Grid {
     this.onBiomeDataChange = null;
     this._biomeCells = new Map();
     this._biomeTiles = new Map();
-    this._biomeCellCap = 200000;
+    this._biomeCellCap = 120000;
     this._biomeTileCap = 96;
     this._biomeViewBusy = null;
     this._biomeViewTimer = null;
@@ -174,12 +174,23 @@ export class Grid {
 
   _biomeStrideForScale() {
     const chunkPx = this.scale * 16;
-    if (chunkPx >= 1) return 1;
-    if (chunkPx >= 0.5) return 2;
-    if (chunkPx >= 0.25) return 4;
-    if (chunkPx >= 0.125) return 8;
-    if (chunkPx >= 0.05) return 16;
-    return 32;
+    let stride;
+    if (chunkPx >= 1) stride = 1;
+    else if (chunkPx >= 0.5) stride = 2;
+    else if (chunkPx >= 0.25) stride = 4;
+    else if (chunkPx >= 0.125) stride = 8;
+    else if (chunkPx >= 0.05) stride = 16;
+    else stride = 32;
+    // A biome snapshot is one HTTP response for the whole visible area, so
+    // keep it small: coarsen the stride until the viewport fits in ~15k cells
+    // (~300KB). Huge monitors at default zoom get slightly chunkier squares,
+    // but every fetch stays a single quick request.
+    const viewW = Math.max(this.cssWidth, 1) / this.scale;
+    const viewH = Math.max(this.cssHeight, 1) / this.scale;
+    while (stride < 128 && (viewW / (16 * stride)) * (viewH / (16 * stride)) > 15000) {
+      stride *= 2;
+    }
+    return stride;
   }
 
   /** Biome under a world coordinate for the current stride, or null. */
