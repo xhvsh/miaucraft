@@ -46,7 +46,6 @@ const sidebarToggleBtn = $("#sidebarToggleBtn");
 const sidebarCloseBtn = $("#sidebarCloseBtn");
 const sidebarScrim = $("#sidebarScrim");
 const addWaypointBtn = $("#addWaypointBtn");
-const biomeToggleBtn = $("#biomeToggleBtn");
 const biomeLegendEl = $("#biomeLegend");
 const waypointModal = $("#waypointModal");
 const imageLightbox = $("#imageLightbox");
@@ -70,14 +69,14 @@ const mobileMediaQuery = window.matchMedia("(max-width: 860px)");
 
 const grid = new Grid($("#gridContainer"), { dimensionColor: DIM_COLORS.overworld, defaultScale: DIM_DEFAULT_SCALE.overworld });
 
-let biomeOverlayOn = true;
+// Biome overlay is always on - the layer is just part of the map.
 let biomeLegendOpen = true;
 grid.setBiomeSource((dim, minCx, maxCx, minCz, maxCz, stride) => listBiomeCells(dim, minCx, maxCx, minCz, maxCz, stride));
 grid.onBiomeDataChange = debounce(() => renderBiomeLegend(), 300);
-grid.setBiomeEnabled(biomeOverlayOn);
+grid.setBiomeEnabled(true);
 
 function renderBiomeLegend() {
-  if (!biomeOverlayOn || !biomeLegendOpen) {
+  if (!biomeLegendOpen) {
     biomeLegendEl.hidden = true;
     return;
   }
@@ -119,14 +118,6 @@ function buildBiomeLegend(items) {
     biomeLegendEl.appendChild(row);
   }
 }
-
-biomeToggleBtn.addEventListener("click", () => {
-  biomeOverlayOn = !biomeOverlayOn;
-  biomeLegendOpen = biomeOverlayOn;
-  biomeToggleBtn.setAttribute("aria-pressed", String(biomeOverlayOn));
-  grid.setBiomeEnabled(biomeOverlayOn);
-  renderBiomeLegend();
-});
 
 grid.onEmptyRightClick = (x, z) => {
   if (!Auth.can("addWaypoint")) {
