@@ -214,10 +214,6 @@ body[data-page="map"] {
   align-items: center;
   gap: var(--space-2);
 }
-.toolbar-actions #biomeToggleBtn[aria-pressed="true"] {
-  background: var(--accent);
-  color: #0c0810;
-}
 .toolbar-actions .add-waypoint-btn {
   background: var(--accent);
   color: #0c0810;
