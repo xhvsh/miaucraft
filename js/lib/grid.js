@@ -1,5 +1,3 @@
-import { biomeColor, biomeName } from "./biomePalette.js";
-
 const NICE_SPACINGS = [10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000];
 const MIN_LABEL_GAP_PX = 70;
 const MIN_SCALE = 0.02;
@@ -10,8 +8,6 @@ const PIN_HIT_RADIUS_TOUCH = 28;
 const PIN_ICON_HEIGHT = 24;
 const TOUCH_TAP_MOVE_THRESHOLD = 10;
 const PLAYER_ANIM_DURATION_MS = 1000;
-const BIOME_TILE_CELLS = 28; // 28x28 = 784 cells max: a rendered tile stays under the per-RPC 1000-row page cap
-const BIOME_REQ_MIN_GAP = 1200; // hard floor between biome queries, per session
 
 function easeOutCubic(t) {
   return 1 - Math.pow(1 - t, 3);
@@ -79,20 +75,6 @@ export class Grid {
     this.onViewChange = null;
     this._viewAnimation = null;
 
-    this.biomeEnabled = false;
-    this.biomeDim = "overworld";
-    this.biomeSource = null;
-    this.onBiomeDataChange = null;
-    this._biomeCells = new Map();
-    this._biomeTiles = new Map();
-    this._biomeCellCap = 120000;
-    this._biomeTileCap = 96;
-    this._biomeViewBusy = null;
-    this._biomeViewTimer = null;
-    this._biomeCovered = null;
-    this._biomeFailedUntil = 0;
-    this._biomeLastReqAt = 0;
-
     this._boundVisibilityHandler = () => {
       if (document.hidden) {
         if (this._playerAnimFrame) { cancelAnimationFrame(this._playerAnimFrame); this._playerAnimFrame = null; }
@@ -129,179 +111,6 @@ export class Grid {
 
   setDefaultScale(scale) {
     this.defaultScale = scale;
-  }
-
-  /** @type {(dim, minCx, maxCx, minCz, maxCz, stride) => Promise<Array<{cell_x:number, cell_z:number, biome:string}>>} */
-  setBiomeSource(source) {
-    this.biomeSource = source;
-    this.draw();
-  }
-
-  setBiomeDimension(dim) {
-    if (this.biomeDim === dim) return;
-    this.biomeDim = dim;
-    this.draw();
-  }
-
-  setBiomeEnabled(on) {
-    const next = Boolean(on);
-    if (this.biomeEnabled === next) return;
-    this.biomeEnabled = next;
-    this.draw();
-  }
-
-  _biomeStrideForScale() {
-    const chunkPx = this.scale * 16;
-    // Chunk size stays constant throughout normal zooming: cells are always
-    // written as 1 chunk each, only aggregating once individual chunks shrink
-    // below a screen pixel (when the whole world fits on screen anyway, so
-    // the coarser grain is invisible at that distance).
-    if (chunkPx >= 1) return 1;
-    if (chunkPx >= 0.5) return 2;
-    if (chunkPx >= 0.25) return 4;
-    if (chunkPx >= 0.125) return 8;
-    if (chunkPx >= 0.05) return 16;
-    return 32;
-  }
-
-  /** Biome under a world coordinate for the current stride, or null. */
-  _biomeAtWorld(wx, wz) {
-    const stride = this._biomeStrideForScale();
-    const gx = Math.floor(wx / (16 * stride));
-    const gz = Math.floor(wz / (16 * stride));
-    const cell = this._biomeCells.get(`${this.biomeDim}|s${stride}|${gx},${gz}`);
-    return cell ? cell.biome : null;
-  }
-
-  _biomeJobKey(dim, stride, tx, tz) {
-    return `${dim}|s${stride}|${tx},${tz}`;
-  }
-
-  _biomeTileAt(dim, stride, tx, tz) {
-    const key = this._biomeJobKey(dim, stride, tx, tz);
-    const tile = this._biomeTiles.get(key);
-    if (tile) {
-      // refresh recency so the LRU eviction drops the least recently used tile
-      this._biomeTiles.delete(key);
-      this._biomeTiles.set(key, tile);
-    }
-    return tile;
-  }
-
-  /**
-   * One database round trip per viewport change / zoom / refresh instead of one
-   * per tile. The box covers the whole visible area; fetched rows are painted
-   * into whichever 28x28 tile they land in, so panning over loaded tiles never
-   * queries the database at all.
-   */
-  _requestBiomeArea(stride, minGx, maxGx, minGz, maxGz) {
-    if (!this.biomeSource || !this.biomeEnabled) return;
-    const dim = this.biomeDim;
-    if (this._biomeFailedUntil && Date.now() < this._biomeFailedUntil) return;
-    // A sparse/empty reply for this area was already fetched recently. Without
-    // this mark, an empty DB (or a half-scanned world) would leave most tiles
-    // "missing" and re-fire a request every frame.
-    const c = this._biomeCovered;
-    if (c && c.dim === dim && c.stride === stride
-        && c.minGx <= minGx && c.maxGx >= maxGx
-        && c.minGz <= minGz && c.maxGz >= maxGz) {
-      return;
-    }
-    const b = this._biomeViewBusy;
-    if (b && b.dim === dim && b.stride === stride
-        && b.minGx <= minGx && b.maxGx >= maxGx
-        && b.minGz <= minGz && b.maxGz >= maxGz) {
-      return;
-    }
-    if (this._biomeViewTimer) clearTimeout(this._biomeViewTimer);
-    this._biomeViewTimer = setTimeout(() => {
-      this._biomeViewTimer = null;
-      this._fireAreaReq(dim, stride, minGx, maxGx, minGz, maxGz);
-    }, 120);
-  }
-
-  _fireAreaReq(dim, stride, minGx, maxGx, minGz, maxGz) {
-    const gap = Date.now() - this._biomeLastReqAt;
-    if (gap < BIOME_REQ_MIN_GAP) {
-      // Rate cap: wait out the remaining gap, then fire exactly one request,
-      // so a static/panning view can never turn into a request storm.
-      this._biomeViewTimer = setTimeout(() => {
-        this._biomeViewTimer = null;
-        this._fireAreaReq(dim, stride, minGx, maxGx, minGz, maxGz);
-      }, BIOME_REQ_MIN_GAP - gap);
-      return;
-    }
-    this._biomeLastReqAt = Date.now();
-    this._biomeViewBusy = { dim, stride, minGx, maxGx, minGz, maxGz };
-    Promise.resolve()
-      .then(() => this.biomeSource(dim, minGx, maxGx, minGz, maxGz, stride))
-      .then((rows) => {
-        this._storeBiomeRows(dim, stride, rows);
-        this._biomeCovered = { dim, stride, minGx, maxGx, minGz, maxGz };
-      })
-      .catch((err) => {
-        this._biomeFailedUntil = Date.now() + 2000;
-        console.error("biome map fetch failed", err);
-      })
-      .finally(() => {
-        this._biomeViewBusy = null;
-        this.draw();
-      });
-  }
-
-  _storeBiomeRows(dim, stride, rows) {
-    const painted = new Set();
-    for (const row of rows) {
-      const gx = Number(row.cell_x);
-      const gz = Number(row.cell_z);
-      this._biomeCells.set(`${dim}|s${stride}|${gx},${gz}`, { gx, gz, stride, biome: row.biome });
-      const tx = Math.floor(gx / BIOME_TILE_CELLS);
-      const tz = Math.floor(gz / BIOME_TILE_CELLS);
-      const key = this._biomeJobKey(dim, stride, tx, tz);
-      let canvas = this._biomeTiles.get(key);
-      if (!canvas) {
-        canvas = document.createElement("canvas");
-        canvas.width = BIOME_TILE_CELLS;
-        canvas.height = BIOME_TILE_CELLS;
-        this._biomeTiles.set(key, canvas);
-      }
-      const g = canvas.getContext("2d");
-      g.fillStyle = biomeColor(row.biome);
-      g.fillRect(gx - tx * BIOME_TILE_CELLS, gz - tz * BIOME_TILE_CELLS, 1, 1);
-      painted.add(key);
-    }
-    while (this._biomeCells.size > this._biomeCellCap) {
-      this._biomeCells.delete(this._biomeCells.keys().next().value);
-    }
-    while (this._biomeTiles.size > this._biomeTileCap) {
-      this._biomeTiles.delete(this._biomeTiles.keys().next().value);
-    }
-    if (painted.size > 0) {
-      // refresh recency so the LRU eviction drops the least recently used tile
-      for (const key of painted) {
-        const tile = this._biomeTiles.get(key);
-        this._biomeTiles.delete(key);
-        this._biomeTiles.set(key, tile);
-      }
-      this.onBiomeDataChange?.();
-    }
-  }
-
-  /** Top biomes for the current dimension's loaded cells, highest count first. */
-  biomeLegend(limit = 40) {
-    const dim = this.biomeDim;
-    const stride = this._biomeStrideForScale();
-    const prefix = `${dim}|s${stride}|`;
-    const counts = new Map();
-    for (const [key, cell] of this._biomeCells) {
-      if (key.startsWith(prefix)) {
-        counts.set(cell.biome, (counts.get(cell.biome) ?? 0) + 1);
-      }
-    }
-    return [...counts.entries()]
-      .map(([key, count]) => ({ key, name: biomeName(key), count }))
-      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
-      .slice(0, limit);
   }
 
   /**
@@ -577,7 +386,7 @@ export class Grid {
               this.hoveredWaypoint = hoveredWaypoint;
             }
             this.readout.hidden = false;
-            this.readout.textContent = this._readoutText(w);
+            this.readout.textContent = `x ${Math.round(w.x)}, z ${Math.round(w.z)}`;
           } else {
             if (this.hoveredWaypoint) {
               this.hoveredWaypoint = null;
@@ -708,7 +517,7 @@ export class Grid {
           const sy = t.clientY - rect.top;
           const w = this.screenToWorld(sx, sy);
           this.readout.hidden = false;
-          this.readout.textContent = this._readoutText(w);
+          this.readout.textContent = `x ${Math.round(w.x)}, z ${Math.round(w.z)}`;
           this.draw();
           this.onViewChange?.();
         }
@@ -789,77 +598,11 @@ export class Grid {
     return null;
   }
 
-  _visibleBiomeTileRange() {
-    const w = this.cssWidth;
-    const h = this.cssHeight;
-    const stride = this._biomeStrideForScale();
-    const worldLeft = this.centerX - w / 2 / this.scale;
-    const worldRight = this.centerX + w / 2 / this.scale;
-    const worldTop = this.centerZ - h / 2 / this.scale;
-    const worldBottom = this.centerZ + h / 2 / this.scale;
-    const minGx = Math.floor(Math.floor(worldLeft / 16) / stride);
-    const maxGx = Math.floor(Math.floor(worldRight / 16) / stride);
-    const minGz = Math.floor(Math.floor(worldTop / 16) / stride);
-    const maxGz = Math.floor(Math.floor(worldBottom / 16) / stride);
-    return {
-      stride,
-      minGx,
-      maxGx,
-      minGz,
-      maxGz,
-      t0x: Math.floor(minGx / BIOME_TILE_CELLS),
-      t1x: Math.floor(maxGx / BIOME_TILE_CELLS),
-      t0z: Math.floor(minGz / BIOME_TILE_CELLS),
-      t1z: Math.floor(maxGz / BIOME_TILE_CELLS),
-    };
-  }
-
-  _drawBiomes(ctx, w, h) {
-    const scale = this.scale;
-    const { stride, minGx, maxGx, minGz, maxGz, t0x, t1x, t0z, t1z } = this._visibleBiomeTileRange();
-    const tilePx = Math.max(1, Math.round(BIOME_TILE_CELLS * scale * 16 * stride));
-
-    ctx.save();
-    // Keep biome cells crisp when a tile is upscaled (zooming in on a coarse
-    // stride) instead of letting the browser blur them together.
-    ctx.imageSmoothingEnabled = false;
-    let missing = false;
-    for (let tz = t0z; tz <= t1z; tz++) {
-      for (let tx = t0x; tx <= t1x; tx++) {
-        const tile = this._biomeTileAt(this.biomeDim, stride, tx, tz);
-        if (tile) {
-          const p = this.worldToScreen(tx * BIOME_TILE_CELLS * stride * 16, tz * BIOME_TILE_CELLS * stride * 16);
-          ctx.drawImage(tile, Math.round(p.x), Math.round(p.y), tilePx, tilePx);
-        } else {
-          missing = true;
-        }
-      }
-    }
-    ctx.restore();
-
-    // One batched query for the whole visible area (debounced so continuous
-    // panning doesn't fire a request per frame).
-    if (missing) {
-      this._requestBiomeArea(stride, minGx, maxGx, minGz, maxGz);
-    }
-  }
-
-  _readoutText(w) {
-    let text = `x ${Math.round(w.x)}, z ${Math.round(w.z)}`;
-    if (this.biomeEnabled) {
-      const biome = this._biomeAtWorld(w.x, w.z);
-      if (biome) text += ` • ${biomeName(biome)}`;
-    }
-    return text;
-  }
-
   draw() {
     const ctx = this.ctx;
     const w = this.cssWidth;
     const h = this.cssHeight;
     ctx.clearRect(0, 0, w, h);
-
-    if (this.biomeEnabled) this._drawBiomes(ctx, w, h);
 
     const spacing = pickSpacing(this.scale);
 
