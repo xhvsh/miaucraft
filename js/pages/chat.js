@@ -17,7 +17,7 @@ let statusTimer = null;
 let messages = [];
 const seenIds = new Set();
 let listLoaded = false;
-let serverOnline = null; // null = unknown (treated as offline for sending)
+let serverOnline = null; // null = unknown; sending is never blocked, only relaying depends on the server
 let lastSendAt = 0;
 
 let onlinePlayers = [];
@@ -71,7 +71,14 @@ async function loadChat() {
   startStatusTicker();
 
   chatUnsub = subscribeChatMessages((payload) => {
-    if (payload?.eventType === "INSERT" && payload.new) appendMessage(payload.new);
+    if (payload?.eventType === "INSERT" && payload.new) {
+      const row = payload.new;
+      if (row.kind === "system") {
+        if (/offline/i.test(row.message)) setServerOnline(false);
+        else if (/server online|started|booted/i.test(row.message)) setServerOnline(true);
+      }
+      appendMessage(row);
+    }
   });
 
   statusUnsub = subscribeServerStatus((payload) => {
@@ -140,10 +147,14 @@ function setServerOnline(online) {
 function updateComposer() {
   const authed = isAuthed();
   const online = serverOnline === true;
-  const canSend = authed && online;
+  const canSend = authed;
   $("#chatInput").disabled = !canSend;
   $("#chatSend").disabled = !canSend;
-  $("#chatInput").placeholder = authed ? (online ? "Say something to the server..." : "Server offline - sending is disabled") : "Sign in to send messages";
+  $("#chatInput").placeholder = authed
+    ? online
+      ? "Say something to the server..."
+      : "Server offline - your message stays on the web chat"
+    : "Sign in to send messages";
   $("#chatOfflineHint").hidden = !(authed && serverOnline !== true);
 }
 
@@ -158,10 +169,6 @@ $("#chatComposer").addEventListener("submit", async (e) => {
   if (!text) return;
   if (!isAuthed()) {
     openAuthModal("login");
-    return;
-  }
-  if (serverOnline !== true) {
-    toast("The server is offline - sending is disabled.", "error");
     return;
   }
   if (Date.now() - lastSendAt < SEND_COOLDOWN_MS) {
