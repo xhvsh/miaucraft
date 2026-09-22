@@ -687,6 +687,16 @@ function openAchievementPopup(entry, isCompletedGroup) {
       return formatCriterionLabel(a).localeCompare(formatCriterionLabel(b));
     });
 
+  // For "any of" achievements that are complete, only the criteria that were
+  // actually satisfied are real; the rest are alternative paths that never
+  // happened, so hide them instead of showing a wall of unchecked items.
+  const isAnyOf = achievement.min_criteria != null
+    && achievement.total_criteria > 0
+    && achievement.min_criteria < achievement.total_criteria;
+  const shownCriteria = isAnyOf && done >= needed
+    ? criteria.filter((c) => achievementDoneCriteriaCache.has(`${achievement.key}|${c}`))
+    : criteria;
+
   const backdrop = document.createElement("div");
   backdrop.className = "modal-backdrop";
   backdrop.innerHTML = `
@@ -709,8 +719,8 @@ function openAchievementPopup(entry, isCompletedGroup) {
         <span class="achievement-progress-count">${done}/${needed}</span>
       </div>
       ${
-        criteria.length
-          ? `<ul class="achievement-popup-criteria">${criteria
+        shownCriteria.length
+          ? `<ul class="achievement-popup-criteria">${shownCriteria
               .map((criterion) => {
                 const criterionDone = achievementDoneCriteriaCache.has(`${achievement.key}|${criterion}`);
                 return `<li class="${criterionDone ? "done" : ""}"><i class="fa-solid ${criterionDone ? "fa-circle-check" : "fa-circle"}" aria-hidden="true"></i><span>${escapeHtml(formatCriterionLabel(criterion))}</span></li>`;
