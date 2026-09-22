@@ -126,8 +126,14 @@ export async function getLiveTrackingEnabled(playerId) {
 // achievements
 
 export async function getAchievementsCatalog() {
-  const { data, error } = await db("achievements").select("key, title, description, frame, hidden, icon, total_criteria").order("title", { ascending: true });
-  if (error) throw error;
+  const query = (cols) => db("achievements").select(cols).order("title", { ascending: true });
+  const { data, error } = await query("key, title, description, frame, hidden, icon, total_criteria, min_criteria");
+  if (error) {
+    // Older schema before the min_criteria column was added: fall back without it.
+    const retry = await query("key, title, description, frame, hidden, icon, total_criteria");
+    if (retry.error) throw retry.error;
+    return retry.data ?? [];
+  }
   return data ?? [];
 }
 

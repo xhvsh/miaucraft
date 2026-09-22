@@ -3,7 +3,7 @@ import { listWaypointsByUsername, listCategories, categoryIconClass } from "../l
 import * as Auth from "../lib/auth.js";
 import { getStatDisplayName, formatStatValue, titleCaseStatKey, statIconUrl, STAT_PREFIX_LABELS, guessStatFormat } from "../lib/statPresets.js";
 import { formatCoordsForCopy, formatCoordsForDisplay } from "../lib/settings.js";
-import { escapeHtml, copyTextToClipboard, formatAbsoluteTime, formatRelativeTime, isResetArtifact } from "../lib/ui.js";
+import { escapeHtml, copyTextToClipboard, formatAbsoluteTime, formatRelativeTime, isResetArtifact, trapFocus } from "../lib/ui.js";
 import { buildWaypointCard, buildCategoryFilter, buildDimensionFilter } from "../lib/waypoint-ui.js";
 import { initNav } from "../lib/nav.js";
 
@@ -496,14 +496,14 @@ function formatCriterionLabel(criterionKey) {
   return titleCaseStatKey(stripped);
 }
 
-function achievementFrameIcon(frame) {
+function achievementFrameLabel(frame) {
   switch ((frame || "").toUpperCase()) {
     case "CHALLENGE":
-      return "fa-crown";
+      return "Challenge";
     case "GOAL":
-      return "fa-flag-checkered";
+      return "Goal";
     default:
-      return "fa-star";
+      return "Task";
   }
 }
 
@@ -569,11 +569,11 @@ async function renderAchievements(player) {
     return tb - ta;
   });
   incompleteEntries.sort((a, b) => {
-    const totalA = a.achievement.total_criteria || 1;
-    const totalB = b.achievement.total_criteria || 1;
-    const pa = (a.progress?.criteria_done || 0) / totalA;
-    const pb = (b.progress?.criteria_done || 0) / totalB;
-    if (pb !== pa) return pb - pa;
+    const pa = achievementProgress(a.achievement, a.progress);
+    const pb = achievementProgress(b.achievement, b.progress);
+    const ra = pa.needed > 0 ? pa.done / pa.needed : 0;
+    const rb = pb.needed > 0 ? pb.done / pb.needed : 0;
+    if (rb !== ra) return rb - ra;
     return (a.achievement.title || "").localeCompare(b.achievement.title || "");
   });
 
@@ -629,63 +629,119 @@ function renderAchievementsGroup(title, entries, isCompletedGroup) {
   return group;
 }
 
+function achievementProgress(achievement, progress) {
+  const total = achievement.total_criteria || 1;
+  const needed = Math.max(1, achievement.min_criteria ?? total);
+  const rawDone = progress?.criteria_done || 0;
+  return { total, needed, done: Math.min(rawDone, needed) };
+}
+
 function renderAchievementCard(entry, isCompletedGroup) {
   const { achievement, progress } = entry;
-  const total = achievement.total_criteria || 1;
-  const done = progress?.criteria_done || 0;
-  const percent = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
-  const canExpand = !isCompletedGroup && total > 1;
+  const { needed, done } = achievementProgress(achievement, progress);
+  const percent = Math.min(100, Math.round((done / needed) * 100));
+  const frameClass = `achievement-frame-${(achievement.frame || "task").toLowerCase()}`;
 
   const card = document.createElement("div");
+  card.tabIndex = 0;
+  card.setAttribute("role", "button");
+  card.setAttribute("aria-haspopup", "dialog");
   card.className = "achievement-card" + (isCompletedGroup ? " achievement-card-done" : "");
-  const frameClass = `achievement-frame-${(achievement.frame || "task").toLowerCase()}`;
-  const iconClass = isCompletedGroup ? "fa-trophy" : achievementFrameIcon(achievement.frame);
-
   card.innerHTML = `
-    <div class="achievement-card-icon ${frameClass}"><i class="fa-solid ${iconClass}" aria-hidden="true"></i></div>
+    <div class="achievement-card-icon ${frameClass}"><i class="fa-solid fa-trophy" aria-hidden="true"></i></div>
     <div class="achievement-card-body">
       <div class="achievement-card-title">${escapeHtml(achievement.title)}</div>
       ${achievement.description ? `<div class="achievement-card-desc">${escapeHtml(achievement.description)}</div>` : ""}
       ${
         !isCompletedGroup
-          ? `<button type="button" class="achievement-progress-btn" ${canExpand ? "" : "disabled"}>
-              <div class="achievement-progress-track"><div class="achievement-progress-fill" style="width:${percent}%"></div></div>
-              <span class="achievement-progress-count">${done}/${total}</span>
-              ${canExpand ? `<i class="fa-solid fa-chevron-down achievement-progress-chevron" aria-hidden="true"></i>` : ""}
-            </button>
-            ${canExpand ? `<div class="achievement-criteria-list" hidden></div>` : ""}`
+          ? `<div class="achievement-card-footer">
+              <span class="achievement-progress-track"><span class="achievement-progress-fill" style="width:${percent}%"></span></span><span class="achievement-progress-count">${done}/${needed}</span>
+            </div>`
           : ""
       }
     </div>
   `;
-
-  if (canExpand) {
-    const btn = card.querySelector(".achievement-progress-btn");
-    const criteriaListEl = card.querySelector(".achievement-criteria-list");
-    btn.addEventListener("click", () => {
-      const willShow = criteriaListEl.hidden;
-      criteriaListEl.hidden = !willShow;
-      btn.classList.toggle("expanded", willShow);
-      if (willShow && !criteriaListEl.dataset.rendered) {
-        criteriaListEl.dataset.rendered = "true";
-        const criteria = achievementCriteriaCache.get(achievement.key) || [];
-        const sorted = [...criteria].sort((a, b) => {
-          const aDone = achievementDoneCriteriaCache.has(`${achievement.key}|${a}`);
-          const bDone = achievementDoneCriteriaCache.has(`${achievement.key}|${b}`);
-          if (aDone !== bDone) return aDone ? -1 : 1;
-          return formatCriterionLabel(a).localeCompare(formatCriterionLabel(b));
-        });
-        for (const criterion of sorted) {
-          const criterionDone = achievementDoneCriteriaCache.has(`${achievement.key}|${criterion}`);
-          const row = document.createElement("div");
-          row.className = "achievement-criterion-row" + (criterionDone ? " done" : "");
-          row.innerHTML = `<i class="fa-solid ${criterionDone ? "fa-circle-check" : "fa-circle"}" aria-hidden="true"></i><span>${escapeHtml(formatCriterionLabel(criterion))}</span>`;
-          criteriaListEl.appendChild(row);
-        }
-      }
-    });
-  }
+  const open = () => openAchievementPopup(entry, isCompletedGroup);
+  card.addEventListener("click", open);
+  card.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      open();
+    }
+  });
   return card;
+}
+
+function openAchievementPopup(entry, isCompletedGroup) {
+  const { achievement, progress } = entry;
+  const { needed, done } = achievementProgress(achievement, progress);
+  const percent = Math.min(100, Math.round((done / needed) * 100));
+  const frameClass = `achievement-frame-${(achievement.frame || "task").toLowerCase()}`;
+
+  const criteria = (achievementCriteriaCache.get(achievement.key) || [])
+    .slice()
+    .sort((a, b) => {
+      const aDone = achievementDoneCriteriaCache.has(`${achievement.key}|${a}`);
+      const bDone = achievementDoneCriteriaCache.has(`${achievement.key}|${b}`);
+      if (aDone !== bDone) return aDone ? -1 : 1;
+      return formatCriterionLabel(a).localeCompare(formatCriterionLabel(b));
+    });
+
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.innerHTML = `
+    <div class="modal achievement-popup" role="dialog" aria-modal="true" aria-labelledby="achievementPopupTitle">
+      <button type="button" class="modal-close achievement-popup-close" aria-label="Close"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+      <div class="achievement-popup-header">
+        <div class="achievement-card-icon ${frameClass}"><i class="fa-solid fa-trophy" aria-hidden="true"></i></div>
+        <div class="achievement-popup-heading">
+          <div class="achievement-popup-frame">${escapeHtml(achievementFrameLabel(achievement.frame))}</div>
+          <h3 class="achievement-popup-title" id="achievementPopupTitle">${escapeHtml(achievement.title)}</h3>
+          <span class="achievement-popup-state${isCompletedGroup ? " achievement-popup-state-done" : ""}">
+            <i class="fa-solid ${isCompletedGroup ? "fa-trophy" : "fa-bars-progress"}" aria-hidden="true"></i>
+            ${isCompletedGroup ? `Completed${progress?.completed_at ? ` · ${formatAbsoluteTime(progress.completed_at)}` : ""}` : `${percent}% complete`}
+          </span>
+        </div>
+      </div>
+      ${achievement.description ? `<p class="achievement-popup-desc">${escapeHtml(achievement.description)}</p>` : ""}
+      <div class="achievement-popup-progress">
+        <span class="achievement-progress-track"><span class="achievement-progress-fill" style="width:${percent}%"></span></span>
+        <span class="achievement-progress-count">${done}/${needed}</span>
+      </div>
+      ${
+        criteria.length
+          ? `<ul class="achievement-popup-criteria">${criteria
+              .map((criterion) => {
+                const criterionDone = achievementDoneCriteriaCache.has(`${achievement.key}|${criterion}`);
+                return `<li class="${criterionDone ? "done" : ""}"><i class="fa-solid ${criterionDone ? "fa-circle-check" : "fa-circle"}" aria-hidden="true"></i><span>${escapeHtml(formatCriterionLabel(criterion))}</span></li>`;
+              })
+              .join("")}</ul>`
+          : ""
+      }
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+
+  const release = trapFocus(backdrop);
+  function close() {
+    backdrop.remove();
+    release();
+    document.removeEventListener("keydown", onKeydown);
+    backdrop.removeEventListener("mousedown", onBackdrop);
+  }
+  function onKeydown(e) {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      close();
+    }
+  }
+  function onBackdrop(e) {
+    if (e.target === backdrop) close();
+  }
+  backdrop.querySelector(".achievement-popup-close").addEventListener("click", close);
+  document.addEventListener("keydown", onKeydown);
+  backdrop.addEventListener("mousedown", onBackdrop);
+  backdrop.querySelector(".achievement-popup-close").focus();
 }
 
 // ---------- waypoints ----------
