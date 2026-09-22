@@ -683,7 +683,7 @@ function openAchievementPopup(entry, isCompletedGroup) {
     .sort((a, b) => {
       const aDone = achievementDoneCriteriaCache.has(`${achievement.key}|${a}`);
       const bDone = achievementDoneCriteriaCache.has(`${achievement.key}|${b}`);
-      if (aDone !== bDone) return aDone ? -1 : 1;
+      if (aDone !== bDone) return aDone ? 1 : -1;
       return formatCriterionLabel(a).localeCompare(formatCriterionLabel(b));
     });
 

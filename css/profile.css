@@ -636,8 +636,9 @@
 }
 .achievement-progress-count {
   font-family: var(--font-mono);
-  font-size: var(--fs-2xs);
-  color: var(--text-dim);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--text-muted);
   white-space: nowrap;
 }
 
@@ -701,22 +702,23 @@
   border-top: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   max-height: 34vh;
   overflow-y: auto;
 }
 .achievement-popup-criteria li {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: var(--fs-xs);
-  color: var(--text-dim);
-}
-.achievement-popup-criteria li.done {
+  gap: 9px;
+  font-size: var(--fs-sm);
   color: var(--text-muted);
 }
+.achievement-popup-criteria li.done {
+  color: var(--text-dim);
+}
 .achievement-popup-criteria i {
-  font-size: 0.75em;
+  font-size: 0.9em;
+  line-height: 1;
   color: var(--text-dim);
   flex-shrink: 0;
 }
