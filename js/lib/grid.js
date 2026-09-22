@@ -119,28 +119,6 @@ export class Grid {
     }).observe(container);
     this._raf = requestAnimationFrame(() => this.draw());
     document.fonts?.ready.then(() => this.draw());
-
-    // The server back-fills regions incrementally; re-request just the visible
-    // tiles every so often so a region scanned while you're watching shows up.
-    // Off-screen tiles stay in the LRU cache, so the visible map never blanks.
-    setInterval(() => {
-      if (!this.biomeEnabled || !this.biomeSource) return;
-      const r = this._visibleBiomeTileRange();
-      for (let tz = r.t0z; tz <= r.t1z; tz++) {
-        for (let tx = r.t0x; tx <= r.t1x; tx++) {
-          this._biomeTiles.delete(this._biomeJobKey(this.biomeDim, r.stride, tx, tz));
-        }
-      }
-      // Drop the area-coverage mark too, so the visible area gets re-queried
-      // and any freshly scanned regions show up.
-      const c = this._biomeCovered;
-      if (c && c.dim === this.biomeDim && c.stride === r.stride
-          && c.minGx <= r.minGx && c.maxGx >= r.maxGx
-          && c.minGz <= r.minGz && c.maxGz >= r.maxGz) {
-        this._biomeCovered = null;
-      }
-      this.draw();
-    }, 30000);
   }
 
   setDimensionColor(color) {
@@ -174,23 +152,16 @@ export class Grid {
 
   _biomeStrideForScale() {
     const chunkPx = this.scale * 16;
-    let stride;
-    if (chunkPx >= 1) stride = 1;
-    else if (chunkPx >= 0.5) stride = 2;
-    else if (chunkPx >= 0.25) stride = 4;
-    else if (chunkPx >= 0.125) stride = 8;
-    else if (chunkPx >= 0.05) stride = 16;
-    else stride = 32;
-    // A biome snapshot is one HTTP response for the whole visible area, so
-    // keep it small: coarsen the stride until the viewport fits in ~15k cells
-    // (~300KB). Huge monitors at default zoom get slightly chunkier squares,
-    // but every fetch stays a single quick request.
-    const viewW = Math.max(this.cssWidth, 1) / this.scale;
-    const viewH = Math.max(this.cssHeight, 1) / this.scale;
-    while (stride < 128 && (viewW / (16 * stride)) * (viewH / (16 * stride)) > 15000) {
-      stride *= 2;
-    }
-    return stride;
+    // Chunk size stays constant throughout normal zooming: cells are always
+    // written as 1 chunk each, only aggregating once individual chunks shrink
+    // below a screen pixel (when the whole world fits on screen anyway, so
+    // the coarser grain is invisible at that distance).
+    if (chunkPx >= 1) return 1;
+    if (chunkPx >= 0.5) return 2;
+    if (chunkPx >= 0.25) return 4;
+    if (chunkPx >= 0.125) return 8;
+    if (chunkPx >= 0.05) return 16;
+    return 32;
   }
 
   /** Biome under a world coordinate for the current stride, or null. */
