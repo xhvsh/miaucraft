@@ -1,13 +1,14 @@
 import * as Auth from "../lib/auth.js";
 import { Grid } from "../lib/grid.js";
 import { listWaypoints, createWaypoint, updateWaypoint, deleteWaypoint, listCategories, categoryIconClass, sanitizeIconClass, loadCollaboratorRoles, forceCollaboratorRole, listCollaborators, addCollaborator, removeCollaborator, transferOwnership, listGalleryImages, addGalleryImage, deleteGalleryImage, uploadGalleryImage, validateGalleryFile, updateGalleryCaption } from "../lib/waypoints.js";
-import { listLivePositions, subscribeLivePositions, subscribePlayers, getServerStatus, subscribeServerStatus, createStatusStaleChecker } from "../lib/live.js";
+import { listLivePositions, subscribeLivePositions, subscribePlayers, getServerStatus, subscribeServerStatus, createStatusStaleChecker, listBiomeCells } from "../lib/live.js";
 import { supabase } from "../lib/supabaseClient.js";
 import { settings, saveSettings, formatCoordsForCopy, formatCoordsForDisplay } from "../lib/settings.js";
 import { toast, confirmAction, closeOnBackdropClick, copyTextToClipboard, escapeHtml, sanitizeColor, debounce } from "../lib/ui.js";
 import { buildWaypointCard, buildCategoryFilter, buildUserFilter, categoryBadgeHtml, visibilityBadgeHtml, galleryTileHtml } from "../lib/waypoint-ui.js";
 import { openGalleryViewer, openSingleImage } from "../lib/gallery-viewer.js";
 import { initNav, openAuthModal } from "../lib/nav.js";
+import { biomeColor, biomeName } from "../lib/biomePalette.js";
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -45,6 +46,8 @@ const sidebarToggleBtn = $("#sidebarToggleBtn");
 const sidebarCloseBtn = $("#sidebarCloseBtn");
 const sidebarScrim = $("#sidebarScrim");
 const addWaypointBtn = $("#addWaypointBtn");
+const biomeToggleBtn = $("#biomeToggleBtn");
+const biomeLegendEl = $("#biomeLegend");
 const waypointModal = $("#waypointModal");
 const imageLightbox = $("#imageLightbox");
 
@@ -66,6 +69,64 @@ let lastServerStatus = null;
 const mobileMediaQuery = window.matchMedia("(max-width: 860px)");
 
 const grid = new Grid($("#gridContainer"), { dimensionColor: DIM_COLORS.overworld, defaultScale: DIM_DEFAULT_SCALE.overworld });
+
+let biomeOverlayOn = true;
+let biomeLegendOpen = true;
+grid.setBiomeSource((dim, minCx, maxCx, minCz, maxCz, stride) => listBiomeCells(dim, minCx, maxCx, minCz, maxCz, stride));
+grid.onBiomeDataChange = debounce(() => renderBiomeLegend(), 300);
+grid.setBiomeEnabled(biomeOverlayOn);
+
+function renderBiomeLegend() {
+  if (!biomeOverlayOn || !biomeLegendOpen) {
+    biomeLegendEl.hidden = true;
+    return;
+  }
+  const items = grid.biomeLegend(40);
+  biomeLegendEl.hidden = items.length === 0;
+  if (items.length > 0) buildBiomeLegend(items);
+}
+
+function buildBiomeLegend(items) {
+  biomeLegendEl.innerHTML = "";
+  const title = document.createElement("div");
+  title.className = "biome-legend-title";
+  title.textContent = "Biomes";
+  const close = document.createElement("button");
+  close.type = "button";
+  close.className = "icon-btn biome-legend-close";
+  close.setAttribute("aria-label", "Close biome legend");
+  close.innerHTML = '<i class="fa-solid fa-xmark" aria-hidden="true"></i>';
+  close.addEventListener("click", () => {
+    biomeLegendOpen = false;
+    biomeLegendEl.hidden = true;
+  });
+  title.appendChild(close);
+  biomeLegendEl.appendChild(title);
+  for (const item of items) {
+    const row = document.createElement("div");
+    row.className = "biome-legend-item";
+    const swatch = document.createElement("span");
+    swatch.className = "biome-legend-swatch";
+    swatch.style.background = biomeColor(item.key);
+    swatch.title = item.key;
+    const label = document.createElement("span");
+    label.className = "biome-legend-name";
+    label.textContent = biomeName(item.key);
+    const count = document.createElement("span");
+    count.className = "biome-legend-count";
+    count.textContent = String(item.count);
+    row.append(swatch, label, count);
+    biomeLegendEl.appendChild(row);
+  }
+}
+
+biomeToggleBtn.addEventListener("click", () => {
+  biomeOverlayOn = !biomeOverlayOn;
+  biomeLegendOpen = biomeOverlayOn;
+  biomeToggleBtn.setAttribute("aria-pressed", String(biomeOverlayOn));
+  grid.setBiomeEnabled(biomeOverlayOn);
+  renderBiomeLegend();
+});
 
 grid.onEmptyRightClick = (x, z) => {
   if (!Auth.can("addWaypoint")) {
@@ -423,9 +484,11 @@ function switchDimension(dim) {
   closeSidebarDrawer();
   grid.setDimensionColor(DIM_COLORS[dim]);
   grid.setDefaultScale(DIM_DEFAULT_SCALE[dim]);
+  grid.setBiomeDimension(dim);
   grid.convertView(prevDim, dim);
   sidebarTitle.textContent = DIM_LABELS[dim];
   renderLivePins();
+  renderBiomeLegend();
   return loadWaypointsForDim(dim);
 }
 

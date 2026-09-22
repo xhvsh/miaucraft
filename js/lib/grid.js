@@ -1,3 +1,5 @@
+import { biomeColor, biomeName } from "./biomePalette.js";
+
 const NICE_SPACINGS = [10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000];
 const MIN_LABEL_GAP_PX = 70;
 const MIN_SCALE = 0.02;
@@ -8,6 +10,8 @@ const PIN_HIT_RADIUS_TOUCH = 28;
 const PIN_ICON_HEIGHT = 24;
 const TOUCH_TAP_MOVE_THRESHOLD = 10;
 const PLAYER_ANIM_DURATION_MS = 1000;
+const BIOME_TILE_CELLS = 64;
+const BIOME_MAX_INFLIGHT = 3;
 
 function easeOutCubic(t) {
   return 1 - Math.pow(1 - t, 3);
@@ -75,6 +79,19 @@ export class Grid {
     this.onViewChange = null;
     this._viewAnimation = null;
 
+    this.biomeEnabled = false;
+    this.biomeDim = "overworld";
+    this.biomeSource = null;
+    this.onBiomeDataChange = null;
+    this._biomeCells = new Map();
+    this._biomeTiles = new Map();
+    this._biomeQueued = new Set();
+    this._biomeQueue = [];
+    this._biomeInflight = new Set();
+    this._biomeFetchScheduled = false;
+    this._biomeCellCap = 200000;
+    this._biomeTileCap = 96;
+
     this._boundVisibilityHandler = () => {
       if (document.hidden) {
         if (this._playerAnimFrame) { cancelAnimationFrame(this._playerAnimFrame); this._playerAnimFrame = null; }
@@ -101,6 +118,14 @@ export class Grid {
     }).observe(container);
     this._raf = requestAnimationFrame(() => this.draw());
     document.fonts?.ready.then(() => this.draw());
+
+    // The server back-fills regions incrementally; re-request the visible
+    // tiles every so often so a region scanned while you're watching shows up.
+    setInterval(() => {
+      if (!this.biomeEnabled || !this.biomeSource) return;
+      this._biomeTiles.clear();
+      this.draw();
+    }, 30000);
   }
 
   setDimensionColor(color) {
@@ -111,6 +136,153 @@ export class Grid {
 
   setDefaultScale(scale) {
     this.defaultScale = scale;
+  }
+
+  /** @type {(dim, minCx, maxCx, minCz, maxCz, stride) => Promise<Array<{cell_x:number, cell_z:number, biome:string}>>} */
+  setBiomeSource(source) {
+    this.biomeSource = source;
+    this.draw();
+  }
+
+  setBiomeDimension(dim) {
+    if (this.biomeDim === dim) return;
+    this.biomeDim = dim;
+    this.draw();
+  }
+
+  setBiomeEnabled(on) {
+    const next = Boolean(on);
+    if (this.biomeEnabled === next) return;
+    this.biomeEnabled = next;
+    this.draw();
+  }
+
+  _biomeStrideForScale() {
+    const chunkPx = this.scale * 16;
+    if (chunkPx >= 1) return 1;
+    if (chunkPx >= 0.5) return 2;
+    if (chunkPx >= 0.25) return 4;
+    if (chunkPx >= 0.125) return 8;
+    if (chunkPx >= 0.05) return 16;
+    return 32;
+  }
+
+  /** Biome under a world coordinate for the current stride, or null. */
+  _biomeAtWorld(wx, wz) {
+    const stride = this._biomeStrideForScale();
+    const gx = Math.floor(wx / (16 * stride));
+    const gz = Math.floor(wz / (16 * stride));
+    const cell = this._biomeCells.get(`${this.biomeDim}|s${stride}|${gx},${gz}`);
+    return cell ? cell.biome : null;
+  }
+
+  _biomeJobKey(dim, stride, tx, tz) {
+    return `${dim}|s${stride}|${tx},${tz}`;
+  }
+
+  _biomeTileAt(dim, stride, tx, tz) {
+    const key = this._biomeJobKey(dim, stride, tx, tz);
+    const tile = this._biomeTiles.get(key);
+    if (tile) {
+      // refresh recency so the LRU eviction drops the least recently used tile
+      this._biomeTiles.delete(key);
+      this._biomeTiles.set(key, tile);
+    }
+    return tile;
+  }
+
+  _requestBiomeTile(dim, stride, tx, tz) {
+    if (!this.biomeSource || !this.biomeEnabled) return;
+    const key = this._biomeJobKey(dim, stride, tx, tz);
+    if (this._biomeTiles.has(key) || this._biomeQueued.has(key) || this._biomeInflight.has(key)) return;
+    this._biomeQueued.add(key);
+    this._biomeQueue.push({ dim, stride, tx, tz });
+    this._scheduleBiomeFetch();
+  }
+
+  _scheduleBiomeFetch() {
+    if (this._biomeFetchScheduled) return;
+    this._biomeFetchScheduled = true;
+    setTimeout(() => {
+      this._biomeFetchScheduled = false;
+      this._drainBiomeQueue();
+    }, 80);
+  }
+
+  _drainBiomeQueue() {
+    while (this._biomeInflight.size < BIOME_MAX_INFLIGHT && this._biomeQueue.length > 0) {
+      const job = this._biomeQueue.shift();
+      const key = this._biomeJobKey(job.dim, job.stride, job.tx, job.tz);
+      this._biomeQueued.delete(key);
+      if (this._biomeTiles.has(key)) continue;
+      this._biomeInflight.add(key);
+      const { dim, stride, tx, tz } = job;
+      const minCx = tx * BIOME_TILE_CELLS * stride;
+      const maxCx = minCx + BIOME_TILE_CELLS * stride - 1;
+      const minCz = tz * BIOME_TILE_CELLS * stride;
+      const maxCz = minCz + BIOME_TILE_CELLS * stride - 1;
+      Promise.resolve()
+        .then(() => this.biomeSource(dim, minCx, maxCx, minCz, maxCz, stride))
+        .then((rows) => {
+          this._storeBiomeTile(dim, stride, tx, tz, rows);
+          this._biomeInflight.delete(key);
+          this._drainBiomeQueue();
+        })
+        .catch((err) => {
+          console.error("biome tile fetch failed", err);
+          this._biomeInflight.delete(key);
+          this._drainBiomeQueue();
+        });
+    }
+  }
+
+  _storeBiomeTile(dim, stride, tx, tz, rows) {
+    const tileStartGx = tx * BIOME_TILE_CELLS;
+    const tileStartGz = tz * BIOME_TILE_CELLS;
+    const canvas = document.createElement("canvas");
+    canvas.width = BIOME_TILE_CELLS;
+    canvas.height = BIOME_TILE_CELLS;
+    const g = canvas.getContext("2d");
+    let stored = 0;
+    for (const row of rows) {
+      const gx = Number(row.cell_x);
+      const gz = Number(row.cell_z);
+      const px = gx - tileStartGx;
+      const pz = gz - tileStartGz;
+      if (px >= 0 && px < BIOME_TILE_CELLS && pz >= 0 && pz < BIOME_TILE_CELLS) {
+        g.fillStyle = biomeColor(row.biome);
+        g.fillRect(px, pz, 1, 1);
+        stored++;
+      }
+      this._biomeCells.set(`${dim}|s${stride}|${gx},${gz}`, { gx, gz, stride, biome: row.biome });
+    }
+    while (this._biomeCells.size > this._biomeCellCap) {
+      this._biomeCells.delete(this._biomeCells.keys().next().value);
+    }
+    if (stored > 0) {
+      this._biomeTiles.set(this._biomeJobKey(dim, stride, tx, tz), canvas);
+      while (this._biomeTiles.size > this._biomeTileCap) {
+        this._biomeTiles.delete(this._biomeTiles.keys().next().value);
+      }
+      this.onBiomeDataChange?.();
+    }
+  }
+
+  /** Top biomes for the current dimension's loaded cells, highest count first. */
+  biomeLegend(limit = 40) {
+    const dim = this.biomeDim;
+    const stride = this._biomeStrideForScale();
+    const prefix = `${dim}|s${stride}|`;
+    const counts = new Map();
+    for (const [key, cell] of this._biomeCells) {
+      if (key.startsWith(prefix)) {
+        counts.set(cell.biome, (counts.get(cell.biome) ?? 0) + 1);
+      }
+    }
+    return [...counts.entries()]
+      .map(([key, count]) => ({ key, name: biomeName(key), count }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+      .slice(0, limit);
   }
 
   /**
@@ -386,7 +558,7 @@ export class Grid {
               this.hoveredWaypoint = hoveredWaypoint;
             }
             this.readout.hidden = false;
-            this.readout.textContent = `x ${Math.round(w.x)}, z ${Math.round(w.z)}`;
+            this.readout.textContent = this._readoutText(w);
           } else {
             if (this.hoveredWaypoint) {
               this.hoveredWaypoint = null;
@@ -517,7 +689,7 @@ export class Grid {
           const sy = t.clientY - rect.top;
           const w = this.screenToWorld(sx, sy);
           this.readout.hidden = false;
-          this.readout.textContent = `x ${Math.round(w.x)}, z ${Math.round(w.z)}`;
+          this.readout.textContent = this._readoutText(w);
           this.draw();
           this.onViewChange?.();
         }
@@ -598,11 +770,55 @@ export class Grid {
     return null;
   }
 
+  _drawBiomes(ctx, w, h) {
+    const scale = this.scale;
+    const stride = this._biomeStrideForScale();
+    const tilePx = Math.max(1, Math.round(BIOME_TILE_CELLS * scale * 16 * stride));
+
+    const worldLeft = this.centerX - w / 2 / scale;
+    const worldRight = this.centerX + w / 2 / scale;
+    const worldTop = this.centerZ - h / 2 / scale;
+    const worldBottom = this.centerZ + h / 2 / scale;
+
+    const minGx = Math.floor(Math.floor(worldLeft / 16) / stride);
+    const maxGx = Math.floor(Math.floor(worldRight / 16) / stride);
+    const minGz = Math.floor(Math.floor(worldTop / 16) / stride);
+    const maxGz = Math.floor(Math.floor(worldBottom / 16) / stride);
+
+    const t0x = Math.floor(minGx / BIOME_TILE_CELLS);
+    const t1x = Math.floor(maxGx / BIOME_TILE_CELLS);
+    const t0z = Math.floor(minGz / BIOME_TILE_CELLS);
+    const t1z = Math.floor(maxGz / BIOME_TILE_CELLS);
+
+    for (let tz = t0z; tz <= t1z; tz++) {
+      for (let tx = t0x; tx <= t1x; tx++) {
+        const tile = this._biomeTileAt(this.biomeDim, stride, tx, tz);
+        if (tile) {
+          const p = this.worldToScreen(tx * BIOME_TILE_CELLS * stride * 16, tz * BIOME_TILE_CELLS * stride * 16);
+          ctx.drawImage(tile, Math.round(p.x), Math.round(p.y), tilePx, tilePx);
+        } else {
+          this._requestBiomeTile(this.biomeDim, stride, tx, tz);
+        }
+      }
+    }
+  }
+
+  _readoutText(w) {
+    let text = `x ${Math.round(w.x)}, z ${Math.round(w.z)}`;
+    if (this.biomeEnabled) {
+      const biome = this._biomeAtWorld(w.x, w.z);
+      if (biome) text += ` • ${biomeName(biome)}`;
+    }
+    return text;
+  }
+
   draw() {
     const ctx = this.ctx;
     const w = this.cssWidth;
     const h = this.cssHeight;
     ctx.clearRect(0, 0, w, h);
+
+    if (this.biomeEnabled) this._drawBiomes(ctx, w, h);
 
     const spacing = pickSpacing(this.scale);
 

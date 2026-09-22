@@ -83,6 +83,31 @@ export function subscribeLivePositions(onChange) {
   return () => supabase.removeChannel(channel);
 }
 
+// biome map
+
+/**
+ * Reads one stride x stride biome cell grid covering the chunk box. PostgREST
+ * caps RPC output at 1000 rows/page, so cells are paged until the box is fully
+ * drained. Returns rows of {cell_x, cell_z, biome}.
+ */
+export async function listBiomeCells(dimension, minCx, maxCx, minCz, maxCz, stride) {
+  const pageSize = 1000;
+  const args = { p_dimension: dimension, p_stride: stride, p_min_cx: minCx, p_max_cx: maxCx, p_min_cz: minCz, p_max_cz: maxCz };
+  let all = [];
+  let from = 0;
+  while (true) {
+    const rpc = SCHEMA === "public" ? supabase.rpc("biomes_sample", args) : supabase.schema(SCHEMA).rpc("biomes_sample", args);
+    const { data, error } = await rpc.range(from, from + pageSize - 1);
+    if (error) throw error;
+    const page = data ?? [];
+    if (page.length === 0) break;
+    all = all.concat(page);
+    if (page.length < pageSize) break;
+    from += pageSize;
+  }
+  return all;
+}
+
 export async function getPlayerByUsername(username) {
   const { data, error } = await db("players").select("id, live_tracking_enabled").ilike("username", username).eq("hidden", false).maybeSingle();
   if (error) throw error;

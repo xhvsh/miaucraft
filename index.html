@@ -32,6 +32,9 @@
             <button class="dim-tab" data-dim="end" role="tab" aria-selected="false" aria-controls="gridPanel">End</button>
           </div>
           <div class="toolbar-actions">
+            <button class="icon-btn" id="biomeToggleBtn" type="button" title="Toggle biome map" aria-label="Toggle biome map" aria-pressed="true">
+              <i class="fa-solid fa-layer-group" aria-hidden="true"></i>
+            </button>
             <button class="icon-btn add-waypoint-btn" id="addWaypointBtn" type="button" title="Add waypoint" aria-label="Add waypoint" hidden>
               <i class="fa-solid fa-plus" aria-hidden="true"></i>
             </button>
@@ -51,6 +54,8 @@
               <button class="icon-btn" id="zoomOutBtn" type="button" title="Zoom out" aria-label="Zoom out"><i class="fa-solid fa-minus" aria-hidden="true"></i></button>
               <button class="icon-btn icon-btn--wide" id="recenterBtn" type="button" title="Back to origin" aria-label="Back to origin"><i class="fa-solid fa-crosshairs" aria-hidden="true"></i></button>
             </div>
+
+            <div class="biome-legend" id="biomeLegend" hidden></div>
           </section>
 
           <div class="pin-tooltip" id="pinTooltip" hidden></div>
