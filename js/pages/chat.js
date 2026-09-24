@@ -293,12 +293,18 @@ function buildRow(m) {
   const author = m.username || "?";
   const suffix = author + ": " + m.message;
   if (isWeb) {
+    // Keep the prefix inside the same inline flow as the text so a wrap breaks
+    // at the end of the line instead of orphaned right after "[web] ".
+    const flow = document.createElement("span");
     const b = document.createElement("span");
     b.className = "chat-prefix";
     b.textContent = "[web] ";
-    row.appendChild(b);
+    flow.appendChild(b);
+    flow.append(suffix);
+    row.appendChild(flow);
+  } else {
+    row.appendChild(document.createTextNode(suffix));
   }
-  row.appendChild(document.createTextNode(suffix));
   return row;
 }
 
@@ -439,3 +445,84 @@ joinLeaveToggle.addEventListener("change", (e) => {
   saveSettings();
   if (listLoaded) renderAll();
 });
+
+/* Messenger-style viewport handling. While the on-screen keyboard is up we
+   shrink the chat card to the remaining visual-viewport space and pin the
+   composer right above the keys, so the browser never auto-scrolls the page to
+   reach the input (which is what causes the content to jump). Independently of
+   the keyboard (also on plain window resizes, orientation changes, and the URL
+   bar collapsing), if the chat is scrolled fully down it gets re-pinned to the
+   latest message. The layout switch itself lives in chat.css under
+   body.page-kb-open. */
+function setupMobileKeyboard() {
+  const vv = window.visualViewport;
+  const card = $("#chatCard");
+  const list = $("#chatMessages");
+  const mq = window.matchMedia("(max-width: 780px)");
+  if (!vv || !card) return;
+
+  let lastW = -1;
+  let lastH = -1;
+  let lastSt = null;
+  let closedH = window.innerHeight;
+
+  function reset() {
+    lastSt = null;
+    document.body.classList.remove("page-kb-open");
+    card.style.height = "";
+  }
+
+  function bottomedOut() {
+    return list.scrollHeight > list.clientHeight &&
+      list.scrollHeight - list.scrollTop - list.clientHeight < 8;
+  }
+
+  function apply() {
+    const w = Math.round(vv.width);
+    const h = Math.round(vv.height);
+    const covered = window.innerHeight - (Math.round(vv.offsetTop) + h);
+    const noChrome = covered < 80;
+    if (noChrome) closedH = window.innerHeight;
+    const kbOpen = !noChrome && closedH - h > 100;
+    const changed = w !== lastW || h !== lastH;
+    lastW = w;
+    lastH = h;
+
+    // Follow the bottom whenever the viewport or layout changes, whether the
+    // keyboard is open, closed, or this is just a desktop window resize.
+    const follow = changed && bottomedOut();
+
+    if (!mq.matches || card.hidden || !kbOpen) {
+      if (follow) requestAnimationFrame(() => { list.scrollTop = list.scrollHeight; });
+      if (card.hidden || !mq.matches) reset();
+      return;
+    }
+
+    if (w === lastW && h === lastH && lastSt === kbOpen) return;
+    lastSt = kbOpen;
+    document.body.classList.add("page-kb-open");
+    const top = card.getBoundingClientRect().top + window.scrollY;
+    const avail = Math.max(180, Math.round(window.scrollY + vv.offsetTop + vv.height - top));
+    const keepList = follow ? null : list.scrollTop;
+    const keepPage = window.scrollY;
+    card.style.height = `${avail}px`;
+    // The browser may still try to scroll the input into view during the
+    // keyboard animation; hold the list + page scroll in place so text stays put.
+    requestAnimationFrame(() => {
+      if (card.hidden) return;
+      if (follow) list.scrollTop = list.scrollHeight;
+      else if (list.scrollTop !== keepList) list.scrollTop = keepList;
+      if (Math.abs(window.scrollY - keepPage) > 1) window.scrollTo(0, keepPage);
+    });
+  }
+
+  vv.addEventListener("resize", apply);
+  vv.addEventListener("scroll", apply);
+  window.addEventListener("resize", apply);
+  window.addEventListener("orientationchange", apply);
+  if (mq.addEventListener) mq.addEventListener("change", apply);
+  else mq.addListener(apply);
+  requestAnimationFrame(apply);
+  setTimeout(apply, 150);
+}
+setupMobileKeyboard();

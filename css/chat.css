@@ -302,6 +302,26 @@
   .chat-composer-side {
     margin-left: auto;
   }
+
+  /* on-screen keyboard: converter-like pinning. chat.js sizes #chatCard to the
+     leftover visual-viewport height and toggles .page-kb-open on <body>, so the
+     composer sits above the keys instead of being pushed off by an auto-scroll. */
+  body.page-kb-open .chat-card {
+    display: flex;
+    flex-direction: column;
+  }
+  body.page-kb-open .chat-messages {
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 40px;
+    max-height: none;
+  }
+  body.page-kb-open .chat-composer {
+    flex-shrink: 0;
+  }
+  body.page-kb-open .chat-format-hint {
+    display: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
