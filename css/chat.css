@@ -39,6 +39,30 @@
   margin-bottom: var(--space-3);
 }
 
+.chat-top-side {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.chat-jl-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+  user-select: none;
+}
+.chat-jl-label {
+  color: var(--text-muted);
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.chat-jl-toggle:has(input:checked) .chat-jl-label {
+  color: var(--text);
+}
+
 .chat-messages {
   display: flex;
   flex-direction: column;
@@ -262,6 +286,9 @@
 
 /* mobile: give the chat room to breathe */
 @media (max-width: 780px) {
+  .chat-top {
+    flex-wrap: wrap;
+  }
   .chat-messages {
     height: 56svh;
     max-height: none;

@@ -2,6 +2,7 @@ import * as Auth from "../lib/auth.js";
 import { initNav, openAuthModal } from "../lib/nav.js";
 import { listChatMessages, subscribeChatMessages, sendWebMessage, CHAT_MESSAGE_MAX } from "../lib/chat.js";
 import { getServerStatus, subscribeServerStatus, listPlayers, subscribePlayers } from "../lib/live.js";
+import { settings, saveSettings } from "../lib/settings.js";
 import { escapeHtml, formatAbsoluteTime, toast } from "../lib/ui.js";
 
 const $ = (sel) => document.querySelector(sel);
@@ -23,6 +24,22 @@ let lastSendAt = 0;
 let onlinePlayers = [];
 let onlinePlayersFingerprint = null;
 let playersRequestId = 0;
+
+// ---------- join/leave message filter ----------
+
+let showJoinLeave = settings.showJoinLeaveSystemMessages;
+
+function isJoinLeaveSystemMessage(m) {
+  return m?.kind === "system" && /joined the (game|server)|left the (game|server)/i.test(m.message || "");
+}
+
+function isHiddenMessage(m) {
+  return !showJoinLeave && isJoinLeaveSystemMessage(m);
+}
+
+function visibleMessages() {
+  return showJoinLeave ? messages : messages.filter((m) => !isHiddenMessage(m));
+}
 
 // ---------- auth gate ----------
 
@@ -295,9 +312,10 @@ function renderAll() {
     return;
   }
   $("#chatSkeleton").hidden = true;
-  $("#chatEmpty").hidden = messages.length > 0;
+  const visible = visibleMessages();
+  $("#chatEmpty").hidden = visible.length > 0;
   const frag = document.createDocumentFragment();
-  for (const m of messages) frag.appendChild(buildRow(m));
+  for (const m of visible) frag.appendChild(buildRow(m));
   list.appendChild(frag);
   scrollToBottom();
 }
@@ -312,13 +330,20 @@ function insertSortedElement(row) {
     else hi = mid;
   }
   messages.splice(lo, 0, row);
-  const list = $("#chatMessages");
-  // #chatSkeleton / #chatEmpty are also children, so address rows via their
-  // index among the actual messages to keep DOM order aligned with `messages`.
-  list.insertBefore(buildRow(row), list.querySelectorAll(".chat-msg")[lo] ?? null);
+  // Hidden rows stay in `messages` (ordering + dedupe) but produce no DOM node,
+  // so the DOM insertion index is the count of *visible* rows before this one.
+  if (!isHiddenMessage(row)) {
+    let domIndex = 0;
+    for (let i = 0; i < lo; i++) if (!isHiddenMessage(messages[i])) domIndex++;
+    const list = $("#chatMessages");
+    // #chatSkeleton / #chatEmpty are also children, so address rows via their
+    // index among the actual messages to keep DOM order aligned with `messages`.
+    list.insertBefore(buildRow(row), list.querySelectorAll(".chat-msg")[domIndex] ?? null);
+  }
   const over = messages.length - MAX_MESSAGES;
   if (over > 0) {
     messages.splice(0, over);
+    const list = $("#chatMessages");
     for (let i = 0; i < over; i++) list.querySelector(".chat-msg")?.remove();
   }
 }
@@ -329,7 +354,7 @@ function appendMessage(row) {
   const nearBottom = isNearBottom();
   insertSortedElement(row);
   $("#chatSkeleton").hidden = true;
-  $("#chatEmpty").hidden = messages.length > 0;
+  $("#chatEmpty").hidden = visibleMessages().length > 0;
   if (nearBottom) scrollToBottom();
 }
 
@@ -405,3 +430,12 @@ function renderOnlinePlayers() {
 
 renderAuthState();
 Auth.onAuthChange(() => renderAuthState());
+
+const joinLeaveToggle = $("#chatJoinLeaveToggle");
+joinLeaveToggle.checked = showJoinLeave;
+joinLeaveToggle.addEventListener("change", (e) => {
+  showJoinLeave = e.target.checked;
+  settings.showJoinLeaveSystemMessages = showJoinLeave;
+  saveSettings();
+  if (listLoaded) renderAll();
+});

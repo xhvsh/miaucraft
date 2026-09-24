@@ -8,6 +8,7 @@ const DEFAULT_SETTINGS = {
   hideFilteredWaypoints: true,
   copyFormat: "labeled",
   showDimensionConversion: false,
+  showJoinLeaveSystemMessages: true,
 };
 
 const COORD_COPY_FORMATS = {
