@@ -1,16 +1,32 @@
 # node / npm
 node_modules/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
-# Supabase CLI local stack (contains local keys / ephemeral state)
-supabase/.temp/
+# Vercel CLI local state
+.vercel/
+
+# Local env / secrets (the site currently hardcodes the publishable anon key
+# in js/lib/config.js, which is safe; anything service-role must never land here)
+.env
+.env.*
+*.pem
+*.key
 
 # OS / editor junk
 .DS_Store
 Thumbs.db
+desktop.ini
 *.iml
 .idea/
 .vscode/
+.classpath
+.project
+.settings/
 
 # Any loose log / crash dumps
 *.log
 hs_err_pid*.log
+hs_err_pid*
+replay_pid*.log
