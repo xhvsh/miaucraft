@@ -348,9 +348,15 @@ function insertSortedElement(row) {
   }
   const over = messages.length - MAX_MESSAGES;
   if (over > 0) {
-    messages.splice(0, over);
+    // Hidden rows have no DOM node, so the number of nodes to drop is the
+    // count of *visible* rows among the ones being trimmed, not `over`
+    // itself. Dropping `over` nodes instead would remove visible messages
+    // that are still in `messages`, desyncing the two.
+    const trimmed = messages.splice(0, over);
     const list = $("#chatMessages");
-    for (let i = 0; i < over; i++) list.querySelector(".chat-msg")?.remove();
+    for (const m of trimmed) {
+      if (!isHiddenMessage(m)) list.querySelector(".chat-msg")?.remove();
+    }
   }
 }
 
