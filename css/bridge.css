@@ -46,6 +46,15 @@
   background: var(--warn);
 }
 
+/* ---------- tabs ---------- */
+
+/* The shared .tabs only draws a border-bottom and carries no margin, so on this
+   page the active-tab underline sat flush against the panel below it. Scoped by
+   id because .tabs is shared with the other admin pages. */
+#bridgeTabs {
+  margin-bottom: var(--space-5);
+}
+
 /* ---------- status ---------- */
 
 .bridge-status-grid {
@@ -230,6 +239,12 @@
 }
 
 /* ---------- commands ---------- */
+
+/* .card carries no margin, so "Server actions" and "History" were touching.
+   Scoped to this panel: it is the only one holding two stacked cards. */
+#bridgeCommandsPanel > .card + .card {
+  margin-top: var(--space-5);
+}
 
 .bridge-actions {
   display: flex;
