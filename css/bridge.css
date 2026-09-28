@@ -1,50 +1,7 @@
 /* Bridge page: health, event feed, console mirror, and the action list.
-   Reuses the admin tokens and card/table primitives rather than restating them. */
-
-.bridge-live-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  border-radius: 999px;
-  font-size: var(--fs-sm);
-  font-weight: 600;
-  border: 1px solid var(--border);
-  background: var(--surface-2, var(--surface));
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-
-.bridge-live-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--text-muted);
-  flex: none;
-}
-
-.bridge-live-pill[data-state="online"] {
-  color: var(--success);
-  border-color: color-mix(in srgb, var(--success) 40%, transparent);
-}
-.bridge-live-pill[data-state="online"] .bridge-live-dot {
-  background: var(--success);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 20%, transparent);
-}
-.bridge-live-pill[data-state="offline"] {
-  color: var(--danger);
-  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
-}
-.bridge-live-pill[data-state="offline"] .bridge-live-dot {
-  background: var(--danger);
-}
-.bridge-live-pill[data-state="stale"] {
-  color: var(--warn);
-  border-color: color-mix(in srgb, var(--warn) 40%, transparent);
-}
-.bridge-live-pill[data-state="stale"] .bridge-live-dot {
-  background: var(--warn);
-}
+   Reuses the shared components (badge, custom-select, card, table) rather than
+   restating them - anything the site already has a component for belongs in
+   components.css, not here. */
 
 /* ---------- tabs ---------- */
 
@@ -53,39 +10,6 @@
    id because .tabs is shared with the other admin pages. */
 #bridgeTabs {
   margin-bottom: var(--space-5);
-}
-
-/* ---------- live indicator ---------- */
-
-.bridge-head-status {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex-wrap: wrap;
-}
-
-/* Whether the *website* holds a realtime subscription, which is a different
-   thing from whether the *server* is up. */
-.bridge-live-tag {
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: var(--fs-xs);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-.bridge-live-tag[data-state="live"] {
-  color: var(--success);
-  border-color: color-mix(in srgb, var(--success) 40%, transparent);
-  background: color-mix(in srgb, var(--success) 12%, transparent);
-}
-.bridge-live-tag[data-state="down"] {
-  color: var(--warn);
-  border-color: color-mix(in srgb, var(--warn) 40%, transparent);
-  background: color-mix(in srgb, var(--warn) 12%, transparent);
 }
 
 /* ---------- status ---------- */
@@ -152,44 +76,6 @@
   gap: var(--space-2);
   align-items: center;
   flex-wrap: wrap;
-}
-
-.bridge-filters select {
-  background: var(--surface-2, var(--surface));
-  color: inherit;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm, 8px);
-  padding: 6px 10px;
-  font: inherit;
-  font-size: var(--fs-sm);
-}
-
-.bridge-badge {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 0.7rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-}
-
-.bridge-badge[data-level="warn"],
-.bridge-badge[data-status="pending"] {
-  color: var(--warn);
-  border-color: color-mix(in srgb, var(--warn) 45%, transparent);
-}
-.bridge-badge[data-level="error"],
-.bridge-badge[data-status="failed"] {
-  color: var(--danger);
-  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
-}
-.bridge-badge[data-status="done"],
-.bridge-badge[data-status="processing"] {
-  color: var(--success);
-  border-color: color-mix(in srgb, var(--success) 45%, transparent);
 }
 
 /* ---------- events ---------- */

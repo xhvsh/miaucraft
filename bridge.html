@@ -30,12 +30,8 @@
               <h1>Bridge</h1>
               <p>Server health, plugin output, and maintenance actions.</p>
             </div>
-            <div class="bridge-head-status">
-              <span class="bridge-live-tag" id="bridgeLiveTag" data-state="down" hidden>Live</span>
-              <div class="bridge-live-pill" id="bridgeLivePill" data-state="unknown">
-                <span class="bridge-live-dot" aria-hidden="true"></span>
-                <span id="bridgeLiveText">Connecting</span>
-              </div>
+            <div>
+              <span class="badge" id="bridgeStatusBadge">Connecting</span>
             </div>
           </div>
 
@@ -116,15 +112,27 @@
                 <div class="admin-panel-head">
                   <h2 class="section-title" style="margin-bottom:0">Events</h2>
                   <div class="bridge-filters">
-                    <select id="eventLevel" aria-label="Filter by level">
-                      <option value="">All levels</option>
-                      <option value="info">Info</option>
-                      <option value="warn">Warnings</option>
-                      <option value="error">Errors</option>
-                    </select>
-                    <select id="eventCategory" aria-label="Filter by category">
-                      <option value="">All categories</option>
-                    </select>
+                    <div class="custom-select" id="eventLevelSelect">
+                      <button type="button" class="custom-select-trigger" aria-haspopup="listbox" aria-expanded="false">
+                        <span class="custom-select-value"></span>
+                        <i class="fa-solid fa-chevron-down custom-select-chevron" aria-hidden="true"></i>
+                      </button>
+                      <div class="custom-select-menu" role="listbox" hidden>
+                        <button type="button" class="custom-select-option" role="option" data-value="">All levels</button>
+                        <button type="button" class="custom-select-option" role="option" data-value="info">Info</button>
+                        <button type="button" class="custom-select-option" role="option" data-value="warn">Warnings</button>
+                        <button type="button" class="custom-select-option" role="option" data-value="error">Errors</button>
+                      </div>
+                      <input type="hidden" id="eventLevel" value="" />
+                    </div>
+                    <div class="custom-select" id="eventCategorySelect">
+                      <button type="button" class="custom-select-trigger" aria-haspopup="listbox" aria-expanded="false">
+                        <span class="custom-select-value"></span>
+                        <i class="fa-solid fa-chevron-down custom-select-chevron" aria-hidden="true"></i>
+                      </button>
+                      <div class="custom-select-menu" role="listbox" hidden></div>
+                      <input type="hidden" id="eventCategory" value="" />
+                    </div>
                   </div>
                 </div>
                 <p class="admin-hint">Lifecycle changes, errors, and one rolled-up summary per interval.</p>
@@ -139,12 +147,19 @@
                 <div class="admin-panel-head">
                   <h2 class="section-title" style="margin-bottom:0">Console output</h2>
                   <div class="bridge-filters">
-                    <select id="consoleLevel" aria-label="Filter by level">
-                      <option value="">All levels</option>
-                      <option value="info">Info</option>
-                      <option value="warn">Warnings</option>
-                      <option value="error">Errors</option>
-                    </select>
+                    <div class="custom-select" id="consoleLevelSelect">
+                      <button type="button" class="custom-select-trigger" aria-haspopup="listbox" aria-expanded="false">
+                        <span class="custom-select-value"></span>
+                        <i class="fa-solid fa-chevron-down custom-select-chevron" aria-hidden="true"></i>
+                      </button>
+                      <div class="custom-select-menu" role="listbox" hidden>
+                        <button type="button" class="custom-select-option" role="option" data-value="">All levels</button>
+                        <button type="button" class="custom-select-option" role="option" data-value="info">Info</button>
+                        <button type="button" class="custom-select-option" role="option" data-value="warn">Warnings</button>
+                        <button type="button" class="custom-select-option" role="option" data-value="error">Errors</button>
+                      </div>
+                      <input type="hidden" id="consoleLevel" value="" />
+                    </div>
                     <button class="btn btn-ghost btn-sm" id="copyConsoleBtn" type="button">
                       <i class="fa-regular fa-copy" aria-hidden="true"></i> Copy
                     </button>

@@ -14,6 +14,87 @@ export function escapeHtml(value) {
 }
 
 let toastContainer = null;
+
+/**
+ * Wires a .custom-select block to its hidden input.
+ *
+ * The markup and behaviour match the dropdown on the settings page: a trigger
+ * button, a listbox menu, and a hidden input that carries the value and fires
+ * "change". Callers keep reading input.value and listening for "change", so
+ * swapping a native <select> for this needs no other changes.
+ */
+export function createSelect(root) {
+  const input = root.querySelector('input[type="hidden"]');
+  const trigger = root.querySelector(".custom-select-trigger");
+  const menu = root.querySelector(".custom-select-menu");
+  const label = root.querySelector(".custom-select-value");
+  if (!input || !trigger || !menu || !label) return null;
+
+  const options = () => [...menu.querySelectorAll(".custom-select-option")];
+
+  function sync() {
+    const current = menu.querySelector(`[data-value="${input.value}"]`);
+    if (!current) return;
+    label.textContent = current.textContent;
+    for (const option of options()) {
+      option.setAttribute("aria-selected", String(option === current));
+    }
+  }
+
+  function close() {
+    menu.hidden = true;
+    root.classList.remove("custom-select--open", "custom-select--up");
+    trigger.setAttribute("aria-expanded", "false");
+  }
+
+  function open() {
+    close();
+    menu.hidden = false;
+    root.classList.add("custom-select--open");
+    trigger.setAttribute("aria-expanded", "true");
+    // Flip above the trigger when there is no room below in the viewport.
+    root.classList.remove("custom-select--up");
+    const rect = trigger.getBoundingClientRect();
+    if (window.innerHeight - rect.bottom < menu.offsetHeight + 12 && rect.top > menu.offsetHeight + 12) {
+      root.classList.add("custom-select--up");
+    }
+  }
+
+  /** Rebuilds the option list, keeping the current value when it survives. */
+  function setOptions(list, { placeholder = "" } = {}) {
+    const previous = input.value;
+    menu.innerHTML =
+      (placeholder
+        ? `<button type="button" class="custom-select-option" role="option" data-value="">${escapeHtml(placeholder)}</button>`
+        : "") +
+      list
+        .map((o) => `<button type="button" class="custom-select-option" role="option" data-value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</button>`)
+        .join("");
+    input.value = list.some((o) => o.value === previous) ? previous : "";
+    sync();
+  }
+
+  trigger.addEventListener("click", () => (menu.hidden ? open() : close()));
+  menu.addEventListener("click", (e) => {
+    const option = e.target.closest(".custom-select-option");
+    if (!option) return;
+    const changed = input.value !== option.dataset.value;
+    input.value = option.dataset.value;
+    sync();
+    close();
+    if (changed) input.dispatchEvent(new Event("change"));
+  });
+  document.addEventListener("click", (e) => {
+    if (!root.contains(e.target)) close();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") close();
+  });
+
+  sync();
+  return { close, sync, setOptions, input };
+}
+
 function ensureToastContainer() {
   if (toastContainer) return toastContainer;
   toastContainer = document.createElement("div");

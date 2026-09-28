@@ -11,7 +11,7 @@ import {
   subscribeConsole,
   subscribeCommands,
 } from "../lib/bridge.js";
-import { escapeHtml, toast, confirmAction, copyTextToClipboard, formatRelativeTime, formatUptime, debounce } from "../lib/ui.js";
+import { escapeHtml, toast, confirmAction, copyTextToClipboard, formatRelativeTime, formatUptime, debounce, createSelect } from "../lib/ui.js";
 import { initNav } from "../lib/nav.js";
 
 const $ = (sel) => document.querySelector(sel);
@@ -27,6 +27,18 @@ const failures = new Set();
 /** Table -> realtime channel state. A dead subscription is otherwise invisible. */
 const channelStates = new Map();
 const LIVE_TABLES = ["bridge_status", "bridge_events", "bridge_console", "bridge_commands"];
+/** The category filter is rebuilt from the data, so it needs its controller. */
+let categorySelect = null;
+
+/**
+ * One badge for the whole page, using the site's own .badge vocabulary the way
+ * chat/profile/server pages do: a base class plus one state modifier.
+ */
+function setStatusBadge(state, text) {
+  const badge = $("#bridgeStatusBadge");
+  badge.className = state ? `badge badge-${state}` : "badge";
+  badge.textContent = text;
+}
 
 /**
  * Reports whether the page is actually live, rather than leaving it to be
@@ -66,20 +78,19 @@ function renderLoadState() {
       `Could not reach the database for: ${failed.join(", ")}. A paused Supabase project can take a minute to wake up - use Retry.`;
   }
   if (failures.has("status") && !status) {
-    $("#bridgeLivePill").dataset.state = "stale";
-    $("#bridgeLiveText").textContent = "Unreachable";
+    setStatusBadge("warn", "Unreachable");
   }
 }
 
 /** Confirms out loud that realtime is connected, rather than leaving it implied. */
 function renderLiveState() {
-  const tag = $("#bridgeLiveTag");
   const states = LIVE_TABLES.map((t) => channelStates.get(t));
   if (states.some((s) => s === undefined)) return; // channels not settled yet
-  const ok = states.every((s) => s === "SUBSCRIBED");
-  tag.hidden = false;
-  tag.dataset.state = ok ? "live" : "down";
-  tag.textContent = ok ? "Live" : "Reconnecting";
+  if (!states.every((s) => s === "SUBSCRIBED")) {
+    failures.add("live updates");
+  } else {
+    failures.delete("live updates");
+  }
 }
 
 /** Records one panel's outcome, then repaints the banner. */
@@ -155,9 +166,14 @@ function setupTabs() {
     showTab(btn.dataset.tab);
   });
   $("#eventLevel").addEventListener("change", refreshEvents);
-  $("#eventCategory").addEventListener("change", refreshEvents);
   $("#consoleLevel").addEventListener("change", refreshConsole);
   $("#copyConsoleBtn").addEventListener("click", onCopyConsole);
+  createSelect($("#eventLevelSelect"));
+  createSelect($("#consoleLevelSelect"));
+  categorySelect = createSelect($("#eventCategorySelect"));
+  if (categorySelect) {
+    categorySelect.setOptions([], { placeholder: "All categories" });
+  }
   $("#bridgeRetryBtn").addEventListener("click", () => {
     failures.clear();
     renderLoadState();
@@ -183,10 +199,8 @@ async function refreshStatus() {
 }
 
 function renderStatus() {
-  const pill = $("#bridgeLivePill");
   if (!status) {
-    pill.dataset.state = "unknown";
-    $("#bridgeLiveText").textContent = "No status yet";
+    setStatusBadge(null, "No data");
     $("#statVersion").textContent = "-";
     $("#statUptime").textContent = "-";
     $("#statStarted").textContent = "the server has not reported since the migration ran";
@@ -201,17 +215,12 @@ function renderStatus() {
   }
 
   const online = !!status.online;
-  pill.dataset.state = online ? "online" : "offline";
   const age = Date.now() - new Date(status.updated_at).getTime();
   const stale = age > 90_000;
-  if (online && stale) {
-    pill.dataset.state = "stale";
-  }
-  $("#bridgeLiveText").textContent = stale
-    ? `Last seen ${formatRelativeTime(status.updated_at)}`
-    : online
-      ? "Online"
-      : "Offline";
+  setStatusBadge(
+    !online ? "offline" : stale ? "warn" : "online",
+    !online ? "Offline" : stale ? `Last seen ${formatRelativeTime(status.updated_at)}` : "Online",
+  );
 
   $("#statVersion").textContent = status.plugin_version || "-";
   $("#statInstance").textContent = status.instance_id ? `instance ${status.instance_id.slice(0, 8)}` : "-";
@@ -243,6 +252,18 @@ function renderStatus() {
 
 // ---------- events ----------
 
+/** Maps an event level onto the site's badge state vocabulary. */
+function levelBadge(level) {
+  const cls = level === "error" ? "badge-danger" : level === "warn" ? "badge-warn" : "";
+  return `<span class="badge${cls ? ` ${cls}` : ""}">${escapeHtml(level)}</span>`;
+}
+
+/** Maps a command status onto the site's badge state vocabulary. */
+function statusBadge(status) {
+  const cls = { done: "badge-online", failed: "badge-danger", pending: "badge-warn" }[status] || "";
+  return `<span class="badge${cls ? ` ${cls}` : ""}">${escapeHtml(status)}</span>`;
+}
+
 async function refreshEvents() {
   const level = $("#eventLevel").value;
   const category = $("#eventCategory").value;
@@ -261,7 +282,7 @@ async function refreshEvents() {
       const details = e.details && Object.keys(e.details).length ? `<pre class="bridge-event-details">${escapeHtml(JSON.stringify(e.details, null, 2))}</pre>` : "";
       return `<article class="bridge-event" data-level="${escapeHtml(e.level)}">
         <div class="bridge-event-head">
-          <span class="bridge-badge" data-level="${escapeHtml(e.level)}">${escapeHtml(e.level)}</span>
+          ${levelBadge(e.level)}
           <code class="bridge-event-code">${escapeHtml(e.event)}</code>
           <span class="bridge-subtle">${escapeHtml(formatRelativeTime(e.created_at))}</span>
         </div>
@@ -273,16 +294,11 @@ async function refreshEvents() {
 }
 
 function syncCategoryFilter(rows) {
-  const select = $("#eventCategory");
   const categories = [...new Set(rows.map((r) => r.category).filter(Boolean))].sort();
-  const current = select.value;
-  const wanted = ["", ...categories].join("|");
-  if (select.dataset.signature === wanted) return;
-  select.dataset.signature = wanted;
-  select.innerHTML =
-    `<option value="">All categories</option>` +
-    categories.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
-  select.value = categories.includes(current) ? current : "";
+  const signature = categories.join("|");
+  if ($("#eventCategory").dataset.signature === signature) return;
+  $("#eventCategory").dataset.signature = signature;
+  categorySelect?.setOptions(categories.map((c) => ({ value: c, label: c })), { placeholder: "All categories" });
 }
 
 // ---------- console ----------
@@ -381,7 +397,7 @@ async function refreshCommands() {
       const error = c.error ? `<p class="bridge-error-text">${escapeHtml(c.error)}</p>` : "";
       return `<article class="bridge-command-row" data-status="${escapeHtml(c.status)}">
         <div class="bridge-command-head">
-          <span class="bridge-badge" data-status="${escapeHtml(c.status)}">${escapeHtml(c.status)}</span>
+          ${statusBadge(c.status)}
           <code>${escapeHtml(c.command)}</code>
           <span class="bridge-subtle">${escapeHtml(formatRelativeTime(c.requested_at))}</span>
           ${c.requested_by_username ? `<span class="bridge-subtle">by ${escapeHtml(c.requested_by_username)}</span>` : ""}
