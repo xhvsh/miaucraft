@@ -1,4 +1,5 @@
-#adminTabs {
+#adminTabs,
+#bridgeTabs {
   margin-bottom: var(--space-5);
 }
 

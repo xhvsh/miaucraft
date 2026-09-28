@@ -109,7 +109,6 @@ export async function fetchCommands(limit = 40) {
 export async function requestCommand(command) {
   const { data, error } = await supabase.rpc("request_bridge_command", {
     p_command: command,
-    p_args: {},
   });
   if (error) {
     if (error.code === "42883" || error.code === "PGRST202") {

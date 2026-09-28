@@ -46,17 +46,17 @@
           </div>
 
           <div id="bridgeBody" hidden>
-            <div class="empty-state" id="bridgeLoadError" hidden>
-              <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+            <div class="admin-note" id="bridgeLoadError" hidden>
+              <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
               <span id="bridgeLoadErrorText">Could not reach the database.</span>
               <button class="btn btn-ghost btn-sm" id="bridgeRetryBtn" type="button">Retry</button>
             </div>
 
-            <nav class="tabs" id="bridgeTabs">
-              <button class="tab" data-tab="status" data-active="true">Status</button>
-              <button class="tab" data-tab="events">Events</button>
-              <button class="tab" data-tab="console">Console</button>
-              <button class="tab" data-tab="commands">Commands</button>
+            <nav class="tabs" id="bridgeTabs" role="tablist" aria-label="Bridge sections">
+              <button class="tab" data-tab="status" data-active="true" role="tab" aria-selected="true" aria-controls="bridgeStatusPanel">Status</button>
+              <button class="tab" data-tab="events" role="tab" aria-selected="false" aria-controls="bridgeEventsPanel">Events</button>
+              <button class="tab" data-tab="console" role="tab" aria-selected="false" aria-controls="bridgeConsolePanel">Console</button>
+              <button class="tab" data-tab="commands" role="tab" aria-selected="false" aria-controls="bridgeCommandsPanel">Commands</button>
             </nav>
 
             <!-- Status -->
@@ -64,22 +64,22 @@
               <div class="bridge-status-grid" id="bridgeStatusCards">
                 <div class="card bridge-stat">
                   <span class="bridge-stat-label">Plugin</span>
-                  <strong class="bridge-stat-value" id="statVersion">-</strong>
+                  <strong class="bridge-stat-value is-skeleton" id="statVersion">-</strong>
                   <span class="bridge-stat-sub" id="statInstance">-</span>
                 </div>
                 <div class="card bridge-stat">
                   <span class="bridge-stat-label">Uptime</span>
-                  <strong class="bridge-stat-value" id="statUptime">-</strong>
+                  <strong class="bridge-stat-value is-skeleton" id="statUptime">-</strong>
                   <span class="bridge-stat-sub" id="statStarted">-</span>
                 </div>
                 <div class="card bridge-stat">
                   <span class="bridge-stat-label">Queued rows</span>
-                  <strong class="bridge-stat-value" id="statQueued">-</strong>
+                  <strong class="bridge-stat-value is-skeleton" id="statQueued">-</strong>
                   <span class="bridge-stat-sub" id="statQueuedSub">across all sinks</span>
                 </div>
                 <div class="card bridge-stat">
                   <span class="bridge-stat-label">Remote config</span>
-                  <strong class="bridge-stat-value" id="statConfig">-</strong>
+                  <strong class="bridge-stat-value is-skeleton" id="statConfig">-</strong>
                   <span class="bridge-stat-sub" id="statServer">-</span>
                 </div>
               </div>
@@ -91,7 +91,7 @@
                 </div>
                 <p class="admin-hint">A sink that is stuck here is a table the server cannot write to. The last error is what the server saw.</p>
                 <div class="users-table-wrap">
-                  <table class="users-table bridge-sinks-table">
+                  <table class="users-table">
                     <thead>
                       <tr>
                         <th>Table</th>
@@ -100,7 +100,38 @@
                         <th>Last error</th>
                       </tr>
                     </thead>
-                    <tbody id="sinksTableBody"></tbody>
+                    <tbody id="sinksTableBody">
+                      <tr class="users-table-sk-row">
+                        <td><span class="skeleton sk-line" style="width:72%"></span></td>
+                        <td><span class="skeleton sk-line tiny"></span></td>
+                        <td><span class="skeleton sk-line tiny"></span></td>
+                        <td><span class="skeleton sk-line" style="width:58%"></span></td>
+                      </tr>
+                      <tr class="users-table-sk-row">
+                        <td><span class="skeleton sk-line" style="width:64%"></span></td>
+                        <td><span class="skeleton sk-line tiny"></span></td>
+                        <td><span class="skeleton sk-line tiny"></span></td>
+                        <td><span class="skeleton sk-line" style="width:52%"></span></td>
+                      </tr>
+                      <tr class="users-table-sk-row">
+                        <td><span class="skeleton sk-line" style="width:76%"></span></td>
+                        <td><span class="skeleton sk-line tiny"></span></td>
+                        <td><span class="skeleton sk-line tiny"></span></td>
+                        <td><span class="skeleton sk-line" style="width:60%"></span></td>
+                      </tr>
+                      <tr class="users-table-sk-row">
+                        <td><span class="skeleton sk-line" style="width:58%"></span></td>
+                        <td><span class="skeleton sk-line tiny"></span></td>
+                        <td><span class="skeleton sk-line tiny"></span></td>
+                        <td><span class="skeleton sk-line" style="width:48%"></span></td>
+                      </tr>
+                      <tr class="users-table-sk-row">
+                        <td><span class="skeleton sk-line" style="width:68%"></span></td>
+                        <td><span class="skeleton sk-line tiny"></span></td>
+                        <td><span class="skeleton sk-line tiny"></span></td>
+                        <td><span class="skeleton sk-line" style="width:55%"></span></td>
+                      </tr>
+                    </tbody>
                   </table>
                 </div>
               </div>
@@ -113,7 +144,7 @@
                   <h2 class="section-title" style="margin-bottom:0">Events</h2>
                   <div class="bridge-filters">
                     <div class="custom-select" id="eventLevelSelect">
-                      <button type="button" class="custom-select-trigger" aria-haspopup="listbox" aria-expanded="false">
+                      <button type="button" class="custom-select-trigger" aria-label="Filter by event level" aria-haspopup="listbox" aria-expanded="false">
                         <span class="custom-select-value"></span>
                         <i class="fa-solid fa-chevron-down custom-select-chevron" aria-hidden="true"></i>
                       </button>
@@ -126,17 +157,25 @@
                       <input type="hidden" id="eventLevel" value="" />
                     </div>
                     <div class="custom-select" id="eventCategorySelect">
-                      <button type="button" class="custom-select-trigger" aria-haspopup="listbox" aria-expanded="false">
-                        <span class="custom-select-value"></span>
+                      <button type="button" class="custom-select-trigger" aria-label="Filter by event category" aria-haspopup="listbox" aria-expanded="false">
+                        <span class="custom-select-value">All categories</span>
                         <i class="fa-solid fa-chevron-down custom-select-chevron" aria-hidden="true"></i>
                       </button>
-                      <div class="custom-select-menu" role="listbox" hidden></div>
+                      <div class="custom-select-menu" role="listbox" hidden>
+                        <button type="button" class="custom-select-option" role="option" data-value="">All categories</button>
+                      </div>
                       <input type="hidden" id="eventCategory" value="" />
                     </div>
                   </div>
                 </div>
                 <p class="admin-hint">Lifecycle changes, errors, and one rolled-up summary per interval.</p>
-                <div class="bridge-feed" id="eventsList"></div>
+                <div class="bridge-feed" id="eventsList" aria-live="polite"></div>
+                <div class="skeleton-list bridge-skeleton" id="eventsSkeleton">
+                  <div class="skeleton sk-row"><span class="skeleton sk-line" style="width:42%"></span></div>
+                  <div class="skeleton sk-row"><span class="skeleton sk-line" style="width:36%"></span></div>
+                  <div class="skeleton sk-row"><span class="skeleton sk-line" style="width:48%"></span></div>
+                  <div class="skeleton sk-row"><span class="skeleton sk-line" style="width:31%"></span></div>
+                </div>
                 <div class="empty-state" id="eventsEmpty" hidden><i class="fa-solid fa-inbox" aria-hidden="true"></i><span>No events yet.</span></div>
               </div>
             </section>
@@ -148,7 +187,7 @@
                   <h2 class="section-title" style="margin-bottom:0">Console output</h2>
                   <div class="bridge-filters">
                     <div class="custom-select" id="consoleLevelSelect">
-                      <button type="button" class="custom-select-trigger" aria-haspopup="listbox" aria-expanded="false">
+                      <button type="button" class="custom-select-trigger" aria-label="Filter by console level" aria-haspopup="listbox" aria-expanded="false">
                         <span class="custom-select-value"></span>
                         <i class="fa-solid fa-chevron-down custom-select-chevron" aria-hidden="true"></i>
                       </button>
@@ -160,28 +199,36 @@
                       </div>
                       <input type="hidden" id="consoleLevel" value="" />
                     </div>
-                    <button class="btn btn-ghost btn-sm" id="copyConsoleBtn" type="button">
-                      <i class="fa-regular fa-copy" aria-hidden="true"></i> Copy
+                    <button class="btn btn-ghost btn-sm" id="copyConsoleBtn" type="button" aria-label="Copy console output">
+                      <i class="fa-solid fa-copy" aria-hidden="true"></i> Copy
                     </button>
                   </div>
                 </div>
                 <p class="admin-hint">The bridge plugin's own log lines, newest at the bottom. Use this to read or copy output while testing a change. Repeats of the same message are collapsed, so a failure shows once.</p>
-                <pre class="bridge-console" id="consoleOutput" tabindex="0" aria-label="Plugin console output"></pre>
+                <pre class="bridge-console skeleton" id="consoleSkeleton" style="min-height:220px" aria-hidden="true"></pre>
+                <pre class="bridge-console" id="consoleOutput" tabindex="0" aria-label="Plugin console output" aria-live="polite" hidden></pre>
                 <div class="empty-state" id="consoleEmpty" hidden><i class="fa-solid fa-terminal" aria-hidden="true"></i><span>No console output yet.</span></div>
               </div>
             </section>
 
             <!-- Commands -->
-            <section class="admin-panel" id="bridgeCommandsPanel" hidden>
+            <section class="admin-panel bridge-commands-panel" id="bridgeCommandsPanel" hidden>
               <div class="card">
                 <h2 class="section-title">Server actions</h2>
                 <p class="admin-hint">These are the only actions the website can ask the server to perform. There is no way to submit a command line, so this list is the whole surface.</p>
                 <div class="bridge-actions" id="bridgeActions"></div>
+                <p class="bridge-actions-hint" id="bridgeActionsHint" hidden></p>
               </div>
 
               <div class="card">
                 <h2 class="section-title">History</h2>
-                <div class="bridge-commands" id="commandsList"></div>
+                <div class="bridge-commands" id="commandsList" aria-live="polite"></div>
+                <div class="skeleton-list bridge-skeleton" id="commandsSkeleton">
+                  <div class="skeleton sk-row"><span class="skeleton sk-line" style="width:34%"></span></div>
+                  <div class="skeleton sk-row"><span class="skeleton sk-line" style="width:28%"></span></div>
+                  <div class="skeleton sk-row"><span class="skeleton sk-line" style="width:38%"></span></div>
+                  <div class="skeleton sk-row"><span class="skeleton sk-line" style="width:30%"></span></div>
+                </div>
                 <div class="empty-state" id="commandsEmpty" hidden><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i><span>No actions requested yet.</span></div>
               </div>
             </section>

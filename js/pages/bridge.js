@@ -30,6 +30,15 @@ const LIVE_TABLES = ["bridge_status", "bridge_events", "bridge_console", "bridge
 /** The category filter is rebuilt from the data, so it needs its controller. */
 let categorySelect = null;
 
+// Realtime health also gates the polling fallback: while any channel is not
+// SUBSCRIBED the page refreshes itself on a timer instead of going quiet.
+let debouncedRefresh = null;
+let pollTimer = null;
+const POLL_MS = 30_000;
+
+/** Whether each list has rendered real data once; until then a skeleton shows. */
+const loaded = { events: false, console: false, commands: false };
+
 /**
  * One badge for the whole page, using the site's own .badge vocabulary the way
  * chat/profile/server pages do: a base class plus one state modifier.
@@ -41,21 +50,33 @@ function setStatusBadge(state, text) {
 }
 
 /**
- * Reports whether the page is actually live, rather than leaving it to be
- * inferred from whether anything happens to change.
+ * Reassesses whether live updates are connected, starts/stops the polling
+ * fallback and repaints the banner. A subscription to a table missing from the
+ * supabase_realtime publication reports SUBSCRIBED but never delivers, so the
+ * only honest signal is the channel state itself.
  */
-function onChannelStatus(status, table) {
-  channelStates.set(table, status);
-  const down = LIVE_TABLES.filter((t) => {
-    const s = channelStates.get(t);
-    return s && s !== "SUBSCRIBED";
-  });
-  if (down.length) {
+function recomputeRealtime() {
+  const states = LIVE_TABLES.map((t) => channelStates.get(t));
+  const settled = states.every((s) => s !== undefined);
+  const down = settled && LIVE_TABLES.some((t, i) => states[i] !== "SUBSCRIBED");
+  if (down) {
     failures.add("live updates");
+    if (!pollTimer && debouncedRefresh) {
+      pollTimer = setInterval(() => debouncedRefresh(), POLL_MS);
+    }
   } else {
     failures.delete("live updates");
+    if (pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
   }
   renderLoadState();
+}
+
+function onChannelStatus(state, table) {
+  channelStates.set(table, state);
+  recomputeRealtime();
 }
 
 /**
@@ -67,29 +88,17 @@ function onChannelStatus(status, table) {
  */
 function renderLoadState() {
   const failed = [...failures];
-  renderLiveState();
   $("#bridgeLoadError").hidden = failed.length === 0;
   if (!failed.length) return;
   if (failed.includes("live updates")) {
     $("#bridgeLoadErrorText").textContent =
-      "Live updates are not connected, so this page will not refresh on its own. The data shown is still valid - reload to refresh it.";
+      "Live updates are not connected, so the page polls every 30 seconds instead. New data still arrives, just up to half a minute later.";
   } else {
     $("#bridgeLoadErrorText").textContent =
       `Could not reach the database for: ${failed.join(", ")}. A paused Supabase project can take a minute to wake up - use Retry.`;
   }
   if (failures.has("status") && !status) {
     setStatusBadge("warn", "Unreachable");
-  }
-}
-
-/** Confirms out loud that realtime is connected, rather than leaving it implied. */
-function renderLiveState() {
-  const states = LIVE_TABLES.map((t) => channelStates.get(t));
-  if (states.some((s) => s === undefined)) return; // channels not settled yet
-  if (!states.every((s) => s === "SUBSCRIBED")) {
-    failures.add("live updates");
-  } else {
-    failures.delete("live updates");
   }
 }
 
@@ -102,6 +111,22 @@ function noteResult(name, err) {
     failures.delete(name);
   }
   renderLoadState();
+}
+
+/** Locks the action buttons while the server can't possibly run them. */
+function updateActionsDisabled() {
+  const live = !!status && !!status.online && Date.now() - new Date(status.updated_at).getTime() <= 90_000;
+  const hint = $("#bridgeActionsHint");
+  for (const btn of $("#bridgeActions").querySelectorAll("[data-run]")) {
+    btn.disabled = !live;
+  }
+  hint.hidden = live;
+  if (live) return;
+  hint.textContent = !status
+    ? "No status yet - the actions unlock once the server has reported in."
+    : !status.online
+      ? "The server is offline, so actions are paused."
+      : "The last status report is older than 90 seconds - actions are paused until the server reports in again.";
 }
 
 function refreshAccess() {
@@ -121,34 +146,52 @@ function boot() {
   showTab("status");
   refreshAll();
 
-  // A debounce keeps a busy console (a restart writes a burst of lines) from
-  // turning into a request per line.
-  const debounced = debounce(refreshAll, 400);
-  unsubs.push(subscribeStatus(() => debounced(), onChannelStatus));
+  debouncedRefresh = debounce(refreshAll, 400);
+  setupRealtime();
+}
+
+/**
+ * Subscribes to the four live feeds. Split from boot so back/forward cache
+ * restores (which fire pagehide but keep the page alive) can re-attach.
+ */
+function setupRealtime() {
+  teardownRealtime();
+  unsubs.push(subscribeStatus(() => debouncedRefresh(), onChannelStatus));
   unsubs.push(subscribeEvents(() => refreshEvents(), onChannelStatus));
-  unsubs.push(subscribeConsole(() => debounced(), onChannelStatus));
+  unsubs.push(subscribeConsole(() => debouncedRefresh(), onChannelStatus));
   unsubs.push(subscribeCommands((payload) => {
     if (payload.eventType === "UPDATE" && payload.new?.status === "failed") {
       toast(`${payload.new.command} failed: ${payload.new.error || "no detail"}`, "error", 7000);
     }
     refreshCommands();
   }, onChannelStatus));
+  recomputeRealtime();
 }
 
-window.addEventListener("pagehide", () => {
+function teardownRealtime() {
   for (const off of unsubs) {
     try {
       off();
     } catch {}
   }
   unsubs = [];
+}
+
+// The page is cached wholesale on back/forward navigation, so pagehide tears
+// the subscriptions down and pageshow puts them back - otherwise a restored
+// page silently stopped updating.
+window.addEventListener("pagehide", teardownRealtime);
+window.addEventListener("pageshow", (e) => {
+  if (e.persisted && booted) setupRealtime();
 });
 
 // ---------- tabs ----------
 
 function showTab(tab) {
   for (const btn of $("#bridgeTabs").querySelectorAll(".tab")) {
-    btn.dataset.active = String(btn.dataset.tab === tab);
+    const active = btn.dataset.tab === tab;
+    btn.dataset.active = String(active);
+    btn.setAttribute("aria-selected", String(active));
   }
   $("#bridgeStatusPanel").hidden = tab !== "status";
   $("#bridgeEventsPanel").hidden = tab !== "events";
@@ -176,6 +219,7 @@ function setupTabs() {
   }
   $("#bridgeRetryBtn").addEventListener("click", () => {
     failures.clear();
+    setupRealtime();
     renderLoadState();
     refreshAll();
   });
@@ -193,12 +237,17 @@ async function refreshStatus() {
     noteResult("status", null);
   } catch (err) {
     noteResult("status", err);
+    updateActionsDisabled();
     return;
   }
   renderStatus();
 }
 
 function renderStatus() {
+  for (const id of ["statVersion", "statUptime", "statQueued", "statConfig"]) {
+    $("#" + id).classList.remove("is-skeleton");
+  }
+
   if (!status) {
     setStatusBadge(null, "No data");
     $("#statVersion").textContent = "-";
@@ -209,8 +258,9 @@ function renderStatus() {
     $("#statConfig").textContent = "-";
     $("#statServer").textContent = "-";
     $("#statInstance").textContent = "-";
-    $("#sinksTableBody").innerHTML = "";
+    $("#sinksTableBody").innerHTML = SINK_SKELETON;
     $("#sinksUpdated").textContent = "-";
+    updateActionsDisabled();
     return;
   }
 
@@ -237,18 +287,54 @@ function renderStatus() {
   $("#statQueuedSub").textContent = failing ? `${failing} sink(s) reporting errors` : "across all sinks, none failing";
   $("#sinksUpdated").textContent = `updated ${formatRelativeTime(status.updated_at)}`;
 
-  $("#sinksTableBody").innerHTML = tables
-    .map(([table, s]) => {
-      const err = s?.last_error;
-      return `<tr>
-        <td><code>${escapeHtml(table)}</code></td>
-        <td>${Number(s?.pending) || 0}</td>
-        <td>${Number(s?.dropped) || 0}</td>
-        <td>${err ? `<span class="bridge-error-text">${escapeHtml(err)}</span>` : `<span class="bridge-ok">ok</span>`}</td>
-      </tr>`;
-    })
-    .join("");
+  $("#sinksTableBody").innerHTML = tables.length
+    ? tables
+        .map(([table, s]) => {
+          const err = s?.last_error;
+          return `<tr>
+            <td><code>${escapeHtml(table)}</code></td>
+            <td>${Number(s?.pending) || 0}</td>
+            <td>${Number(s?.dropped) || 0}</td>
+            <td>${err ? `<span class="bridge-error-text">${escapeHtml(err)}</span>` : `<span class="bridge-ok">ok</span>`}</td>
+          </tr>`;
+        })
+        .join("")
+    : `<tr><td colspan="4" class="users-table-empty">No sink data yet.</td></tr>`;
+
+  updateActionsDisabled();
 }
+
+const SINK_SKELETON = `
+  <tr class="users-table-sk-row">
+    <td><span class="skeleton sk-line" style="width:72%"></span></td>
+    <td><span class="skeleton sk-line tiny"></span></td>
+    <td><span class="skeleton sk-line tiny"></span></td>
+    <td><span class="skeleton sk-line" style="width:58%"></span></td>
+  </tr>
+  <tr class="users-table-sk-row">
+    <td><span class="skeleton sk-line" style="width:64%"></span></td>
+    <td><span class="skeleton sk-line tiny"></span></td>
+    <td><span class="skeleton sk-line tiny"></span></td>
+    <td><span class="skeleton sk-line" style="width:52%"></span></td>
+  </tr>
+  <tr class="users-table-sk-row">
+    <td><span class="skeleton sk-line" style="width:76%"></span></td>
+    <td><span class="skeleton sk-line tiny"></span></td>
+    <td><span class="skeleton sk-line tiny"></span></td>
+    <td><span class="skeleton sk-line" style="width:60%"></span></td>
+  </tr>
+  <tr class="users-table-sk-row">
+    <td><span class="skeleton sk-line" style="width:58%"></span></td>
+    <td><span class="skeleton sk-line tiny"></span></td>
+    <td><span class="skeleton sk-line tiny"></span></td>
+    <td><span class="skeleton sk-line" style="width:48%"></span></td>
+  </tr>
+  <tr class="users-table-sk-row">
+    <td><span class="skeleton sk-line" style="width:68%"></span></td>
+    <td><span class="skeleton sk-line tiny"></span></td>
+    <td><span class="skeleton sk-line tiny"></span></td>
+    <td><span class="skeleton sk-line" style="width:55%"></span></td>
+  </tr>`;
 
 // ---------- events ----------
 
@@ -274,6 +360,10 @@ async function refreshEvents() {
   } catch (err) {
     noteResult("events", err);
     return;
+  }
+  if (!loaded.events) {
+    loaded.events = true;
+    $("#eventsSkeleton").hidden = true;
   }
   syncCategoryFilter(rows);
   $("#eventsEmpty").hidden = rows.length > 0;
@@ -313,12 +403,18 @@ async function refreshConsole() {
     noteResult("console", err);
     return;
   }
+  if (!loaded.console) {
+    loaded.console = true;
+    $("#consoleSkeleton").hidden = true;
+  }
   consoleRows = rows;
   const pre = $("#consoleOutput");
   $("#consoleEmpty").hidden = rows.length > 0;
   pre.hidden = rows.length === 0;
-  pre.textContent = rows.map((r) => `[${new Date(r.created_at).toLocaleTimeString()}] ${r.level.toUpperCase().padEnd(5)} ${r.message}`).join("\n");
-  pre.scrollTop = pre.scrollHeight;
+  if (rows.length) {
+    pre.textContent = rows.map((r) => `[${new Date(r.created_at).toLocaleTimeString()}] ${r.level.toUpperCase().padEnd(5)} ${r.message}`).join("\n");
+    pre.scrollTop = pre.scrollHeight;
+  }
 }
 
 function onCopyConsole() {
@@ -337,21 +433,22 @@ function onCopyConsole() {
 function renderActions() {
   $("#bridgeActions").innerHTML = BRIDGE_COMMANDS.map(
     (c) => `
-      <div class="bridge-action" data-command="${escapeHtml(c.id)}">
-        <div class="bridge-action-text">
-          <span class="bridge-action-label"><i class="fa-solid ${c.icon}" aria-hidden="true"></i>${escapeHtml(c.label)}</span>
-          <span class="bridge-action-hint">${escapeHtml(c.hint)}</span>
+      <div class="setting-row bridge-action" data-command="${escapeHtml(c.id)}">
+        <div class="setting-row-text">
+          <span class="setting-row-label"><i class="fa-solid ${c.icon}" aria-hidden="true"></i>${escapeHtml(c.label)}</span>
+          <span class="setting-row-desc">${escapeHtml(c.hint)}</span>
         </div>
         <button class="btn ${c.danger ? "btn-danger" : "btn-ghost"} btn-sm" type="button" data-run="${escapeHtml(c.id)}">Run</button>
       </div>`,
   ).join("");
 
   $("#bridgeActions").addEventListener("click", onRunAction);
+  updateActionsDisabled();
 }
 
 async function onRunAction(e) {
   const btn = e.target.closest("[data-run]");
-  if (!btn) return;
+  if (!btn || btn.disabled) return;
   const id = btn.dataset.run;
   const meta = BRIDGE_COMMANDS.find((c) => c.id === id);
   if (!meta) return;
@@ -378,6 +475,7 @@ async function onRunAction(e) {
   } finally {
     btn.disabled = false;
     btn.innerHTML = original;
+    updateActionsDisabled();
   }
 }
 
@@ -389,6 +487,10 @@ async function refreshCommands() {
   } catch (err) {
     noteResult("commands", err);
     return;
+  }
+  if (!loaded.commands) {
+    loaded.commands = true;
+    $("#commandsSkeleton").hidden = true;
   }
   $("#commandsEmpty").hidden = rows.length > 0;
   $("#commandsList").innerHTML = rows
