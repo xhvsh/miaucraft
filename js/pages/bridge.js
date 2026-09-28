@@ -22,6 +22,39 @@ let booted = false;
 let status = null;
 let consoleRows = [];
 let unsubs = [];
+/** Panel name -> last load failed. Drives the retry banner. */
+const failures = new Set();
+
+/**
+ * Says what is broken instead of rendering nothing.
+ *
+ * Every panel used to swallow its own error into console.error, so a stalled
+ * or failed request left the page silently empty with the pill stuck on
+ * "Connecting" and no indication that anything had gone wrong.
+ */
+function renderLoadState() {
+  const failed = [...failures];
+  $("#bridgeLoadError").hidden = failed.length === 0;
+  if (failed.length) {
+    $("#bridgeLoadErrorText").textContent =
+      `Could not reach the database for: ${failed.join(", ")}. A paused Supabase project can take a minute to wake up - use Retry.`;
+  }
+  if (failures.has("status") && !status) {
+    $("#bridgeLivePill").dataset.state = "stale";
+    $("#bridgeLiveText").textContent = "Unreachable";
+  }
+}
+
+/** Records one panel's outcome, then repaints the banner. */
+function noteResult(name, err) {
+  if (err) {
+    failures.add(name);
+    console.error(`bridge ${name}`, err);
+  } else {
+    failures.delete(name);
+  }
+  renderLoadState();
+}
 
 function refreshAccess() {
   const loggedIn = Auth.isLoggedIn();
@@ -88,6 +121,11 @@ function setupTabs() {
   $("#eventCategory").addEventListener("change", refreshEvents);
   $("#consoleLevel").addEventListener("change", refreshConsole);
   $("#copyConsoleBtn").addEventListener("click", onCopyConsole);
+  $("#bridgeRetryBtn").addEventListener("click", () => {
+    failures.clear();
+    renderLoadState();
+    refreshAll();
+  });
 }
 
 // ---------- status ----------
@@ -99,8 +137,9 @@ async function refreshAll() {
 async function refreshStatus() {
   try {
     status = await fetchStatus();
+    noteResult("status", null);
   } catch (err) {
-    console.error("bridge status", err);
+    noteResult("status", err);
     return;
   }
   renderStatus();
@@ -173,8 +212,9 @@ async function refreshEvents() {
   let rows = [];
   try {
     rows = await fetchEvents({ level: level || null, category: category || null, limit: 200 });
+    noteResult("events", null);
   } catch (err) {
-    console.error("bridge events", err);
+    noteResult("events", err);
     return;
   }
   syncCategoryFilter(rows);
@@ -215,8 +255,9 @@ async function refreshConsole() {
   let rows = [];
   try {
     rows = await fetchConsole({ level: level || null, limit: 400 });
+    noteResult("console", null);
   } catch (err) {
-    console.error("bridge console", err);
+    noteResult("console", err);
     return;
   }
   consoleRows = rows;
@@ -291,8 +332,9 @@ async function refreshCommands() {
   let rows = [];
   try {
     rows = await fetchCommands(40);
+    noteResult("commands", null);
   } catch (err) {
-    console.error("bridge commands", err);
+    noteResult("commands", err);
     return;
   }
   $("#commandsEmpty").hidden = rows.length > 0;

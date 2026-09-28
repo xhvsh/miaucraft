@@ -21,36 +21,84 @@ export const BRIDGE_COMMANDS = [
   { id: "sinks.flush", label: "Flush all sinks", icon: "fa-bolt", hint: "Pushes every queued row now instead of waiting for the next cycle." },
 ];
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Rejects instead of hanging forever if a request stalls mid-resume. */
+function withTimeout(promise, ms, label) {
+  let timer;
+  // Promise.resolve() is what makes .finally safe here: a PostgREST builder is
+  // a bare thenable, not a real Promise.
+  return Promise.race([
+    Promise.resolve(promise).finally(() => clearTimeout(timer)),
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`)), ms);
+    }),
+  ]);
+}
+
+/**
+ * Runs a query with a timeout and a couple of quiet retries.
+ *
+ * An idle Supabase project pauses itself, and the first requests after it
+ * resumes can stall for tens of seconds or fail outright. Measured against this
+ * project: 25s for a cold read, 0.16s for the very next one. That is a cold
+ * start rather than a broken page, so absorb it here instead of showing the
+ * user an empty panel.
+ */
+async function query(build, label) {
+  let lastError;
+  // Two attempts, not more: a cold read is followed by an instant warm one, so
+  // a retry rescues the pause without leaving the user staring at ~60s of blank
+  // page before the retry banner finally appears.
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const { data, error } = await withTimeout(build(), 20_000, label);
+      if (!error) return data;
+      lastError = new Error(error.message);
+      // A missing table or a refused role will not fix itself on a retry.
+      if (error.code === "PGRST205" || error.code === "42P01" || error.code === "42501") throw lastError;
+    } catch (err) {
+      lastError = err;
+    }
+    if (attempt < 2) await sleep(600 * attempt);
+  }
+  throw lastError;
+}
+
 export async function fetchStatus() {
-  const { data, error } = await db("bridge_status").select("*").eq("id", 1).maybeSingle();
-  if (error) throw new Error(error.message);
+  const data = await query(() => db("bridge_status").select("*").eq("id", 1).maybeSingle(), "status");
   return data ?? null;
 }
 
 export async function fetchEvents({ level = null, category = null, limit = 200 } = {}) {
-  let query = db("bridge_events").select("*").order("created_at", { ascending: false }).limit(limit);
-  if (level) query = query.eq("level", level);
-  if (category) query = query.eq("category", category);
-  const { data, error } = await query;
-  if (error) throw new Error(error.message);
+  const data = await query(() => {
+    let q = db("bridge_events").select("*").order("created_at", { ascending: false }).limit(limit);
+    if (level) q = q.eq("level", level);
+    if (category) q = q.eq("category", category);
+    return q;
+  }, "events");
   return data ?? [];
 }
 
 export async function fetchConsole({ level = null, limit = 400 } = {}) {
-  let query = db("bridge_console").select("*").order("id", { ascending: false }).limit(limit);
-  if (level) query = query.eq("level", level);
-  const { data, error } = await query;
-  if (error) throw new Error(error.message);
+  const data = await query(() => {
+    let q = db("bridge_console").select("*").order("id", { ascending: false }).limit(limit);
+    if (level) q = q.eq("level", level);
+    return q;
+  }, "console");
   // Oldest first, so copying the view reads top-to-bottom like a terminal.
   return (data ?? []).slice().reverse();
 }
 
 export async function fetchCommands(limit = 40) {
-  const { data, error } = await db("bridge_commands")
-    .select("*")
-    .order("requested_at", { ascending: false })
-    .limit(limit);
-  if (error) throw new Error(error.message);
+  const data = await query(
+    () =>
+      db("bridge_commands")
+        .select("*")
+        .order("requested_at", { ascending: false })
+        .limit(limit),
+    "commands",
+  );
   return data ?? [];
 }
 
