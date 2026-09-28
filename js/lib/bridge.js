@@ -80,14 +80,42 @@ export async function fetchEvents({ level = null, category = null, limit = 200 }
   return data ?? [];
 }
 
-export async function fetchConsole({ level = null, limit = 400 } = {}) {
-  const data = await query(() => {
-    let q = db("bridge_console").select("*").order("id", { ascending: false }).limit(limit);
+/**
+ * Like query(), but also returns the matched row count. Used by the console,
+ * which server-side pages: the count lets the page controls show a total.
+ */
+async function queryWithCount(build, label) {
+  let lastError;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const { data, error, count } = await withTimeout(build(), 20_000, label);
+      if (!error) return { rows: data ?? [], count };
+      lastError = new Error(error.message);
+      if (error.code === "PGRST205" || error.code === "42P01" || error.code === "42501") throw lastError;
+    } catch (err) {
+      lastError = err;
+    }
+    if (attempt < 2) await sleep(600 * attempt);
+  }
+  throw lastError;
+}
+
+/**
+ * Fetches one page of console lines. Rows come back oldest first within the
+ * page so the view (and the copy button) reads top-to-bottom like a terminal.
+ * count is the total number of matched lines, for the page last-page math.
+ */
+export async function fetchConsolePage({ level = null, page = 1, perPage = 150 } = {}) {
+  const from = Math.max(0, (page - 1) * perPage);
+  const to = from + perPage - 1;
+  const { rows, count } = await queryWithCount(() => {
+    let q = db("bridge_console").select("id,created_at,level,message", { count: "exact" })
+      .order("id", { ascending: false })
+      .range(from, to);
     if (level) q = q.eq("level", level);
     return q;
   }, "console");
-  // Oldest first, so copying the view reads top-to-bottom like a terminal.
-  return (data ?? []).slice().reverse();
+  return { rows: rows.slice().reverse(), count };
 }
 
 export async function fetchCommands(limit = 40) {

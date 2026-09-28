@@ -201,12 +201,39 @@
   margin-top: var(--space-2);
 }
 
+.bridge-console-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: var(--space-4);
+}
+.bridge-console-page-info {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+#consolePageInput {
+  width: 44px;
+  height: 32px;
+  text-align: center;
+  padding: 0;
+}
+
 /* The rows are shared .setting-row components; only the leading icon is
-   unique to this page. */
+   unique to this page. It sits on the row label, left of the text. */
+.bridge-actions .setting-row-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
 .bridge-actions .setting-row-label i {
   width: 1.1em;
-  color: var(--text-dim);
-  font-size: 0.9em;
+  text-align: center;
+  font-size: 0.95em;
+  flex-shrink: 0;
 }
 
 .bridge-actions-hint {

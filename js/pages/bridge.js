@@ -3,7 +3,7 @@ import {
   BRIDGE_COMMANDS,
   fetchStatus,
   fetchEvents,
-  fetchConsole,
+  fetchConsolePage,
   fetchCommands,
   requestCommand,
   subscribeStatus,
@@ -21,6 +21,8 @@ await initNav("bridge");
 let booted = false;
 let status = null;
 let consoleRows = [];
+let consoleCurrentPage = 1;
+let consoleTotal = 0;
 let unsubs = [];
 /** Panel name -> last load failed. Drives the retry banner. */
 const failures = new Set();
@@ -209,8 +211,19 @@ function setupTabs() {
     showTab(btn.dataset.tab);
   });
   $("#eventLevel").addEventListener("change", refreshEvents);
-  $("#consoleLevel").addEventListener("change", refreshConsole);
+  $("#consoleLevel").addEventListener("change", () => {
+    consoleCurrentPage = 1;
+    refreshConsole();
+  });
   $("#copyConsoleBtn").addEventListener("click", onCopyConsole);
+  $("#consoleFirstPageBtn").addEventListener("click", () => goToConsolePage(1));
+  $("#consolePrevPageBtn").addEventListener("click", () => goToConsolePage(consoleCurrentPage - 1));
+  $("#consoleNextPageBtn").addEventListener("click", () => goToConsolePage(consoleCurrentPage + 1));
+  $("#consoleLastPageBtn").addEventListener("click", () => goToConsolePage(Number($("#consolePageInput").max) || 1));
+  $("#consolePageInput").addEventListener("change", () => {
+    const page = Math.round(Number($("#consolePageInput").value));
+    goToConsolePage(Number.isFinite(page) && page > 0 ? page : 1);
+  });
   createSelect($("#eventLevelSelect"));
   createSelect($("#consoleLevelSelect"));
   categorySelect = createSelect($("#eventCategorySelect"));
@@ -396,8 +409,9 @@ function syncCategoryFilter(rows) {
 async function refreshConsole() {
   const level = $("#consoleLevel").value;
   let rows = [];
+  let count = 0;
   try {
-    rows = await fetchConsole({ level: level || null, limit: 400 });
+    ({ rows, count } = await fetchConsolePage({ level: level || null, page: consoleCurrentPage, perPage: 150 }));
     noteResult("console", null);
   } catch (err) {
     noteResult("console", err);
@@ -408,13 +422,33 @@ async function refreshConsole() {
     $("#consoleSkeleton").hidden = true;
   }
   consoleRows = rows;
+  consoleTotal = count ?? 0;
   const pre = $("#consoleOutput");
-  $("#consoleEmpty").hidden = rows.length > 0;
+  $("#consoleEmpty").hidden = count > 0;
   pre.hidden = rows.length === 0;
   if (rows.length) {
     pre.textContent = rows.map((r) => `[${new Date(r.created_at).toLocaleTimeString()}] ${r.level.toUpperCase().padEnd(5)} ${r.message}`).join("\n");
     pre.scrollTop = pre.scrollHeight;
   }
+  renderConsolePagination();
+}
+
+function renderConsolePagination() {
+  const totalPages = Math.max(1, Math.ceil(consoleTotal / 150));
+  consoleCurrentPage = Math.min(Math.max(1, consoleCurrentPage), totalPages);
+  $("#consolePagination").hidden = consoleTotal === 0;
+  $("#consolePageInput").value = consoleCurrentPage;
+  $("#consolePageInput").max = totalPages;
+  $("#consolePageTotal").textContent = totalPages;
+  $("#consoleFirstPageBtn").disabled = consoleCurrentPage <= 1;
+  $("#consolePrevPageBtn").disabled = consoleCurrentPage <= 1;
+  $("#consoleNextPageBtn").disabled = consoleCurrentPage >= totalPages;
+  $("#consoleLastPageBtn").disabled = consoleCurrentPage >= totalPages;
+}
+
+function goToConsolePage(page) {
+  consoleCurrentPage = Math.max(1, Math.round(page) || 1);
+  refreshConsole();
 }
 
 function onCopyConsole() {
