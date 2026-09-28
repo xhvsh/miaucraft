@@ -2,9 +2,9 @@ import * as Auth from "../lib/auth.js";
 import {
   BRIDGE_COMMANDS,
   fetchStatus,
-  fetchEvents,
-  fetchConsolePage,
-  fetchCommands,
+  fetchEventsPage,
+  fetchConsole,
+  fetchCommandsPage,
   requestCommand,
   subscribeStatus,
   subscribeEvents,
@@ -21,8 +21,10 @@ await initNav("bridge");
 let booted = false;
 let status = null;
 let consoleRows = [];
-let consoleCurrentPage = 1;
-let consoleTotal = 0;
+let eventsCurrentPage = 1;
+let eventsTotal = 0;
+let commandsCurrentPage = 1;
+let commandsTotal = 0;
 let unsubs = [];
 /** Panel name -> last load failed. Drives the retry banner. */
 const failures = new Set();
@@ -210,19 +212,31 @@ function setupTabs() {
     if (!btn || btn.hidden) return;
     showTab(btn.dataset.tab);
   });
-  $("#eventLevel").addEventListener("change", refreshEvents);
-  $("#consoleLevel").addEventListener("change", () => {
-    consoleCurrentPage = 1;
-    refreshConsole();
+  $("#eventLevel").addEventListener("change", () => {
+    eventsCurrentPage = 1;
+    refreshEvents();
   });
+  $("#eventCategory").addEventListener("change", () => {
+    eventsCurrentPage = 1;
+    refreshEvents();
+  });
+  $("#eventsFirstPageBtn").addEventListener("click", () => goToEventsPage(1));
+  $("#eventsPrevPageBtn").addEventListener("click", () => goToEventsPage(eventsCurrentPage - 1));
+  $("#eventsNextPageBtn").addEventListener("click", () => goToEventsPage(eventsCurrentPage + 1));
+  $("#eventsLastPageBtn").addEventListener("click", () => goToEventsPage(Number($("#eventsPageInput").max) || 1));
+  $("#eventsPageInput").addEventListener("change", () => {
+    const page = Math.round(Number($("#eventsPageInput").value));
+    goToEventsPage(Number.isFinite(page) && page > 0 ? page : 1);
+  });
+  $("#consoleLevel").addEventListener("change", refreshConsole);
   $("#copyConsoleBtn").addEventListener("click", onCopyConsole);
-  $("#consoleFirstPageBtn").addEventListener("click", () => goToConsolePage(1));
-  $("#consolePrevPageBtn").addEventListener("click", () => goToConsolePage(consoleCurrentPage - 1));
-  $("#consoleNextPageBtn").addEventListener("click", () => goToConsolePage(consoleCurrentPage + 1));
-  $("#consoleLastPageBtn").addEventListener("click", () => goToConsolePage(Number($("#consolePageInput").max) || 1));
-  $("#consolePageInput").addEventListener("change", () => {
-    const page = Math.round(Number($("#consolePageInput").value));
-    goToConsolePage(Number.isFinite(page) && page > 0 ? page : 1);
+  $("#commandsFirstPageBtn").addEventListener("click", () => goToCommandsPage(1));
+  $("#commandsPrevPageBtn").addEventListener("click", () => goToCommandsPage(commandsCurrentPage - 1));
+  $("#commandsNextPageBtn").addEventListener("click", () => goToCommandsPage(commandsCurrentPage + 1));
+  $("#commandsLastPageBtn").addEventListener("click", () => goToCommandsPage(Number($("#commandsPageInput").max) || 1));
+  $("#commandsPageInput").addEventListener("change", () => {
+    const page = Math.round(Number($("#commandsPageInput").value));
+    goToCommandsPage(Number.isFinite(page) && page > 0 ? page : 1);
   });
   createSelect($("#eventLevelSelect"));
   createSelect($("#consoleLevelSelect"));
@@ -367,8 +381,9 @@ async function refreshEvents() {
   const level = $("#eventLevel").value;
   const category = $("#eventCategory").value;
   let rows = [];
+  let count = 0;
   try {
-    rows = await fetchEvents({ level: level || null, category: category || null, limit: 200 });
+    ({ rows, count } = await fetchEventsPage({ level: level || null, category: category || null, page: eventsCurrentPage, perPage: 40 }));
     noteResult("events", null);
   } catch (err) {
     noteResult("events", err);
@@ -379,7 +394,8 @@ async function refreshEvents() {
     $("#eventsSkeleton").hidden = true;
   }
   syncCategoryFilter(rows);
-  $("#eventsEmpty").hidden = rows.length > 0;
+  eventsTotal = count ?? 0;
+  $("#eventsEmpty").hidden = count > 0;
   $("#eventsList").innerHTML = rows
     .map((e) => {
       const details = e.details && Object.keys(e.details).length ? `<pre class="bridge-event-details">${escapeHtml(JSON.stringify(e.details, null, 2))}</pre>` : "";
@@ -394,6 +410,25 @@ async function refreshEvents() {
       </article>`;
     })
     .join("");
+  renderEventsPagination();
+}
+
+function renderEventsPagination() {
+  const totalPages = Math.max(1, Math.ceil(eventsTotal / 40));
+  eventsCurrentPage = Math.min(Math.max(1, eventsCurrentPage), totalPages);
+  $("#eventsPagination").hidden = totalPages <= 1;
+  $("#eventsPageInput").value = eventsCurrentPage;
+  $("#eventsPageInput").max = totalPages;
+  $("#eventsPageTotal").textContent = totalPages;
+  $("#eventsFirstPageBtn").disabled = eventsCurrentPage <= 1;
+  $("#eventsPrevPageBtn").disabled = eventsCurrentPage <= 1;
+  $("#eventsNextPageBtn").disabled = eventsCurrentPage >= totalPages;
+  $("#eventsLastPageBtn").disabled = eventsCurrentPage >= totalPages;
+}
+
+function goToEventsPage(page) {
+  eventsCurrentPage = Math.max(1, Math.round(page) || 1);
+  refreshEvents();
 }
 
 function syncCategoryFilter(rows) {
@@ -409,9 +444,8 @@ function syncCategoryFilter(rows) {
 async function refreshConsole() {
   const level = $("#consoleLevel").value;
   let rows = [];
-  let count = 0;
   try {
-    ({ rows, count } = await fetchConsolePage({ level: level || null, page: consoleCurrentPage, perPage: 150 }));
+    rows = await fetchConsole({ level: level || null, limit: 150 });
     noteResult("console", null);
   } catch (err) {
     noteResult("console", err);
@@ -422,33 +456,13 @@ async function refreshConsole() {
     $("#consoleSkeleton").hidden = true;
   }
   consoleRows = rows;
-  consoleTotal = count ?? 0;
   const pre = $("#consoleOutput");
-  $("#consoleEmpty").hidden = count > 0;
+  $("#consoleEmpty").hidden = rows.length > 0;
   pre.hidden = rows.length === 0;
   if (rows.length) {
     pre.textContent = rows.map((r) => `[${new Date(r.created_at).toLocaleTimeString()}] ${r.level.toUpperCase().padEnd(5)} ${r.message}`).join("\n");
     pre.scrollTop = pre.scrollHeight;
   }
-  renderConsolePagination();
-}
-
-function renderConsolePagination() {
-  const totalPages = Math.max(1, Math.ceil(consoleTotal / 150));
-  consoleCurrentPage = Math.min(Math.max(1, consoleCurrentPage), totalPages);
-  $("#consolePagination").hidden = consoleTotal === 0;
-  $("#consolePageInput").value = consoleCurrentPage;
-  $("#consolePageInput").max = totalPages;
-  $("#consolePageTotal").textContent = totalPages;
-  $("#consoleFirstPageBtn").disabled = consoleCurrentPage <= 1;
-  $("#consolePrevPageBtn").disabled = consoleCurrentPage <= 1;
-  $("#consoleNextPageBtn").disabled = consoleCurrentPage >= totalPages;
-  $("#consoleLastPageBtn").disabled = consoleCurrentPage >= totalPages;
-}
-
-function goToConsolePage(page) {
-  consoleCurrentPage = Math.max(1, Math.round(page) || 1);
-  refreshConsole();
 }
 
 function onCopyConsole() {
@@ -515,8 +529,9 @@ async function onRunAction(e) {
 
 async function refreshCommands() {
   let rows = [];
+  let count = 0;
   try {
-    rows = await fetchCommands(40);
+    ({ rows, count } = await fetchCommandsPage({ page: commandsCurrentPage, perPage: 40 }));
     noteResult("commands", null);
   } catch (err) {
     noteResult("commands", err);
@@ -526,7 +541,8 @@ async function refreshCommands() {
     loaded.commands = true;
     $("#commandsSkeleton").hidden = true;
   }
-  $("#commandsEmpty").hidden = rows.length > 0;
+  commandsTotal = count ?? 0;
+  $("#commandsEmpty").hidden = count > 0;
   $("#commandsList").innerHTML = rows
     .map((c) => {
       const result = c.result ? `<pre class="bridge-command-output">${escapeHtml(c.result)}</pre>` : "";
@@ -543,6 +559,25 @@ async function refreshCommands() {
       </article>`;
     })
     .join("");
+  renderCommandsPagination();
+}
+
+function renderCommandsPagination() {
+  const totalPages = Math.max(1, Math.ceil(commandsTotal / 40));
+  commandsCurrentPage = Math.min(Math.max(1, commandsCurrentPage), totalPages);
+  $("#commandsPagination").hidden = totalPages <= 1;
+  $("#commandsPageInput").value = commandsCurrentPage;
+  $("#commandsPageInput").max = totalPages;
+  $("#commandsPageTotal").textContent = totalPages;
+  $("#commandsFirstPageBtn").disabled = commandsCurrentPage <= 1;
+  $("#commandsPrevPageBtn").disabled = commandsCurrentPage <= 1;
+  $("#commandsNextPageBtn").disabled = commandsCurrentPage >= totalPages;
+  $("#commandsLastPageBtn").disabled = commandsCurrentPage >= totalPages;
+}
+
+function goToCommandsPage(page) {
+  commandsCurrentPage = Math.max(1, Math.round(page) || 1);
+  refreshCommands();
 }
 
 refreshAccess();

@@ -201,21 +201,22 @@
   margin-top: var(--space-2);
 }
 
-.bridge-console-pagination {
+.bridge-pagination {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
   margin-top: var(--space-4);
 }
-.bridge-console-page-info {
+.bridge-page-info {
   font-size: var(--fs-xs);
   color: var(--text-muted);
   display: flex;
   align-items: center;
   gap: 6px;
 }
-#consolePageInput {
+#eventsPageInput,
+#commandsPageInput {
   width: 44px;
   height: 32px;
   text-align: center;

@@ -177,6 +177,13 @@
                   <div class="skeleton sk-row"><span class="skeleton sk-line" style="width:31%"></span></div>
                 </div>
                 <div class="empty-state" id="eventsEmpty" hidden><i class="fa-solid fa-inbox" aria-hidden="true"></i><span>No events yet.</span></div>
+                <div class="bridge-pagination" id="eventsPagination" hidden>
+                  <button class="icon-btn" id="eventsFirstPageBtn" type="button" aria-label="First page"><i class="fa-solid fa-angles-left" aria-hidden="true"></i></button>
+                  <button class="icon-btn" id="eventsPrevPageBtn" type="button" aria-label="Previous page"><i class="fa-solid fa-angle-left" aria-hidden="true"></i></button>
+                  <span class="bridge-page-info">Page <input type="number" id="eventsPageInput" min="1" class="no-spinner" /> of <span id="eventsPageTotal">1</span></span>
+                  <button class="icon-btn" id="eventsNextPageBtn" type="button" aria-label="Next page"><i class="fa-solid fa-angle-right" aria-hidden="true"></i></button>
+                  <button class="icon-btn" id="eventsLastPageBtn" type="button" aria-label="Last page"><i class="fa-solid fa-angles-right" aria-hidden="true"></i></button>
+                </div>
               </div>
             </section>
 
@@ -204,17 +211,10 @@
                     </button>
                   </div>
                 </div>
-                <p class="admin-hint">The bridge plugin's own log lines, newest page at the bottom. Each page shows 150 lines; use the buttons to browse history and "Copy" copies the visible page. Repeats of the same message are collapsed, so a failure shows once.</p>
+                <p class="admin-hint">The bridge plugin's own log lines, newest at the bottom. It is a live window, not a full history; "Copy" copies the current window. Repeats of the same message are collapsed, so a failure shows once.</p>
                 <pre class="bridge-console skeleton" id="consoleSkeleton" style="min-height:220px" aria-hidden="true"></pre>
                 <pre class="bridge-console" id="consoleOutput" tabindex="0" aria-label="Plugin console output" aria-live="polite" hidden></pre>
                 <div class="empty-state" id="consoleEmpty" hidden><i class="fa-solid fa-terminal" aria-hidden="true"></i><span>No console output yet.</span></div>
-                <div class="bridge-console-pagination" id="consolePagination" hidden>
-                  <button class="icon-btn" id="consoleFirstPageBtn" type="button" aria-label="First page"><i class="fa-solid fa-angles-left" aria-hidden="true"></i></button>
-                  <button class="icon-btn" id="consolePrevPageBtn" type="button" aria-label="Previous page"><i class="fa-solid fa-angle-left" aria-hidden="true"></i></button>
-                  <span class="bridge-console-page-info">Page <input type="number" id="consolePageInput" min="1" class="no-spinner" /> of <span id="consolePageTotal">1</span></span>
-                  <button class="icon-btn" id="consoleNextPageBtn" type="button" aria-label="Next page"><i class="fa-solid fa-angle-right" aria-hidden="true"></i></button>
-                  <button class="icon-btn" id="consoleLastPageBtn" type="button" aria-label="Last page"><i class="fa-solid fa-angles-right" aria-hidden="true"></i></button>
-                </div>
               </div>
             </section>
 
@@ -237,6 +237,13 @@
                   <div class="skeleton sk-row"><span class="skeleton sk-line" style="width:30%"></span></div>
                 </div>
                 <div class="empty-state" id="commandsEmpty" hidden><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i><span>No actions requested yet.</span></div>
+                <div class="bridge-pagination" id="commandsPagination" hidden>
+                  <button class="icon-btn" id="commandsFirstPageBtn" type="button" aria-label="First page"><i class="fa-solid fa-angles-left" aria-hidden="true"></i></button>
+                  <button class="icon-btn" id="commandsPrevPageBtn" type="button" aria-label="Previous page"><i class="fa-solid fa-angle-left" aria-hidden="true"></i></button>
+                  <span class="bridge-page-info">Page <input type="number" id="commandsPageInput" min="1" class="no-spinner" /> of <span id="commandsPageTotal">1</span></span>
+                  <button class="icon-btn" id="commandsNextPageBtn" type="button" aria-label="Next page"><i class="fa-solid fa-angle-right" aria-hidden="true"></i></button>
+                  <button class="icon-btn" id="commandsLastPageBtn" type="button" aria-label="Last page"><i class="fa-solid fa-angles-right" aria-hidden="true"></i></button>
+                </div>
               </div>
             </section>
           </div>

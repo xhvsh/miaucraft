@@ -70,19 +70,29 @@ export async function fetchStatus() {
   return data ?? null;
 }
 
-export async function fetchEvents({ level = null, category = null, limit = 200 } = {}) {
-  const data = await query(() => {
-    let q = db("bridge_events").select("*").order("created_at", { ascending: false }).limit(limit);
+/**
+ * Fetches one page of events, newest first. count is the total number of
+ * matched rows, for the page last-page math. Events render as cards, so the
+ * page is small to keep resets fast.
+ */
+export async function fetchEventsPage({ level = null, category = null, page = 1, perPage = 40 } = {}) {
+  const from = Math.max(0, (page - 1) * perPage);
+  const to = from + perPage - 1;
+  const { rows, count } = await queryWithCount(() => {
+    let q = db("bridge_events").select("*", { count: "exact" })
+      .order("created_at", { ascending: false })
+      .range(from, to);
     if (level) q = q.eq("level", level);
     if (category) q = q.eq("category", category);
     return q;
   }, "events");
-  return data ?? [];
+  return { rows, count };
 }
 
 /**
- * Like query(), but also returns the matched row count. Used by the console,
- * which server-side pages: the count lets the page controls show a total.
+ * Like query(), but also returns the matched row count. Used by the paged
+ * feeds (events, commands history): the count lets the page controls show a
+ * total.
  */
 async function queryWithCount(build, label) {
   let lastError;
@@ -101,39 +111,35 @@ async function queryWithCount(build, label) {
 }
 
 /**
- * Fetches one page of console lines. Rows come back oldest first within the
- * page so the view (and the copy button) reads top-to-bottom like a terminal.
- * count is the total number of matched lines, for the page last-page math.
+ * Fetches the latest console lines. Oldest first, so the view (and the copy
+ * button) reads top-to-bottom like a terminal. Unpaged: new lines arrive via
+ * realtime, so this stays a bounded live window instead of a browsable feed.
  */
-export async function fetchConsolePage({ level = null, page = 1, perPage = 150 } = {}) {
-  const from = Math.max(0, (page - 1) * perPage);
-  const to = from + perPage - 1;
-  const { rows, count } = await queryWithCount(() => {
-    let q = db("bridge_console").select("id,created_at,level,message", { count: "exact" })
-      .order("id", { ascending: false })
-      .range(from, to);
+export async function fetchConsole({ level = null, limit = 150 } = {}) {
+  const data = await query(() => {
+    let q = db("bridge_console").select("*").order("id", { ascending: false }).limit(limit);
     if (level) q = q.eq("level", level);
     return q;
   }, "console");
-  return { rows: rows.slice().reverse(), count };
-}
-
-export async function fetchCommands(limit = 40) {
-  const data = await query(
-    () =>
-      db("bridge_commands")
-        .select("*")
-        .order("requested_at", { ascending: false })
-        .limit(limit),
-    "commands",
-  );
-  return data ?? [];
+  return (data ?? []).slice().reverse();
 }
 
 /**
- * Queues an action. The RPC is the only write path: it records the caller from
- * the session, so a row cannot claim to have come from someone else.
+ * Fetches one page of command history, newest first. count is the total number
+ * of rows, for the page last-page math.
  */
+export async function fetchCommandsPage({ page = 1, perPage = 40 } = {}) {
+  const from = Math.max(0, (page - 1) * perPage);
+  const to = from + perPage - 1;
+  const { rows, count } = await queryWithCount(() =>
+      db("bridge_commands")
+        .select("*", { count: "exact" })
+        .order("requested_at", { ascending: false })
+        .range(from, to),
+    "commands");
+  return { rows, count };
+}
+
 export async function requestCommand(command) {
   const { data, error } = await supabase.rpc("request_bridge_command", {
     p_command: command,
