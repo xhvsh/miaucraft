@@ -383,7 +383,7 @@ async function refreshEvents() {
   let rows = [];
   let count = 0;
   try {
-    ({ rows, count } = await fetchEventsPage({ level: level || null, category: category || null, page: eventsCurrentPage, perPage: 40 }));
+    ({ rows, count } = await fetchEventsPage({ level: level || null, category: category || null, page: eventsCurrentPage, perPage: 20 }));
     noteResult("events", null);
   } catch (err) {
     noteResult("events", err);
@@ -414,7 +414,7 @@ async function refreshEvents() {
 }
 
 function renderEventsPagination() {
-  const totalPages = Math.max(1, Math.ceil(eventsTotal / 40));
+  const totalPages = Math.max(1, Math.ceil(eventsTotal / 20));
   eventsCurrentPage = Math.min(Math.max(1, eventsCurrentPage), totalPages);
   $("#eventsPagination").hidden = totalPages <= 1;
   $("#eventsPageInput").value = eventsCurrentPage;
@@ -531,7 +531,7 @@ async function refreshCommands() {
   let rows = [];
   let count = 0;
   try {
-    ({ rows, count } = await fetchCommandsPage({ page: commandsCurrentPage, perPage: 40 }));
+    ({ rows, count } = await fetchCommandsPage({ page: commandsCurrentPage, perPage: 20 }));
     noteResult("commands", null);
   } catch (err) {
     noteResult("commands", err);
@@ -563,7 +563,7 @@ async function refreshCommands() {
 }
 
 function renderCommandsPagination() {
-  const totalPages = Math.max(1, Math.ceil(commandsTotal / 40));
+  const totalPages = Math.max(1, Math.ceil(commandsTotal / 20));
   commandsCurrentPage = Math.min(Math.max(1, commandsCurrentPage), totalPages);
   $("#commandsPagination").hidden = totalPages <= 1;
   $("#commandsPageInput").value = commandsCurrentPage;
