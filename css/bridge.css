@@ -1,0 +1,309 @@
+/* Bridge page: health, event feed, console mirror, and the action list.
+   Reuses the admin tokens and card/table primitives rather than restating them. */
+
+.bridge-live-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  border: 1px solid var(--border);
+  background: var(--surface-2, var(--surface));
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.bridge-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  flex: none;
+}
+
+.bridge-live-pill[data-state="online"] {
+  color: var(--success);
+  border-color: color-mix(in srgb, var(--success) 40%, transparent);
+}
+.bridge-live-pill[data-state="online"] .bridge-live-dot {
+  background: var(--success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 20%, transparent);
+}
+.bridge-live-pill[data-state="offline"] {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+}
+.bridge-live-pill[data-state="offline"] .bridge-live-dot {
+  background: var(--danger);
+}
+.bridge-live-pill[data-state="stale"] {
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 40%, transparent);
+}
+.bridge-live-pill[data-state="stale"] .bridge-live-dot {
+  background: var(--warn);
+}
+
+/* ---------- status ---------- */
+
+.bridge-status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.bridge-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bridge-stat-label {
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.bridge-stat-value {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.bridge-stat-sub {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.bridge-sinks-card code {
+  font-family: var(--font-mono);
+  font-size: 0.82em;
+}
+
+.bridge-ok {
+  color: var(--text-muted);
+}
+
+.bridge-error-text {
+  color: var(--danger);
+  font-family: var(--font-mono);
+  font-size: 0.8em;
+  overflow-wrap: anywhere;
+  margin: 0;
+}
+
+.bridge-subtle {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+/* ---------- shared feed bits ---------- */
+
+.bridge-filters {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.bridge-filters select {
+  background: var(--surface-2, var(--surface));
+  color: inherit;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 8px);
+  padding: 6px 10px;
+  font: inherit;
+  font-size: var(--fs-sm);
+}
+
+.bridge-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+.bridge-badge[data-level="warn"],
+.bridge-badge[data-status="pending"] {
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 45%, transparent);
+}
+.bridge-badge[data-level="error"],
+.bridge-badge[data-status="failed"] {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+}
+.bridge-badge[data-status="done"],
+.bridge-badge[data-status="processing"] {
+  color: var(--success);
+  border-color: color-mix(in srgb, var(--success) 45%, transparent);
+}
+
+/* ---------- events ---------- */
+
+.bridge-feed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.bridge-event {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: var(--radius-sm, 8px);
+  padding: 10px 12px;
+}
+
+.bridge-event[data-level="warn"] {
+  border-left-color: var(--warn);
+}
+.bridge-event[data-level="error"] {
+  border-left-color: var(--danger);
+}
+.bridge-event[data-level="info"] {
+  border-left-color: color-mix(in srgb, var(--success) 55%, transparent);
+}
+
+.bridge-event-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.bridge-event-code {
+  font-family: var(--font-mono);
+  font-size: 0.8em;
+  color: var(--text-muted);
+}
+
+.bridge-event-message {
+  margin: 6px 0 0;
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+
+.bridge-event-details,
+.bridge-command-output {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  background: var(--surface-2, var(--surface));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 8px);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 260px;
+  overflow: auto;
+}
+
+/* ---------- console ---------- */
+
+.bridge-console {
+  margin: var(--space-3) 0 0;
+  padding: 12px 14px;
+  max-height: 60vh;
+  overflow: auto;
+  background: var(--surface-2, var(--surface));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 8px);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--text);
+}
+
+/* ---------- commands ---------- */
+
+.bridge-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.bridge-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 8px);
+  flex-wrap: wrap;
+}
+
+.bridge-action-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.bridge-action-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: var(--fs-sm);
+}
+
+.bridge-action-hint {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.bridge-commands {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.bridge-command-row {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 8px);
+  padding: 10px 12px;
+}
+
+.bridge-command-row[data-status="failed"] {
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+}
+
+.bridge-command-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.bridge-command-head code {
+  font-family: var(--font-mono);
+  font-size: 0.8em;
+}
+
+@media (max-width: 640px) {
+  .bridge-action {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .bridge-action .btn {
+    width: 100%;
+  }
+}

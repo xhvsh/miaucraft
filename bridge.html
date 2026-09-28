@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="view-transition" content="same-origin" />
+    <title>Bridge - Miaucraft</title>
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" href="img/icon.webp" type="image/webp" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <script src="https://kit.fontawesome.com/384138011e.js" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="css/tokens.css" />
+    <link rel="stylesheet" href="css/base.css" />
+    <link rel="stylesheet" href="css/components.css" />
+    <link rel="stylesheet" href="css/nav.css" />
+    <link rel="stylesheet" href="css/admin.css" />
+    <link rel="stylesheet" href="css/bridge.css" />
+  </head>
+  <body data-page="bridge">
+    <a class="skip-link" href="#mainContent">Skip to content</a>
+    <div class="app-shell">
+      <div id="navRoot"></div>
+
+      <main class="page-main" id="mainContent" tabindex="-1">
+        <div class="page-container">
+          <div class="page-head">
+            <div>
+              <h1>Bridge</h1>
+              <p>Server health, plugin output, and maintenance actions.</p>
+            </div>
+            <div class="bridge-live-pill" id="bridgeLivePill" data-state="unknown">
+              <span class="bridge-live-dot" aria-hidden="true"></span>
+              <span id="bridgeLiveText">Connecting</span>
+            </div>
+          </div>
+
+          <div class="empty-state" id="bridgeSignedOut" hidden>
+            <i class="fa-solid fa-lock" aria-hidden="true"></i>
+            <span>Sign in with the owner account to view this page.</span>
+          </div>
+
+          <div class="empty-state" id="bridgeNoAccess" hidden>
+            <i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
+            <span>Owner access is required for this page.</span>
+          </div>
+
+          <div id="bridgeBody" hidden>
+            <nav class="tabs" id="bridgeTabs">
+              <button class="tab" data-tab="status" data-active="true">Status</button>
+              <button class="tab" data-tab="events">Events</button>
+              <button class="tab" data-tab="console">Console</button>
+              <button class="tab" data-tab="commands">Commands</button>
+            </nav>
+
+            <!-- Status -->
+            <section class="admin-panel" id="bridgeStatusPanel">
+              <div class="bridge-status-grid" id="bridgeStatusCards">
+                <div class="card bridge-stat">
+                  <span class="bridge-stat-label">Plugin</span>
+                  <strong class="bridge-stat-value" id="statVersion">-</strong>
+                  <span class="bridge-stat-sub" id="statInstance">-</span>
+                </div>
+                <div class="card bridge-stat">
+                  <span class="bridge-stat-label">Uptime</span>
+                  <strong class="bridge-stat-value" id="statUptime">-</strong>
+                  <span class="bridge-stat-sub" id="statStarted">-</span>
+                </div>
+                <div class="card bridge-stat">
+                  <span class="bridge-stat-label">Queued rows</span>
+                  <strong class="bridge-stat-value" id="statQueued">-</strong>
+                  <span class="bridge-stat-sub" id="statQueuedSub">across all sinks</span>
+                </div>
+                <div class="card bridge-stat">
+                  <span class="bridge-stat-label">Remote config</span>
+                  <strong class="bridge-stat-value" id="statConfig">-</strong>
+                  <span class="bridge-stat-sub" id="statServer">-</span>
+                </div>
+              </div>
+
+              <div class="card bridge-sinks-card">
+                <div class="admin-panel-head">
+                  <h2 class="section-title" style="margin-bottom:0">Sinks</h2>
+                  <span class="bridge-subtle" id="sinksUpdated">-</span>
+                </div>
+                <p class="admin-hint">A sink that is stuck here is a table the server cannot write to. The last error is what the server saw.</p>
+                <div class="users-table-wrap">
+                  <table class="users-table bridge-sinks-table">
+                    <thead>
+                      <tr>
+                        <th>Table</th>
+                        <th>Queued</th>
+                        <th>Dropped</th>
+                        <th>Last error</th>
+                      </tr>
+                    </thead>
+                    <tbody id="sinksTableBody"></tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+
+            <!-- Events -->
+            <section class="admin-panel" id="bridgeEventsPanel" hidden>
+              <div class="card">
+                <div class="admin-panel-head">
+                  <h2 class="section-title" style="margin-bottom:0">Events</h2>
+                  <div class="bridge-filters">
+                    <select id="eventLevel" aria-label="Filter by level">
+                      <option value="">All levels</option>
+                      <option value="info">Info</option>
+                      <option value="warn">Warnings</option>
+                      <option value="error">Errors</option>
+                    </select>
+                    <select id="eventCategory" aria-label="Filter by category">
+                      <option value="">All categories</option>
+                    </select>
+                  </div>
+                </div>
+                <p class="admin-hint">Lifecycle changes, errors, and one rolled-up summary per interval.</p>
+                <div class="bridge-feed" id="eventsList"></div>
+                <div class="empty-state" id="eventsEmpty" hidden><i class="fa-solid fa-inbox" aria-hidden="true"></i><span>No events yet.</span></div>
+              </div>
+            </section>
+
+            <!-- Console -->
+            <section class="admin-panel" id="bridgeConsolePanel" hidden>
+              <div class="card">
+                <div class="admin-panel-head">
+                  <h2 class="section-title" style="margin-bottom:0">Console output</h2>
+                  <div class="bridge-filters">
+                    <select id="consoleLevel" aria-label="Filter by level">
+                      <option value="">All levels</option>
+                      <option value="info">Info</option>
+                      <option value="warn">Warnings</option>
+                      <option value="error">Errors</option>
+                    </select>
+                    <button class="btn btn-ghost btn-sm" id="copyConsoleBtn" type="button">
+                      <i class="fa-regular fa-copy" aria-hidden="true"></i> Copy
+                    </button>
+                  </div>
+                </div>
+                <p class="admin-hint">The bridge plugin's own log lines, newest at the bottom. Use this to read or copy output while testing a change. Repeats of the same message are collapsed, so a failure shows once.</p>
+                <pre class="bridge-console" id="consoleOutput" tabindex="0" aria-label="Plugin console output"></pre>
+                <div class="empty-state" id="consoleEmpty" hidden><i class="fa-solid fa-terminal" aria-hidden="true"></i><span>No console output yet.</span></div>
+              </div>
+            </section>
+
+            <!-- Commands -->
+            <section class="admin-panel" id="bridgeCommandsPanel" hidden>
+              <div class="card">
+                <h2 class="section-title">Server actions</h2>
+                <p class="admin-hint">These are the only actions the website can ask the server to perform. There is no way to submit a command line, so this list is the whole surface.</p>
+                <div class="bridge-actions" id="bridgeActions"></div>
+              </div>
+
+              <div class="card">
+                <h2 class="section-title">History</h2>
+                <div class="bridge-commands" id="commandsList"></div>
+                <div class="empty-state" id="commandsEmpty" hidden><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i><span>No actions requested yet.</span></div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+    <script type="module" src="js/pages/bridge.js"></script>
+  </body>
+</html>

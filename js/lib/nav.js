@@ -33,6 +33,7 @@ function renderTopbar(pageId) {
   const chatLink = linkHtml("/chat", pageId === "chat", "fa-message", "Chat", "navChatLink").replace(">", " hidden>");
   const logsLink = linkHtml("/logs", pageId === "logs", "fa-clock-rotate-left", "Logs", "navLogsLink").replace(">", " hidden>");
   const adminLink = linkHtml("/admin", pageId === "admin", "fa-shield-halved", "Admin", "navAdminLink").replace(">", " hidden>");
+  const bridgeLink = linkHtml("/bridge", pageId === "bridge", "fa-tower-broadcast", "Bridge", "navBridgeLink").replace(">", " hidden>");
 
   root.innerHTML = `
     <header class="topbar">
@@ -45,6 +46,7 @@ function renderTopbar(pageId) {
         ${chatLink}
         ${logsLink}
         ${adminLink}
+        ${bridgeLink}
       </nav>
       <div class="nav-right">
         <div id="navAuthSlot"></div>
@@ -73,7 +75,7 @@ function renderBottomNav(pageId) {
     ${pageItem("/server", pageId === "server", "fa-server", "Server")}
     ${pageItem("/leaderboards", pageId === "leaderboards", "fa-trophy", "Leaderboards")}
     <button class="bottom-nav-item" id="bottomNavProfileBtn" type="button" data-current="${pageId === "profile"}"><i class="fa-solid fa-user" aria-hidden="true"></i>Profile</button>
-    <button class="bottom-nav-item" id="bottomNavMoreBtn" type="button" data-current="${pageId === "admin" || pageId === "settings"}"><i class="fa-solid fa-ellipsis" aria-hidden="true"></i>More</button>
+    <button class="bottom-nav-item" id="bottomNavMoreBtn" type="button" data-current="${pageId === "admin" || pageId === "settings" || pageId === "bridge"}"><i class="fa-solid fa-ellipsis" aria-hidden="true"></i>More</button>
   `;
   document.body.appendChild(nav);
 }
@@ -89,6 +91,9 @@ function moreMenuItems(pageId, isMobile) {
   if (isMobile) {
     if (loggedIn && (Auth.can("manageWhitelist") || Auth.can("manageCategories"))) {
       items.push({ href: "/admin", icon: "fa-shield-halved", label: "Admin dashboard" });
+    }
+    if (Auth.can("manageBridge")) {
+      items.push({ href: "/bridge", icon: "fa-tower-broadcast", label: "Bridge" });
     }
     if (loggedIn) {
       items.push({ href: "/chat", icon: "fa-message", label: "Chat" });
@@ -303,6 +308,9 @@ function updateRoleVisibility() {
   if (adminLink) adminLink.hidden = !(Auth.can("manageWhitelist") || Auth.can("manageCategories"));
   const logsLink = document.getElementById("navLogsLink");
   if (logsLink) logsLink.hidden = !Auth.isLoggedIn();
+  // Server diagnostics and the remote action queue are owner-only, not admin.
+  const bridgeLink = document.getElementById("navBridgeLink");
+  if (bridgeLink) bridgeLink.hidden = !Auth.can("manageBridge");
 }
 
 // ---------- auth modal (sign in / register), shared across pages ----------

@@ -148,6 +148,7 @@ export function can(action) {
     case "viewAccessCodes":
     case "manageAccessCodes":
     case "manageWhitelist":
+    case "manageBridge":
       return r === "owner";
     default:
       return false;
