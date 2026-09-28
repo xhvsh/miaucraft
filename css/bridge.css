@@ -55,6 +55,39 @@
   margin-bottom: var(--space-5);
 }
 
+/* ---------- live indicator ---------- */
+
+.bridge-head-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+/* Whether the *website* holds a realtime subscription, which is a different
+   thing from whether the *server* is up. */
+.bridge-live-tag {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.bridge-live-tag[data-state="live"] {
+  color: var(--success);
+  border-color: color-mix(in srgb, var(--success) 40%, transparent);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+}
+.bridge-live-tag[data-state="down"] {
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 40%, transparent);
+  background: color-mix(in srgb, var(--warn) 12%, transparent);
+}
+
 /* ---------- status ---------- */
 
 .bridge-status-grid {

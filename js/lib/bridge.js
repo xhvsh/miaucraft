@@ -123,15 +123,23 @@ export async function requestCommand(command) {
   return data;
 }
 
-function subscribeTable(table, onChange) {
+/**
+ * Subscribes to one table.
+ *
+ * `onStatus` reports the channel state, because Supabase reports a subscription
+ * to a table missing from the supabase_realtime publication as simply
+ * SUBSCRIBED with no events ever arriving. Surfacing the state is the only way
+ * to tell a working live view from a silently dead one.
+ */
+function subscribeTable(table, onChange, onStatus) {
   const channel = supabase
     .channel(`bridge-${table}-changes`)
     .on("postgres_changes", { event: "*", schema: SCHEMA, table }, onChange)
-    .subscribe();
+    .subscribe((status) => onStatus?.(status, table));
   return () => supabase.removeChannel(channel);
 }
 
-export const subscribeEvents = (cb) => subscribeTable("bridge_events", cb);
-export const subscribeConsole = (cb) => subscribeTable("bridge_console", cb);
-export const subscribeStatus = (cb) => subscribeTable("bridge_status", cb);
-export const subscribeCommands = (cb) => subscribeTable("bridge_commands", cb);
+export const subscribeEvents = (cb, onStatus) => subscribeTable("bridge_events", cb, onStatus);
+export const subscribeConsole = (cb, onStatus) => subscribeTable("bridge_console", cb, onStatus);
+export const subscribeStatus = (cb, onStatus) => subscribeTable("bridge_status", cb, onStatus);
+export const subscribeCommands = (cb, onStatus) => subscribeTable("bridge_commands", cb, onStatus);

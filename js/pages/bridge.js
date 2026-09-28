@@ -24,6 +24,27 @@ let consoleRows = [];
 let unsubs = [];
 /** Panel name -> last load failed. Drives the retry banner. */
 const failures = new Set();
+/** Table -> realtime channel state. A dead subscription is otherwise invisible. */
+const channelStates = new Map();
+const LIVE_TABLES = ["bridge_status", "bridge_events", "bridge_console", "bridge_commands"];
+
+/**
+ * Reports whether the page is actually live, rather than leaving it to be
+ * inferred from whether anything happens to change.
+ */
+function onChannelStatus(status, table) {
+  channelStates.set(table, status);
+  const down = LIVE_TABLES.filter((t) => {
+    const s = channelStates.get(t);
+    return s && s !== "SUBSCRIBED";
+  });
+  if (down.length) {
+    failures.add("live updates");
+  } else {
+    failures.delete("live updates");
+  }
+  renderLoadState();
+}
 
 /**
  * Says what is broken instead of rendering nothing.
@@ -34,8 +55,13 @@ const failures = new Set();
  */
 function renderLoadState() {
   const failed = [...failures];
+  renderLiveState();
   $("#bridgeLoadError").hidden = failed.length === 0;
-  if (failed.length) {
+  if (!failed.length) return;
+  if (failed.includes("live updates")) {
+    $("#bridgeLoadErrorText").textContent =
+      "Live updates are not connected, so this page will not refresh on its own. The data shown is still valid - reload to refresh it.";
+  } else {
     $("#bridgeLoadErrorText").textContent =
       `Could not reach the database for: ${failed.join(", ")}. A paused Supabase project can take a minute to wake up - use Retry.`;
   }
@@ -43,6 +69,17 @@ function renderLoadState() {
     $("#bridgeLivePill").dataset.state = "stale";
     $("#bridgeLiveText").textContent = "Unreachable";
   }
+}
+
+/** Confirms out loud that realtime is connected, rather than leaving it implied. */
+function renderLiveState() {
+  const tag = $("#bridgeLiveTag");
+  const states = LIVE_TABLES.map((t) => channelStates.get(t));
+  if (states.some((s) => s === undefined)) return; // channels not settled yet
+  const ok = states.every((s) => s === "SUBSCRIBED");
+  tag.hidden = false;
+  tag.dataset.state = ok ? "live" : "down";
+  tag.textContent = ok ? "Live" : "Reconnecting";
 }
 
 /** Records one panel's outcome, then repaints the banner. */
@@ -76,15 +113,15 @@ function boot() {
   // A debounce keeps a busy console (a restart writes a burst of lines) from
   // turning into a request per line.
   const debounced = debounce(refreshAll, 400);
-  unsubs.push(subscribeStatus(() => debounced()));
-  unsubs.push(subscribeEvents(() => refreshEvents()));
-  unsubs.push(subscribeConsole(() => debounced()));
+  unsubs.push(subscribeStatus(() => debounced(), onChannelStatus));
+  unsubs.push(subscribeEvents(() => refreshEvents(), onChannelStatus));
+  unsubs.push(subscribeConsole(() => debounced(), onChannelStatus));
   unsubs.push(subscribeCommands((payload) => {
     if (payload.eventType === "UPDATE" && payload.new?.status === "failed") {
       toast(`${payload.new.command} failed: ${payload.new.error || "no detail"}`, "error", 7000);
     }
     refreshCommands();
-  }));
+  }, onChannelStatus));
 }
 
 window.addEventListener("pagehide", () => {

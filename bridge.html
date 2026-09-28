@@ -30,9 +30,12 @@
               <h1>Bridge</h1>
               <p>Server health, plugin output, and maintenance actions.</p>
             </div>
-            <div class="bridge-live-pill" id="bridgeLivePill" data-state="unknown">
-              <span class="bridge-live-dot" aria-hidden="true"></span>
-              <span id="bridgeLiveText">Connecting</span>
+            <div class="bridge-head-status">
+              <span class="bridge-live-tag" id="bridgeLiveTag" data-state="down" hidden>Live</span>
+              <div class="bridge-live-pill" id="bridgeLivePill" data-state="unknown">
+                <span class="bridge-live-dot" aria-hidden="true"></span>
+                <span id="bridgeLiveText">Connecting</span>
+              </div>
             </div>
           </div>
 
