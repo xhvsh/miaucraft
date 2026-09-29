@@ -441,6 +441,37 @@ function syncCategoryFilter(rows) {
 
 // ---------- console ----------
 
+/**
+ * Console rows are ordered oldest-first. Each server start gets a fresh
+ * instance_id (a UUID), so a change between two adjacent rows marks a restart.
+ * A separator line is dropped in between so a new session reads as new.
+ */
+function buildConsoleLines(rows, withDate) {
+  const lines = [];
+  let prev = null;
+  for (const r of rows) {
+    if (prev && r.instance_id && prev.instance_id && r.instance_id !== prev.instance_id) {
+      lines.push(consoleSessionSeparator(prev, r));
+    }
+    lines.push(formatConsoleLine(r, withDate));
+    prev = r;
+  }
+  return lines;
+}
+
+function consoleSessionSeparator(prev, next) {
+  const started = new Date(next.created_at);
+  const gapMin = Math.max(0, Math.round((started.getTime() - new Date(prev.created_at).getTime()) / 60000));
+  const note = gapMin >= 1 ? ` · offline ~${gapMin}m` : "";
+  const mark = "\u2500".repeat(34);
+  return `${mark} server restarted at ${started.toLocaleTimeString()}${note} ${mark}`;
+}
+
+function formatConsoleLine(r, withDate) {
+  const time = withDate ? new Date(r.created_at).toLocaleString() : new Date(r.created_at).toLocaleTimeString();
+  return `[${time}] ${r.level.toUpperCase().padEnd(5)} ${r.message}`;
+}
+
 async function refreshConsole() {
   const level = $("#consoleLevel").value;
   let rows = [];
@@ -460,7 +491,7 @@ async function refreshConsole() {
   $("#consoleEmpty").hidden = rows.length > 0;
   pre.hidden = rows.length === 0;
   if (rows.length) {
-    pre.textContent = rows.map((r) => `[${new Date(r.created_at).toLocaleTimeString()}] ${r.level.toUpperCase().padEnd(5)} ${r.message}`).join("\n");
+    pre.textContent = buildConsoleLines(rows, false).join("\n");
     pre.scrollTop = pre.scrollHeight;
   }
 }
@@ -470,10 +501,7 @@ function onCopyConsole() {
     toast("Nothing to copy yet.", "info");
     return;
   }
-  copyTextToClipboard(
-    consoleRows.map((r) => `[${new Date(r.created_at).toLocaleString()}] ${r.level.toUpperCase()} ${r.message}`).join("\n"),
-    $("#copyConsoleBtn"),
-  );
+  copyTextToClipboard(buildConsoleLines(consoleRows, true).join("\n"), $("#copyConsoleBtn"));
 }
 
 // ---------- commands ----------
