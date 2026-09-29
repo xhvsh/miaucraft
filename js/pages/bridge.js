@@ -441,35 +441,71 @@ function syncCategoryFilter(rows) {
 
 // ---------- console ----------
 
+const CONSOLE_LEVELS = { info: "info", warn: "warn", error: "error" };
+
+function consoleSafeLevel(level) {
+  return CONSOLE_LEVELS[level] || "info";
+}
+
 /**
  * Console rows are ordered oldest-first. Each server start gets a fresh
  * instance_id (a UUID), so a change between two adjacent rows marks a restart.
- * A separator line is dropped in between so a new session reads as new.
+ * A divider is dropped in between so a new session reads as new.
  */
-function buildConsoleLines(rows, withDate) {
-  const lines = [];
+function buildConsoleHtml(rows) {
+  const out = [];
   let prev = null;
   for (const r of rows) {
     if (prev && r.instance_id && prev.instance_id && r.instance_id !== prev.instance_id) {
-      lines.push(consoleSessionSeparator(prev, r));
+      out.push(consoleBreakHtml(prev, r));
     }
-    lines.push(formatConsoleLine(r, withDate));
+    out.push(consoleLineHtml(r));
     prev = r;
   }
-  return lines;
+  return out.join("");
 }
 
-function consoleSessionSeparator(prev, next) {
+function buildConsoleText(rows, withDate) {
+  const out = [];
+  let prev = null;
+  for (const r of rows) {
+    if (prev && r.instance_id && prev.instance_id && r.instance_id !== prev.instance_id) {
+      out.push(consoleBreakText(prev, r));
+    }
+    out.push(consoleLineText(r, withDate));
+    prev = r;
+  }
+  return out.join("\n");
+}
+
+function consoleGapMinutes(prev, next) {
+  return Math.max(0, Math.round((new Date(next.created_at).getTime() - new Date(prev.created_at).getTime()) / 60000));
+}
+
+function consoleBreakHtml(prev, next) {
   const started = new Date(next.created_at);
-  const gapMin = Math.max(0, Math.round((started.getTime() - new Date(prev.created_at).getTime()) / 60000));
-  const note = gapMin >= 1 ? ` · offline ~${gapMin}m` : "";
-  const mark = "\u2500".repeat(34);
-  return `${mark} server restarted at ${started.toLocaleTimeString()}${note} ${mark}`;
+  const gap = consoleGapMinutes(prev, next);
+  const note = gap >= 1 ? ` &middot; offline ~${gap}m` : "";
+  return `<div class="bridge-console-break" role="separator">↻ Server restarted at ${started.toLocaleTimeString()}${note}</div>`;
 }
 
-function formatConsoleLine(r, withDate) {
+function consoleBreakText(prev, next) {
+  const started = new Date(next.created_at);
+  const gap = consoleGapMinutes(prev, next);
+  const note = gap >= 1 ? ` · offline ~${gap}m` : "";
+  return `↻ Server restarted at ${started.toLocaleTimeString()}${note}`;
+}
+
+function consoleLineHtml(r) {
+  const level = consoleSafeLevel(r.level);
+  const time = escapeHtml(new Date(r.created_at).toLocaleTimeString());
+  const tag = escapeHtml(String(r.level || "info").toUpperCase().padEnd(5));
+  return `<div class="bridge-log bridge-log--${level}"><span class="bridge-log-time">[${time}]</span> <span class="bridge-log-level">${tag}</span><span class="bridge-log-msg">${escapeHtml(r.message || "")}</span></div>`;
+}
+
+function consoleLineText(r, withDate) {
   const time = withDate ? new Date(r.created_at).toLocaleString() : new Date(r.created_at).toLocaleTimeString();
-  return `[${time}] ${r.level.toUpperCase().padEnd(5)} ${r.message}`;
+  return `[${time}] ${String(r.level || "info").toUpperCase().padEnd(5)} ${r.message || ""}`;
 }
 
 async function refreshConsole() {
@@ -487,12 +523,12 @@ async function refreshConsole() {
     $("#consoleSkeleton").hidden = true;
   }
   consoleRows = rows;
-  const pre = $("#consoleOutput");
+  const out = $("#consoleOutput");
   $("#consoleEmpty").hidden = rows.length > 0;
-  pre.hidden = rows.length === 0;
+  out.hidden = rows.length === 0;
   if (rows.length) {
-    pre.textContent = buildConsoleLines(rows, false).join("\n");
-    pre.scrollTop = pre.scrollHeight;
+    out.innerHTML = buildConsoleHtml(rows);
+    out.scrollTop = out.scrollHeight;
   }
 }
 
@@ -501,7 +537,7 @@ function onCopyConsole() {
     toast("Nothing to copy yet.", "info");
     return;
   }
-  copyTextToClipboard(buildConsoleLines(consoleRows, true).join("\n"), $("#copyConsoleBtn"));
+  copyTextToClipboard(buildConsoleText(consoleRows, true), $("#copyConsoleBtn"));
 }
 
 // ---------- commands ----------

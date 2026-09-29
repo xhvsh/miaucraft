@@ -183,9 +183,43 @@
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
   line-height: 1.6;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
   color: var(--text);
+}
+
+.bridge-log {
+  white-space: pre;
+  overflow-wrap: anywhere;
+}
+
+.bridge-log-time {
+  color: var(--text-dim);
+}
+
+.bridge-log-level {
+  font-weight: 600;
+}
+
+.bridge-log--info .bridge-log-level {
+  color: #6cb2f2;
+}
+.bridge-log--warn .bridge-log-level {
+  color: #e6c15c;
+}
+.bridge-log--error .bridge-log-level {
+  color: var(--danger);
+}
+
+.bridge-console-break {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  margin: 6px -14px;
+  padding: 4px 0;
+  background: var(--accent-soft);
+  border-block: 1px solid var(--accent-line);
+  color: var(--accent);
+  font-weight: 600;
 }
 
 /* ---------- commands ---------- */
