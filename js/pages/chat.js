@@ -25,7 +25,7 @@ let onlinePlayers = [];
 let onlinePlayersFingerprint = null;
 let playersRequestId = 0;
 
-// ---------- join/leave message filter ----------
+// ---------- system-message filter ----------
 
 let showJoinLeave = settings.showJoinLeaveSystemMessages;
 
@@ -33,15 +33,27 @@ function isJoinLeaveSystemMessage(m) {
   return m?.kind === "system" && /joined the (game|server)|left the (game|server)/i.test(m.message || "");
 }
 
+function isServerOnlineMessage(m) {
+  return m?.kind === "system" && /server online|started|booted/i.test(m.message || "");
+}
+
+function isServerOfflineMessage(m) {
+  return m?.kind === "system" && /offline/i.test(m.message || "");
+}
+
+function isHiddenSystemMessage(m) {
+  return isJoinLeaveSystemMessage(m) || isServerOnlineMessage(m) || isServerOfflineMessage(m);
+}
+
 function isHiddenMessage(m) {
-  return !showJoinLeave && isJoinLeaveSystemMessage(m);
+  return !showJoinLeave && isHiddenSystemMessage(m);
 }
 
 function visibleMessages() {
   return showJoinLeave ? messages : messages.filter((m) => !isHiddenMessage(m));
 }
 
-// ---------- auth gate ----------
+// ---------- auth ----------
 
 function isAuthed() {
   return Auth.isLoggedIn();
@@ -49,16 +61,30 @@ function isAuthed() {
 
 function renderAuthState() {
   const authed = isAuthed();
-  $("#chatGate").hidden = authed;
-  $("#chatCard").hidden = !authed;
-  $("#chatSide").hidden = !authed;
-  document.querySelector(".chat-layout").classList.toggle("chat-layout--gate", !authed);
+  // The chat UI (online players, server pill, composer) is always on the page;
+  // only the message feed needs auth, so a signed-out user still gets a live,
+  // tappable room instead of a dead gate card.
+  $("#chatCard").hidden = false;
+  $("#chatSide").hidden = false;
   if (authed) {
-    if (!listLoaded) loadChat();
+    if (!listLoaded) {
+      $("#chatSkeleton").hidden = false;
+      $("#chatEmpty").hidden = true;
+      loadChat();
+    }
   } else {
-    teardown();
+    chatUnsub?.();
+    chatUnsub = null;
+    messages = [];
+    seenIds.clear();
+    listLoaded = false;
+    serverOnline = null;
+    $("#chatSkeleton").hidden = true;
+    $("#chatEmpty").hidden = false;
+    $("#chatEmpty").querySelector("span").textContent = "Sign in to view and send chat.";
   }
   updateComposer();
+  maybeFocusComposer();
 }
 
 async function loadChat() {
@@ -68,7 +94,6 @@ async function loadChat() {
     for (const m of messages) seenIds.add(m.id);
     listLoaded = true;
     $("#chatEmpty").querySelector("span").textContent = "No messages yet.";
-    seedServerState();
     renderAll();
   } catch (err) {
     console.error(err);
@@ -78,49 +103,16 @@ async function loadChat() {
     $("#chatEmpty").querySelector("span").textContent = "Could not load chat.";
   }
 
-  try {
-    const status = await getServerStatus();
-    setServerOnline(serverOnline ?? (status ? true : false));
-  } catch (err) {
-    console.error(err);
-    setServerOnline(false);
-  }
-
-  startStatusTicker();
-
   chatUnsub = subscribeChatMessages((payload) => {
     if (payload?.eventType === "INSERT" && payload.new) {
       const row = payload.new;
       if (row.kind === "system") {
-        if (/offline/i.test(row.message)) setServerOnline(false);
-        else if (/server online|started|booted/i.test(row.message)) setServerOnline(true);
+        if (isServerOfflineMessage(row)) setServerOnline(false);
+        else if (isServerOnlineMessage(row)) setServerOnline(true);
       }
       appendMessage(row);
     }
   });
-
-  statusUnsub = subscribeServerStatus((payload) => {
-    if (payload?.new && noteServerStatus(payload.new)) setServerOnline(true);
-  });
-
-  subscribePlayers(debounceRefreshPlayers);
-  refreshOnlinePlayers();
-}
-
-function teardown() {
-  chatUnsub?.();
-  chatUnsub = null;
-  statusUnsub?.();
-  statusUnsub = null;
-  stopStatusTicker();
-  messages = [];
-  seenIds.clear();
-  listLoaded = false;
-  serverOnline = null;
-  $("#chatStatusPill").hidden = true;
-  $("#chatSkeleton").hidden = true;
-  $("#chatEmpty").hidden = false;
-  $("#chatEmpty").querySelector("span").textContent = "Sign in to view and send chat.";
 }
 
 // ---------- server online/offline ----------
@@ -190,26 +182,35 @@ async function pollServerStatus() {
   }
 }
 
-/** Initial pill from the latest system online/offline message in the log. */
-function seedServerState() {
-  serverOnline = null;
-  for (const m of messages) {
-    if (m.kind !== "system" || !m.message) continue;
-    if (/server online|started|booted/i.test(m.message)) serverOnline = true;
-    else if (/offline/i.test(m.message)) serverOnline = false;
-  }
-}
-
 function setServerOnline(online) {
-  if (serverOnline === online) return;
-  serverOnline = online;
-
   const pill = $("#chatStatusPill");
+  // Always render the pill, even when it already holds this value: seeding the
+  // state from a system row used to leave it stuck hidden on first paint.
   pill.hidden = false;
   pill.className = "badge " + (online ? "badge-online" : "badge-offline");
   pill.textContent = online ? "Server online" : "Server offline";
+  if (serverOnline !== online) {
+    serverOnline = online;
+    updateComposer();
+  }
+}
 
-  updateComposer();
+// The server pill is page-wide, not auth-gated: it boots once and keeps
+// polling/realtime even if the user signs out.
+let statusStarted = false;
+async function startStatusPill() {
+  if (statusStarted) return;
+  statusStarted = true;
+  try {
+    setServerOnline(!!(await getServerStatus()));
+  } catch (err) {
+    console.error(err);
+    setServerOnline(false);
+  }
+  startStatusTicker();
+  statusUnsub = subscribeServerStatus((payload) => {
+    if (payload?.new && noteServerStatus(payload.new)) setServerOnline(true);
+  });
 }
 
 // ---------- composer ----------
@@ -217,9 +218,11 @@ function setServerOnline(online) {
 function updateComposer() {
   const authed = isAuthed();
   const online = serverOnline === true;
-  const canSend = authed;
-  $("#chatInput").disabled = !canSend;
-  $("#chatSend").disabled = !canSend;
+  // Never disable the box: a signed-out user can still type, and submitting
+  // opens the sign-in modal instead of silently dropping text. The placeholder
+  // explains the two states.
+  $("#chatInput").disabled = false;
+  $("#chatSend").disabled = false;
   $("#chatInput").placeholder = authed
     ? online
       ? "Say something to the server..."
@@ -227,8 +230,19 @@ function updateComposer() {
     : "Sign in to send messages";
 }
 
+// Autofocus the composer on desktop only - on touch screens the keyboard would
+// pop open the moment the page loads, which is why mobile stays unfocused.
+function maybeFocusComposer() {
+  if (window.matchMedia("(min-width: 861px)").matches && !$("#chatInput").disabled) {
+    $("#chatInput").focus();
+  }
+}
+
 function updateCount() {
-  $("#chatCount").textContent = `${$("#chatInput").value.length}/${CHAT_MESSAGE_MAX}`;
+  const count = $("#chatInput").value.length;
+  const el = $("#chatCount");
+  el.textContent = `${count}/${CHAT_MESSAGE_MAX}`;
+  el.classList.toggle("chat-count--warn", count >= Math.floor(CHAT_MESSAGE_MAX * 0.85));
 }
 
 $("#chatComposer").addEventListener("submit", async (e) => {
@@ -264,8 +278,6 @@ $("#chatComposer").addEventListener("submit", async (e) => {
 
 $("#chatInput").addEventListener("input", updateCount);
 
-$("#chatSignInBtn").addEventListener("click", () => openAuthModal("login"));
-
 // ---------- message list ----------
 
 function buildRow(m) {
@@ -291,19 +303,22 @@ function buildRow(m) {
   row.className = "chat-msg";
   const isWeb = m.kind === "web";
   const author = m.username || "?";
-  const suffix = author + ": " + m.message;
+  const authorEl = document.createElement("span");
+  authorEl.className = isWeb ? "chat-author chat-author--web" : "chat-author";
+  authorEl.textContent = author + ":";
+  const textEl = document.createElement("span");
+  textEl.className = "chat-text";
+  textEl.textContent = m.message;
   if (isWeb) {
-    // Keep the prefix inside the same inline flow as the text so a wrap breaks
-    // at the end of the line instead of orphaned right after "[web] ".
-    const flow = document.createElement("span");
-    const b = document.createElement("span");
-    b.className = "chat-prefix";
-    b.textContent = "[web] ";
-    flow.appendChild(b);
-    flow.append(suffix);
-    row.appendChild(flow);
+    // "[web] " keeps its space after the tag, and an explicit " " between the
+    // author span and the text keeps "name: message" reading naturally; the
+    // row is block-flow so they reflow and wrap as one string of text.
+    const prefixEl = document.createElement("span");
+    prefixEl.className = "chat-prefix";
+    prefixEl.textContent = "[web] ";
+    row.append(prefixEl, authorEl, " ", textEl);
   } else {
-    row.appendChild(document.createTextNode(suffix));
+    row.append(authorEl, " ", textEl);
   }
   return row;
 }
@@ -414,7 +429,7 @@ function renderOnlinePlayers() {
   onlinePlayersFingerprint = fp;
 
   const countEl = $("#onlineCount");
-  countEl.textContent = `${sorted.length} online`;
+  countEl.textContent = sorted.length > 0 ? `${sorted.length} online` : "";
   countEl.classList.toggle("has-online", sorted.length > 0);
 
   const list = $("#onlinePlayersList");
@@ -432,7 +447,11 @@ function renderOnlinePlayers() {
       <img class="players-avatar" src="https://mc-heads.net/avatar/${encodeURIComponent(p.username)}/32" alt="" width="24" height="24" loading="lazy" />
       <button class="players-username" type="button">${escapeHtml(p.username)}</button>
     `;
-    row.querySelector(".players-username").addEventListener("click", () => {
+    row.querySelector(".players-username").addEventListener("click", (e) => {
+      e.stopPropagation();
+      window.location.href = `/profile?user=${encodeURIComponent(p.username)}`;
+    });
+    row.addEventListener("click", () => {
       window.location.href = `/profile?user=${encodeURIComponent(p.username)}`;
     });
     frag.appendChild(row);
@@ -440,8 +459,20 @@ function renderOnlinePlayers() {
   list.appendChild(frag);
 }
 
+// The online table is page-wide too: boot it once so it stays live whether or
+// not the visitor is signed in.
+let onlineStarted = false;
+function startOnlinePlayers() {
+  if (onlineStarted) return;
+  onlineStarted = true;
+  subscribePlayers(debounceRefreshPlayers);
+  refreshOnlinePlayers();
+}
+
 renderAuthState();
 Auth.onAuthChange(() => renderAuthState());
+startStatusPill();
+startOnlinePlayers();
 
 const joinLeaveToggle = $("#chatJoinLeaveToggle");
 joinLeaveToggle.checked = showJoinLeave;
@@ -452,14 +483,12 @@ joinLeaveToggle.addEventListener("change", (e) => {
   if (listLoaded) renderAll();
 });
 
-/* Messenger-style viewport handling. While the on-screen keyboard is up we
-   shrink the chat card to the remaining visual-viewport space and pin the
-   composer right above the keys, so the browser never auto-scrolls the page to
-   reach the input (which is what causes the content to jump). Independently of
-   the keyboard (also on plain window resizes, orientation changes, and the URL
-   bar collapsing), if the chat is scrolled fully down it gets re-pinned to the
-   latest message. The layout switch itself lives in chat.css under
-   body.page-kb-open. */
+/* Mobile on-screen keyboard. Android resizes the layout viewport for the
+   keyboard, so the 100dvh flex chain in chat.css re-flows and the composer
+   rises above the keys on its own. iOS keeps the layout viewport full-size
+   and overlays the keyboard, so #chatCard is pinned to the leftover
+   visual-viewport height and .page-kb-open flips the room to full-bleed
+   (online strip hidden) - the composer never slides under the keys. */
 function setupMobileKeyboard() {
   const vv = window.visualViewport;
   const card = $("#chatCard");
@@ -469,13 +498,13 @@ function setupMobileKeyboard() {
 
   let lastW = -1;
   let lastH = -1;
-  let lastSt = null;
   let closedH = window.innerHeight;
+  let kbEverOpen = false;
 
   function reset() {
-    lastSt = null;
     document.body.classList.remove("page-kb-open");
     card.style.height = "";
+    card.style.flex = "";
   }
 
   function bottomedOut() {
@@ -486,39 +515,50 @@ function setupMobileKeyboard() {
   function apply() {
     const w = Math.round(vv.width);
     const h = Math.round(vv.height);
-    const covered = window.innerHeight - (Math.round(vv.offsetTop) + h);
-    const noChrome = covered < 80;
-    if (noChrome) closedH = window.innerHeight;
-    const kbOpen = !noChrome && closedH - h > 100;
     const changed = w !== lastW || h !== lastH;
     lastW = w;
     lastH = h;
 
+    const covered = window.innerHeight - (Math.round(vv.offsetTop) + h);
+    const noChrome = covered < 80;
+    if (noChrome) closedH = window.innerHeight;
+    const kbOpen = !noChrome && closedH - h > 100;
+    const active = mq.matches && !card.hidden;
+
     // Follow the bottom whenever the viewport or layout changes, whether the
-    // keyboard is open, closed, or this is just a desktop window resize.
+    // keyboard is open, closed, or this is just a window resize.
     const follow = changed && bottomedOut();
 
-    if (!mq.matches || card.hidden || !kbOpen) {
+    if (!active) {
       if (follow) requestAnimationFrame(() => { list.scrollTop = list.scrollHeight; });
-      if (card.hidden || !mq.matches) reset();
+      reset();
       return;
     }
 
-    if (w === lastW && h === lastH && lastSt === kbOpen) return;
-    lastSt = kbOpen;
+    if (!kbOpen) {
+      // Keyboard went away (or the layout viewport resized instead - Android
+      // style), so the CSS flex flow sizes the card again.
+      if (follow) requestAnimationFrame(() => { list.scrollTop = list.scrollHeight; });
+      if (kbEverOpen) {
+        kbEverOpen = false;
+        reset();
+      }
+      return;
+    }
+
+    kbEverOpen = true;
     document.body.classList.add("page-kb-open");
+    // Keep re-computing while the keyboard animates: a second measurement is
+    // not skipped just because w/h matched the previous frame.
     const top = card.getBoundingClientRect().top + window.scrollY;
-    const avail = Math.max(180, Math.round(window.scrollY + vv.offsetTop + vv.height - top));
+    const avail = Math.max(160, Math.round(window.scrollY + vv.offsetTop + vv.height - top));
     const keepList = follow ? null : list.scrollTop;
-    const keepPage = window.scrollY;
     card.style.height = `${avail}px`;
-    // The browser may still try to scroll the input into view during the
-    // keyboard animation; hold the list + page scroll in place so text stays put.
+    card.style.flex = "0 0 auto";
     requestAnimationFrame(() => {
       if (card.hidden) return;
       if (follow) list.scrollTop = list.scrollHeight;
       else if (list.scrollTop !== keepList) list.scrollTop = keepList;
-      if (Math.abs(window.scrollY - keepPage) > 1) window.scrollTo(0, keepPage);
     });
   }
 

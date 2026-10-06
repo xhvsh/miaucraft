@@ -131,12 +131,15 @@ export function toast(message, type = "success", duration = type === "error" ? 5
 
 const FOCUSABLE_RE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 export function trapFocus(container) {
-  const focusable = Array.from(container.querySelectorAll(FOCUSABLE_RE)).filter((el) => el.offsetParent !== null);
-  if (focusable.length === 0) return () => {};
-  const first = focusable[0];
-  const last = focusable[focusable.length - 1];
   const handler = (e) => {
     if (e.key !== "Tab") return;
+    // Re-query every time: overlays toggle entire forms in/out of the DOM
+    // (e.g. the auth modal's login/register tabs), so a cached first/last
+    // would point at elements that are no longer rendered.
+    const focusable = Array.from(container.querySelectorAll(FOCUSABLE_RE)).filter((el) => el.offsetParent !== null);
+    if (focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
     const next = e.shiftKey ? last : first;
     if (next === document.activeElement || !container.contains(document.activeElement)) {
       e.preventDefault();
@@ -145,6 +148,119 @@ export function trapFocus(container) {
   };
   document.addEventListener("keydown", handler, true);
   return () => document.removeEventListener("keydown", handler, true);
+}
+
+/* ---------- page scroll lock ----------
+   Any visible overlay (.modal-backdrop / .sheet) freezes the page behind it.
+   The lock is derived from the DOM by a tiny observer instead of being wired
+   into every open/close path, so callers can't forget it and new overlays
+   get it for free. */
+const OPEN_OVERLAY_RE = ".modal-backdrop:not([hidden]), .sheet:not([hidden]), .sheet-backdrop:not([hidden]), .image-lightbox-backdrop:not([hidden])";
+// Hidden-agnostic: on close the overlay stops matching OPEN_OVERLAY_RE before it
+// is removed, so the observer must still recognise it as an overlay to unlock.
+const OVERLAY_BASE_RE = ".modal-backdrop, .sheet, .sheet-backdrop, .image-lightbox-backdrop";
+let pageScrollLocked = false;
+let lockedScrollY = 0;
+function setPageScrollLock(locked) {
+  if (locked === pageScrollLocked) return;
+  pageScrollLocked = locked;
+  const body = document.body;
+  if (locked) {
+    // `position: fixed` on <body> is the only lock that also works on iOS
+    // (html overflow:hidden alone doesn't stick there). The scrollbar stays
+    // reserved (html keeps overflow-y: scroll), so nothing shifts sideways.
+    lockedScrollY = window.scrollY;
+    body.style.position = "fixed";
+    body.style.top = `-${lockedScrollY}px`;
+    body.style.left = "0";
+    body.style.width = "100%";
+  } else {
+    body.style.position = "";
+    body.style.top = "";
+    body.style.left = "";
+    body.style.width = "";
+    window.scrollTo({ top: lockedScrollY, left: 0, behavior: "instant" });
+  }
+}
+function syncScrollLock() {
+  setPageScrollLock(!!document.querySelector(OPEN_OVERLAY_RE));
+}
+if (typeof MutationObserver !== "undefined") {
+  // Filter first (chat/log streams mutate constantly), then coalesce to one
+  // lookup per frame so the lock costs effectively nothing on busy pages.
+  let scheduled = false;
+  const schedule = () => {
+    if (scheduled) return;
+    scheduled = true;
+    requestAnimationFrame(() => {
+      scheduled = false;
+      syncScrollLock();
+    });
+  };
+  const involvesOverlay = (node) =>
+    node.nodeType === 1 && (node.matches?.(OVERLAY_BASE_RE) || node.querySelector?.(OVERLAY_BASE_RE) != null);
+  new MutationObserver((records) => {
+    for (const record of records) {
+      if (record.type === "attributes") {
+        const target = record.target;
+        // `hidden` flipped back on while the exit animation runs = the overlay
+        // was reopened; cancel the pending close so it stays visible.
+        if (target.classList.contains("is-closing") && !target.hidden) target.classList.remove("is-closing");
+        // Match either state: opening (hidden -> false) and closing (hidden ->
+        // true) both change whether the page behind may scroll.
+        if (target.matches?.(OVERLAY_BASE_RE)) return schedule();
+      } else if (record.addedNodes.length || record.removedNodes.length) {
+        for (const node of record.addedNodes) if (involvesOverlay(node)) return schedule();
+        for (const node of record.removedNodes) if (involvesOverlay(node)) return schedule();
+      }
+    }
+  }).observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["hidden"],
+  });
+  syncScrollLock();
+}
+
+/**
+ * Hides an overlay with a short exit animation (falls back to an instant cut
+ * when the user prefers reduced motion). Listener/focus cleanup stays with the
+ * caller - this only owns the visual close.
+ */
+export function dismissOverlay(el, { onHidden } = {}) {
+  if (!el) return;
+  if (el.hidden) {
+    onHidden?.();
+    return;
+  }
+  el.classList.remove("is-closing");
+  const finish = () => {
+    // A pending close from an earlier open must not hide the overlay again if
+    // it was reopened in the meantime (the reopen clears .is-closing).
+    if (!el.classList.contains("is-closing")) return;
+    el.classList.remove("is-closing");
+    el.hidden = true;
+    onHidden?.();
+  };
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+    el.classList.remove("is-closing");
+    el.hidden = true;
+    onHidden?.();
+    return;
+  }
+  el.classList.add("is-closing");
+  const onEnd = (e) => {
+    if (e.target !== el) return;
+    clearTimeout(timer);
+    done();
+  };
+  function done() {
+    el.removeEventListener("animationend", onEnd);
+    finish();
+  }
+  const timer = setTimeout(done, 260);
+  el.addEventListener("animationend", onEnd);
 }
 
 const confirmQueue = [];
@@ -160,6 +276,7 @@ function pumpConfirmQueue() {
   });
 }
 
+let confirmActiveCleanup = null;
 function runConfirmDialog({ title, message, confirmLabel, danger, alertOnly }, resolve) {
   let modal = document.getElementById("confirmModal");
   if (!modal) {
@@ -177,6 +294,17 @@ function runConfirmDialog({ title, message, confirmLabel, danger, alertOnly }, r
         </div>
       </div>`;
     document.body.appendChild(modal);
+    // Wired once on the persistent element: a press must both start and end on
+    // the backdrop, and mousedown-at-touch-start must not dismiss the dialog.
+    let backdropPress = false;
+    modal.addEventListener("pointerdown", (e) => {
+      backdropPress = e.target === modal;
+    });
+    modal.addEventListener("click", (e) => {
+      const isBackdropClick = e.target === modal && backdropPress;
+      backdropPress = false;
+      if (isBackdropClick) confirmActiveCleanup?.(false);
+    });
   }
 
   const confirmBtn = modal.querySelector("#confirmModalConfirmBtn");
@@ -189,16 +317,20 @@ function runConfirmDialog({ title, message, confirmLabel, danger, alertOnly }, r
   cancelBtn.hidden = alertOnly;
 
   const previouslyFocused = document.activeElement;
+  modal.classList.remove("is-closing");
   modal.hidden = false;
   const release = trapFocus(modal);
+  let settled = false;
 
   function cleanup(result) {
-    modal.hidden = true;
+    if (settled) return;
+    settled = true;
+    confirmActiveCleanup = null;
     release();
     confirmBtn.removeEventListener("click", onConfirm);
     cancelBtn.removeEventListener("click", onCancel);
     document.removeEventListener("keydown", onKeydown);
-    modal.removeEventListener("mousedown", onBackdrop);
+    dismissOverlay(modal);
     if (previouslyFocused && previouslyFocused.focus) previouslyFocused.focus();
     resolve(result);
   }
@@ -214,14 +346,11 @@ function runConfirmDialog({ title, message, confirmLabel, danger, alertOnly }, r
       cleanup(false);
     } else if (e.key === "Enter" && alertOnly) cleanup(true);
   }
-  function onBackdrop(e) {
-    if (e.target === modal) cleanup(false);
-  }
 
+  confirmActiveCleanup = cleanup;
   confirmBtn.addEventListener("click", onConfirm);
   cancelBtn.addEventListener("click", onCancel);
   document.addEventListener("keydown", onKeydown);
-  modal.addEventListener("mousedown", onBackdrop);
   confirmBtn.focus();
 }
 
@@ -237,8 +366,18 @@ export function confirmAction(message, opts = {}) {
 }
 
 export function closeOnBackdropClick(backdrop, close) {
-  backdrop.addEventListener("mousedown", (e) => {
-    if (e.target === backdrop) close();
+  // `click` (not mousedown): on touch, mousedown fires at touch-start, so a
+  // press that turns into a scroll would dismiss the overlay mid-gesture.
+  // Track where the gesture began so a drag from the card onto the backdrop
+  // doesn't count as a backdrop click either.
+  let pressedOnBackdrop = false;
+  backdrop.addEventListener("pointerdown", (e) => {
+    pressedOnBackdrop = e.target === backdrop;
+  });
+  backdrop.addEventListener("click", (e) => {
+    const isBackdropClick = e.target === backdrop && pressedOnBackdrop;
+    pressedOnBackdrop = false;
+    if (isBackdropClick) close();
   });
 }
 

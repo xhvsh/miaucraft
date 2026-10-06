@@ -3,7 +3,7 @@ import { listWaypointsByUsername, listCategories, categoryIconClass } from "../l
 import * as Auth from "../lib/auth.js";
 import { getStatDisplayName, formatStatValue, titleCaseStatKey, statIconUrl, STAT_PREFIX_LABELS, guessStatFormat } from "../lib/statPresets.js";
 import { formatCoordsForCopy, formatCoordsForDisplay } from "../lib/settings.js";
-import { escapeHtml, copyTextToClipboard, formatAbsoluteTime, formatRelativeTime, isResetArtifact, trapFocus } from "../lib/ui.js";
+import { escapeHtml, copyTextToClipboard, formatAbsoluteTime, formatRelativeTime, isResetArtifact, trapFocus, dismissOverlay, closeOnBackdropClick } from "../lib/ui.js";
 import { buildWaypointCard, buildCategoryFilter, buildDimensionFilter } from "../lib/waypoint-ui.js";
 import { initNav } from "../lib/nav.js";
 
@@ -64,7 +64,7 @@ function showNotFound() {
 function renderHeader(player) {
   currentUsername = player.username;
   $("#profileUsername").textContent = player.username;
-  $("#profileSkin").src = `https://mc-heads.net/body/${encodeURIComponent(player.username)}/right`;
+  $("#profileSkin").src = `https://mc-heads.net/body/${encodeURIComponent(player.username)}`;
   $("#profileSkin").alt = `${player.username}'s skin`;
 
   const badge = $("#profileOnlineBadge");
@@ -512,6 +512,9 @@ let achievementCriteriaCache = new Map();
 let achievementDoneCriteriaCache = new Set();
 let achievementsFilterTab = "all";
 let achievementsBound = false;
+let achievementSelectedCard = null;
+let achievementPreviewKey = null;
+const ACHIEVEMENT_PREVIEW_MQ = window.matchMedia("(min-width: 861px)");
 
 async function renderAchievements(player) {
   const badgeEl = $("#profileAchievementsBadge");
@@ -582,6 +585,7 @@ async function renderAchievements(player) {
   achievementsFilterTab = "all";
   for (const btn of $("#profileAchievementsTabs").querySelectorAll(".tab")) btn.dataset.active = String(btn.dataset.tab === "all");
   applyAchievementsFilter();
+  achievementPreviewPlaceholder();
 
   if (!achievementsBound) {
     achievementsBound = true;
@@ -614,6 +618,7 @@ function applyAchievementsFilter() {
   const totalCatalog = achievementEntriesCache.completed.length + achievementEntriesCache.incomplete.length;
   $("#profileAchievementsEmpty").hidden = totalCatalog === 0 || completed.length + incomplete.length > 0;
   if (!$("#profileAchievementsEmpty").hidden && query) $("#profileAchievementsEmpty").querySelector("span").textContent = `No achievements match "${query}".`;
+  achievementPreviewVisible();
 }
 
 function renderAchievementsGroup(title, entries, isCompletedGroup) {
@@ -647,6 +652,7 @@ function renderAchievementCard(entry, isCompletedGroup) {
   card.setAttribute("role", "button");
   card.setAttribute("aria-haspopup", "dialog");
   card.className = "achievement-card" + (isCompletedGroup ? " achievement-card-done" : "");
+  card.dataset.achievementKey = achievement.key;
   card.innerHTML = `
     <div class="achievement-card-icon ${frameClass}"><i class="fa-solid fa-trophy" aria-hidden="true"></i></div>
     <div class="achievement-card-body">
@@ -661,7 +667,16 @@ function renderAchievementCard(entry, isCompletedGroup) {
       }
     </div>
   `;
-  const open = () => openAchievementPopup(entry, isCompletedGroup);
+  const open = () => {
+    if (!ACHIEVEMENT_PREVIEW_MQ.matches) {
+      openAchievementPopup(entry, isCompletedGroup);
+      return;
+    }
+    if (achievementSelectedCard) achievementSelectedCard.classList.remove("achievement-card-selected");
+    achievementSelectedCard = card;
+    card.classList.add("achievement-card-selected");
+    openAchievementPreview(entry, isCompletedGroup);
+  };
   card.addEventListener("click", open);
   card.addEventListener("keydown", (e) => {
     if (e.key === "Enter" || e.key === " ") {
@@ -672,7 +687,10 @@ function renderAchievementCard(entry, isCompletedGroup) {
   return card;
 }
 
-function openAchievementPopup(entry, isCompletedGroup) {
+// Builds the shared detail view content (criteria list, progress bar, frame,
+// description) used by both the mobile popup and the desktop inline preview so
+// the two never drift apart.
+function achievementDetailContext(entry, isCompletedGroup) {
   const { achievement, progress } = entry;
   const { needed, done } = achievementProgress(achievement, progress);
   const percent = Math.min(100, Math.round((done / needed) * 100));
@@ -697,47 +715,112 @@ function openAchievementPopup(entry, isCompletedGroup) {
     ? criteria.filter((c) => achievementDoneCriteriaCache.has(`${achievement.key}|${c}`))
     : criteria;
 
+  return { frameClass, percent, done, needed, shownCriteria };
+}
+
+function achievementStateHtml(entry, isCompletedGroup, percent) {
+  const { achievement, progress } = entry;
+  const completedAt = isCompletedGroup ? `Completed${progress?.completed_at ? ` · ${formatAbsoluteTime(progress.completed_at)}` : ""}` : `${percent}% complete`;
+  return `<span class="achievement-popup-state${isCompletedGroup ? " achievement-popup-state-done" : ""}"><i class="fa-solid ${isCompletedGroup ? "fa-trophy" : "fa-bars-progress"}" aria-hidden="true"></i><span class="achievement-popup-state-text">${completedAt}</span></span>`;
+}
+
+function achievementDetailBodyHtml(achievement, ctx) {
+  const { frameClass, percent, done, needed, shownCriteria } = ctx;
+  return `
+    ${achievement.description ? `<p class="achievement-popup-desc">${escapeHtml(achievement.description)}</p>` : ""}
+    <div class="achievement-popup-progress">
+      <span class="achievement-progress-track"><span class="achievement-progress-fill" style="width:${percent}%"></span></span>
+      <span class="achievement-progress-count">${done}/${needed}</span>
+    </div>
+    ${
+      shownCriteria.length
+        ? `<ul class="achievement-popup-criteria">${shownCriteria
+            .map((criterion) => {
+              const criterionDone = achievementDoneCriteriaCache.has(`${achievement.key}|${criterion}`);
+              return `<li class="${criterionDone ? "done" : ""}"><i class="fa-solid ${criterionDone ? "fa-circle-check" : "fa-circle"}" aria-hidden="true"></i><span>${escapeHtml(formatCriterionLabel(criterion))}</span></li>`;
+            })
+            .join("")}</ul>`
+        : ""
+    }
+  `;
+}
+
+// Desktop: an inline, sticky detail pane beside the list - no overlay, so the
+// page stays scrollable and the panel stays put while browsing.
+function openAchievementPreview(entry, isCompletedGroup) {
+  const { achievement } = entry;
+  const ctx = achievementDetailContext(entry, isCompletedGroup);
+  const previewEl = $("#achievementPreview");
+  previewEl.classList.toggle("achievement-preview--done", isCompletedGroup);
+  previewEl.innerHTML = `
+    <div class="achievement-popup-header">
+      <div class="achievement-card-icon ${ctx.frameClass}"><i class="fa-solid fa-trophy" aria-hidden="true"></i></div>
+      <div class="achievement-popup-heading">
+        <div class="achievement-popup-frame">${escapeHtml(achievementFrameLabel(achievement.frame))}</div>
+        <h3 class="achievement-popup-title">${escapeHtml(achievement.title)}</h3>
+        ${achievementStateHtml(entry, isCompletedGroup, ctx.percent)}
+      </div>
+    </div>
+    ${achievementDetailBodyHtml(achievement, ctx)}
+  `;
+  achievementPreviewKey = achievement.key;
+  previewEl.hidden = false;
+}
+
+// Desktop: the pane is always visible next to the list - either the details of
+// the selected achievement or this hint.
+function achievementPreviewPlaceholder() {
+  const previewEl = $("#achievementPreview");
+  if (!ACHIEVEMENT_PREVIEW_MQ.matches) return;
+  previewEl.classList.remove("achievement-preview--done");
+  previewEl.hidden = false;
+  previewEl.innerHTML = `
+    <div class="achievement-preview-empty">
+      <i class="fa-solid fa-medal" aria-hidden="true"></i>
+      <span>Select an achievement to view details</span>
+    </div>
+  `;
+}
+
+function achievementPreviewVisible() {
+  const previewEl = $("#achievementPreview");
+  if (!achievementPreviewKey || previewEl.hidden) return;
+  // Point the pane at the still-filtered-in achievement the card is selected
+  // on; filtering/searching it away falls back to the placeholder.
+  const stillThere = [...document.querySelectorAll(".achievement-card")].some((c) => c.dataset.achievementKey === achievementPreviewKey);
+  if (!stillThere) {
+    achievementPreviewKey = null;
+    achievementPreviewPlaceholder();
+  }
+}
+
+function openAchievementPopup(entry, isCompletedGroup) {
+  const { achievement } = entry;
+  const ctx = achievementDetailContext(entry, isCompletedGroup);
+
   const backdrop = document.createElement("div");
   backdrop.className = "modal-backdrop";
   backdrop.innerHTML = `
     <div class="modal achievement-popup" role="dialog" aria-modal="true" aria-labelledby="achievementPopupTitle">
       <button type="button" class="modal-close achievement-popup-close" aria-label="Close"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
       <div class="achievement-popup-header">
-        <div class="achievement-card-icon ${frameClass}"><i class="fa-solid fa-trophy" aria-hidden="true"></i></div>
+        <div class="achievement-card-icon ${ctx.frameClass}"><i class="fa-solid fa-trophy" aria-hidden="true"></i></div>
         <div class="achievement-popup-heading">
           <div class="achievement-popup-frame">${escapeHtml(achievementFrameLabel(achievement.frame))}</div>
           <h3 class="achievement-popup-title" id="achievementPopupTitle">${escapeHtml(achievement.title)}</h3>
-          <span class="achievement-popup-state${isCompletedGroup ? " achievement-popup-state-done" : ""}">
-            <i class="fa-solid ${isCompletedGroup ? "fa-trophy" : "fa-bars-progress"}" aria-hidden="true"></i>
-            ${isCompletedGroup ? `Completed${progress?.completed_at ? ` · ${formatAbsoluteTime(progress.completed_at)}` : ""}` : `${percent}% complete`}
-          </span>
+          ${achievementStateHtml(entry, isCompletedGroup, ctx.percent)}
         </div>
       </div>
-      ${achievement.description ? `<p class="achievement-popup-desc">${escapeHtml(achievement.description)}</p>` : ""}
-      <div class="achievement-popup-progress">
-        <span class="achievement-progress-track"><span class="achievement-progress-fill" style="width:${percent}%"></span></span>
-        <span class="achievement-progress-count">${done}/${needed}</span>
-      </div>
-      ${
-        shownCriteria.length
-          ? `<ul class="achievement-popup-criteria">${shownCriteria
-              .map((criterion) => {
-                const criterionDone = achievementDoneCriteriaCache.has(`${achievement.key}|${criterion}`);
-                return `<li class="${criterionDone ? "done" : ""}"><i class="fa-solid ${criterionDone ? "fa-circle-check" : "fa-circle"}" aria-hidden="true"></i><span>${escapeHtml(formatCriterionLabel(criterion))}</span></li>`;
-              })
-              .join("")}</ul>`
-          : ""
-      }
+      ${achievementDetailBodyHtml(achievement, ctx)}
     </div>
   `;
   document.body.appendChild(backdrop);
 
   const release = trapFocus(backdrop);
   function close() {
-    backdrop.remove();
     release();
     document.removeEventListener("keydown", onKeydown);
-    backdrop.removeEventListener("mousedown", onBackdrop);
+    dismissOverlay(backdrop, { onHidden: () => backdrop.remove() });
   }
   function onKeydown(e) {
     if (e.key === "Escape") {
@@ -745,12 +828,9 @@ function openAchievementPopup(entry, isCompletedGroup) {
       close();
     }
   }
-  function onBackdrop(e) {
-    if (e.target === backdrop) close();
-  }
   backdrop.querySelector(".achievement-popup-close").addEventListener("click", close);
   document.addEventListener("keydown", onKeydown);
-  backdrop.addEventListener("mousedown", onBackdrop);
+  closeOnBackdropClick(backdrop, close);
   backdrop.querySelector(".achievement-popup-close").focus();
 }
 
@@ -851,12 +931,14 @@ function applyWaypointsFilter() {
       dimensionBadge: { label: DIM_LABELS[waypoint.dimension] || waypoint.dimension, color: dimensionColor },
       actions: [{ action: "jump", label: "Jump to", icon: "fa-location-crosshairs" }],
     });
+    card.classList.add("waypoint-card--jumpable");
+    card.addEventListener("click", (e) => {
+      if (e.target.closest("button")) return;
+      window.location.href = `/?dim=${encodeURIComponent(waypoint.dimension)}&wp=${encodeURIComponent(waypoint.id)}`;
+    });
     card.querySelector('[data-action="copy"]')?.addEventListener("click", (e) => {
       e.stopPropagation();
       copyTextToClipboard(coordsForCopy, e.currentTarget);
-    });
-    card.querySelector('[data-action="jump"]')?.addEventListener("click", () => {
-      window.location.href = `/?dim=${encodeURIComponent(waypoint.dimension)}&wp=${encodeURIComponent(waypoint.id)}`;
     });
     listEl.appendChild(card);
   }

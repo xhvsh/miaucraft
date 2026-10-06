@@ -168,14 +168,25 @@
   color: #d69a6a;
 }
 .profile-badge-pill.is-playtime {
+  display: inline-block; /* no flex layout here: the clock, value and "played" flow as a single line of text with natural single spaces */
+  white-space: nowrap;
   background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 18%, var(--surface-2)), color-mix(in srgb, var(--accent) 7%, var(--surface-2)));
   color: var(--accent);
   border-color: var(--accent-line);
   font-size: var(--fs-sm);
+  line-height: 1.3;
+  padding: 5px 12px;
 }
 .profile-badge-pill.is-playtime i {
-  background: var(--accent-soft);
+  display: inline-block;
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: transparent;
   color: var(--accent);
+  font-size: 0.85em;
+  margin-right: 5px;
+  vertical-align: -0.05em;
 }
 .achievements-complete {
   background: linear-gradient(180deg, rgba(242, 205, 107, 0.26), rgba(242, 205, 107, 0.12)) !important;
@@ -229,6 +240,19 @@
     max-width: none;
     width: 100%;
   }
+  /* flat hero: the big card blob drops away on phones, the skin + name read
+     straight off the page background */
+  .profile-header {
+    background: none;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    padding: var(--space-3) 0 var(--space-5);
+    margin-bottom: var(--space-4);
+  }
+  .profile-header::before {
+    background: radial-gradient(ellipse 320px 170px at 30% 0%, rgba(150, 131, 224, 0.12), transparent 65%);
+  }
   .profile-header {
     flex-direction: column;
     align-items: center;
@@ -250,6 +274,17 @@
   }
 }
 
+@media (max-width: 700px) {
+  /* the stats tables scroll in a flat, borderless well on phones */
+  .profile-stats-grid {
+    background: none;
+    border: none;
+    border-radius: 0;
+    margin: 0 calc(var(--space-4) * -1);
+    padding: 0 var(--space-4);
+  }
+}
+
 /* ---------- one shared table look for General / Items / Mobs ---------- */
 
 .profile-stats-grid {
@@ -259,6 +294,7 @@
      browse rows. */
   overflow: auto;
   max-height: min(65vh, 680px);
+  max-height: min(65svh, 680px);
   overscroll-behavior: contain;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -336,6 +372,12 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+@media (max-width: 700px) {
+  .profile-waypoints-list {
+    gap: 0;
+  }
 }
 
 @media (max-width: 860px) {
@@ -658,6 +700,7 @@
 }
 .achievement-popup-heading {
   min-width: 0;
+  padding-right: 28px;
 }
 .achievement-popup-frame {
   font-size: var(--fs-2xs);
@@ -674,12 +717,28 @@
 }
 .achievement-popup-state {
   display: inline-flex;
-  align-items: center;
+  align-items: flex-start;
+  flex-wrap: nowrap;
   gap: 6px;
   margin-top: 6px;
   font-size: var(--fs-xs);
   font-weight: 600;
+  line-height: 1.35;
   color: var(--accent);
+}
+/* icon stays anchored to the FIRST text line - never vertically centered
+   against the whole block when the label wraps to two lines */
+.achievement-popup-state i {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  line-height: 1;
+  margin-top: 1px;
+  color: inherit;
+}
+.achievement-popup-state-text {
+  min-width: 0;
 }
 .achievement-popup-state-done {
   color: #f2cd6b;
@@ -704,6 +763,7 @@
   flex-direction: column;
   gap: 8px;
   max-height: 34vh;
+  max-height: 34svh;
   overflow-y: auto;
 }
 .achievement-popup-criteria li {
@@ -724,4 +784,73 @@
 }
 .achievement-popup-criteria li.done i {
   color: var(--success);
+}
+
+/* -------- desktop inline preview (master/detail next to the list) -------- */
+@media (min-width: 861px) {
+  .achievements-layout {
+    display: flex;
+    gap: var(--space-5);
+    align-items: flex-start;
+  }
+  .achievements-list-col {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .achievement-preview {
+    flex: 0 1 360px;
+    min-width: 0;
+    position: sticky;
+    top: calc(var(--nav-h) + var(--safe-t) + var(--space-5));
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: var(--space-5);
+    animation: fade-in var(--dur-slow) var(--ease-out) both;
+  }
+  .achievement-preview--done {
+    border-color: rgba(242, 205, 107, 0.35);
+  }
+  .achievement-preview .achievement-popup-criteria {
+    max-height: 42vh;
+    max-height: 42svh;
+  }
+  .achievement-card-selected,
+  .achievement-card-selected.achievement-card-done {
+    border-color: var(--accent-line);
+    background: var(--surface-2);
+    box-shadow: var(--shadow-accent);
+  }
+  /* a selected card is the current preview subject - hover must not override
+     the active (purple) state */
+  .achievement-card-selected:hover,
+  .achievement-card-selected.achievement-card-done:hover {
+    border-color: var(--accent-line);
+    background: var(--surface-2);
+    box-shadow: var(--shadow-accent);
+    transform: none;
+  }
+  .achievement-preview-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-3);
+    min-height: 180px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: var(--fs-sm);
+  }
+  .achievement-preview-empty i {
+    font-size: 1.75rem;
+    color: var(--text-dim);
+  }
+}
+@media (max-width: 860px) {
+  .achievements-layout {
+    display: block;
+  }
+  .achievement-preview {
+    display: none;
+  }
 }

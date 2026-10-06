@@ -14,6 +14,8 @@
 // in indirectly through waypoint-ui, so without the markup everything below
 // degrades to no-ops instead of killing the importing page.
 
+import { dismissOverlay } from "./ui.js";
+
 const root = document.getElementById("imageLightbox");
 const trackEl = document.getElementById("galleryViewerTrack");
 const thumbsEl = document.getElementById("galleryViewerThumbs");
@@ -270,14 +272,19 @@ export function openSingleImage(src, alt = "") {
 
 if (ready) {
   function closeViewer(viaHistory = false) {
-    root.hidden = true;
-    state.images = [];
-    state.index = 0;
-    state.pos = 0;
+    dismissOverlay(root, {
+      // Defer the DOM teardown until the fade-out finishes, otherwise the
+      // slides wink out before the backdrop fades.
+      onHidden: () => {
+        state.images = [];
+        state.index = 0;
+        state.pos = 0;
+        trackEl.innerHTML = "";
+        trackEl.style.transform = "";
+        trackEl.classList.remove("dragging");
+      },
+    });
     clearPendingSnap();
-    trackEl.innerHTML = "";
-    trackEl.style.transform = "";
-    trackEl.classList.remove("dragging");
     if (historyActive && !viaHistory) {
       // Dismissed with X/backdrop/Escape/keys, not the back button: pop the
       // entry pushed on open so the URL stays put and the next back press

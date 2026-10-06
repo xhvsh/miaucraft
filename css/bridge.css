@@ -176,14 +176,23 @@
   margin: var(--space-3) 0 0;
   padding: 12px 14px;
   max-height: 60vh;
+  max-height: 60svh;
   overflow: auto;
   background: var(--surface-2);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 0 0 1px var(--accent-soft),
+    0 0 16px rgba(0, 0, 0, 0.3);
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
   line-height: 1.6;
   color: var(--text);
+}
+.bridge-console:focus-visible {
+  outline: 2px solid var(--accent-line);
+  outline-offset: 2px;
 }
 
 .bridge-log {
@@ -308,14 +317,52 @@
   font-size: var(--fs-xs);
 }
 
-/* mirrors settings.css' stacked action rows, which no longer applies because
-   this page only loads admin.css */
+/* mobile: the server actions become a compact list - the hint line drops, rows
+   go back to a single tappable stripe, and the "console" surfaces flat, edge-to-
+   edge, like a terminal strip instead of a rounded blob box. */
 @media (max-width: 640px) {
-  .bridge-actions .setting-row:has(.btn) {
-    flex-direction: column;
-    align-items: stretch;
+  .bridge-commands-panel .card + .card {
+    margin-top: var(--space-4);
+  }
+
+  .bridge-actions {
+    gap: 2px;
+  }
+  .bridge-actions .setting-row {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) 0;
+  }
+  .bridge-actions .setting-row-desc {
+    display: none;
   }
   .bridge-actions .setting-row:has(.btn) .btn {
-    width: 100%;
+    width: auto;
+    flex-shrink: 0;
+  }
+
+  #bridgeConsolePanel > .card {
+    background: none;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 0;
+  }
+  #bridgeConsolePanel .bridge-console {
+    margin: var(--space-3) 0 0;
+    padding: 0;
+    max-height: calc(100svh - 280px);
+    min-height: 200px;
+    border: none;
+    /* edge-to-edge strip, but keep a defined top edge for the console */
+    border-top: 1px solid var(--border-strong);
+    box-shadow: none;
+    background: none;
+    font-size: 11px;
+    line-height: 1.55;
+  }
+  #bridgeConsolePanel .bridge-console-break {
+    margin: 4px 0;
   }
 }

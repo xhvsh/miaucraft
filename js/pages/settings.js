@@ -212,10 +212,11 @@ function renderDiscordSetting() {
 // change password modal
 
 function openChangePasswordModal() {
+  changePasswordModal.classList.remove("is-closing");
   changePasswordModal.hidden = false;
 }
 function closeChangePasswordModal() {
-  changePasswordModal.hidden = true;
+  dismissOverlay(changePasswordModal);
   $("#changePasswordForm").reset();
 }
 closeOnBackdropClick(changePasswordModal, closeChangePasswordModal);

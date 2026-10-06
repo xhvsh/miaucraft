@@ -51,12 +51,16 @@ body {
   overscroll-behavior-y: none;
 }
 
-/* fixed grain overlay - breaks the flat-vector AI look */
+/* fixed grain overlay - breaks the flat-vector AI look.
+   Both decorative layers sit at negative z-indexes and .app-shell no longer
+   creates a stacking context: page-level overlays (dropdown menus z200,
+   the map drawer z400, ...) must be able to outrank the fixed bottom tab bar
+   (z100), which lives in the root context as a direct child of <body>. */
 body::before {
   content: "";
   position: fixed;
   inset: 0;
-  z-index: 1;
+  z-index: -1;
   pointer-events: none;
   opacity: 0.035;
   mix-blend-mode: overlay;
@@ -67,7 +71,7 @@ body::after {
   content: "";
   position: fixed;
   inset: 0;
-  z-index: 0;
+  z-index: -2;
   pointer-events: none;
   background: radial-gradient(ellipse 900px 500px at 12% -10%, rgba(122, 99, 201, 0.1), transparent 60%), radial-gradient(ellipse 700px 500px at 100% 10%, rgba(122, 99, 201, 0.06), transparent 55%);
 }
@@ -173,7 +177,7 @@ img {
   position: fixed;
   top: -100px;
   left: var(--space-4);
-  z-index: 1000;
+  z-index: var(--z-modal);
   background: var(--accent);
   color: #0c0810;
   padding: var(--space-2) var(--space-4);
@@ -187,7 +191,10 @@ img {
 
 .app-shell {
   position: relative;
-  z-index: 2;
+  /* No z-index here on purpose: a stacking context on the shell would trap
+     every page-level dropdown/drawer below the fixed bottom tab bar (which is
+     a body child in the root context). Decorative body::before/::after layers
+     moved to negative z-indexes instead. */
   min-height: 100vh;
   min-height: 100svh;
   display: flex;
@@ -250,5 +257,61 @@ img {
   ::view-transition-old(root),
   ::view-transition-new(root) {
     animation: none;
+  }
+}
+
+/* Touch ergonomics: on coarse pointers the small icon/inline controls get a
+   comfortable thumb target. min-width/min-height always beat the component's
+   own width/height, so sub-30px overrides elsewhere grow without !important. */
+@media (hover: none), (pointer: coarse) {
+  .icon-btn,
+  .modal-close,
+  .modal-tab,
+  .btn-sm,
+  .password-toggle,
+  .log-entry-jump-btn,
+  .log-entry-details-toggle,
+  .log-detail-restore-btn,
+  .leaderboard-card-head .icon-btn,
+  .users-actions .icon-btn,
+  .category-item-actions .icon-btn,
+  .whitelist-row .icon-btn,
+  .ac-code-cell .icon-btn,
+  .ac-copy,
+  .server-copy,
+  .tps-range-btn,
+  .waypoint-gallery-delete,
+  .waypoint-gallery-star,
+  .waypoint-gallery-caption-edit,
+  .waypoint-collab-remove,
+  .stat-picker-option,
+  .category-filter-option,
+  .category-picker-option {
+    min-width: 40px;
+    min-height: 40px;
+  }
+  .icon-btn--xs {
+    min-width: 32px;
+    min-height: 32px;
+  }
+  /* the toggle label *is* the control (the input inside is 0x0) */
+  .switch {
+    padding: 9px 0;
+  }
+  .tabs .tab {
+    min-height: 44px;
+  }
+}
+
+/* One global reduced-motion net: individual components already opt out in a
+   few places, but transitions and looping decorations were missed. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

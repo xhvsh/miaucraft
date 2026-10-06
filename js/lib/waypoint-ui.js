@@ -343,8 +343,8 @@ export function buildWaypointCard(wp, opts = {}) {
 
   const color = sanitizeColor(wp.color || "#9683e0");
   const dotHtml = `<span class="waypoint-card-dot" style="background:${color};color:${color}"></span>`;
-  const copyBtnHtml = `<button type="button" class="icon-btn" style="width:22px;height:22px;font-size:10px" title="Copy coordinates" aria-label="Copy coordinates" data-action="copy"><i class="fa-solid fa-copy" aria-hidden="true"></i></button>`;
-  const shareBtnHtml = `<button type="button" class="icon-btn waypoint-card-share" style="width:28px;height:28px;font-size:13px" title="Copy waypoint link" aria-label="Copy waypoint link" data-action="share"><i class="fa-solid fa-link" aria-hidden="true"></i></button>`;
+  const copyBtnHtml = `<button type="button" class="icon-btn icon-btn--xs" title="Copy coordinates" aria-label="Copy coordinates" data-action="copy"><i class="fa-solid fa-copy" aria-hidden="true"></i></button>`;
+  const shareBtnHtml = `<button type="button" class="icon-btn waypoint-card-share icon-btn--xs" title="Copy waypoint link" aria-label="Copy waypoint link" data-action="share"><i class="fa-solid fa-link" aria-hidden="true"></i></button>`;
   const shareUrl = `${window.location.origin}/?dim=${encodeURIComponent(wp.dimension || "")}&wp=${encodeURIComponent(wp.id ?? "")}`;
   const wireShareButton = (cardEl) => {
     cardEl.querySelector('[data-action="share"]')?.addEventListener("click", (e) => {
@@ -388,6 +388,7 @@ export function buildWaypointCard(wp, opts = {}) {
           ${dimBadgeHtml}
           ${visibilityBadgeHtml(wp.visibility)}
           ${categoryBadgeHtml(category)}
+          ${shareBtnHtml}
         </span>
       </div>
       <div class="waypoint-card-row-bottom">
@@ -396,6 +397,7 @@ export function buildWaypointCard(wp, opts = {}) {
         ${actionsHtml}
       </div>
     `;
+    wireShareButton(card);
     return card;
   }
 

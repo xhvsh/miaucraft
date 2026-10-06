@@ -150,10 +150,15 @@
                   <input type="search" id="profileAchievementsSearch" placeholder="Search achievements" aria-label="Search achievements" />
                 </div>
               </div>
-              <div id="profileAchievementsList"></div>
-              <div class="empty-state" id="profileAchievementsEmpty" hidden>
-                <i class="fa-solid fa-medal" aria-hidden="true"></i>
-                <span>No achievements tracked yet.</span>
+              <div class="achievements-layout">
+                <div class="achievements-list-col">
+                  <div id="profileAchievementsList"></div>
+                  <div class="empty-state" id="profileAchievementsEmpty" hidden>
+                    <i class="fa-solid fa-medal" aria-hidden="true"></i>
+                    <span>No achievements tracked yet.</span>
+                  </div>
+                </div>
+                <aside class="achievement-preview" id="achievementPreview" hidden></aside>
               </div>
             </section>
           </div>

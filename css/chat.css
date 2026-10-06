@@ -16,11 +16,6 @@
   min-width: 0;
 }
 
-.chat-layout--gate {
-  grid-template-columns: minmax(0, 1fr);
-  max-width: 560px;
-}
-
 .chat-card[hidden],
 .chat-side[hidden] {
   display: none;
@@ -46,21 +41,32 @@
 }
 
 .chat-jl-toggle {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-3);
   cursor: pointer;
   user-select: none;
+  transition: opacity var(--dur) var(--ease);
+}
+.chat-jl-toggle .switch input {
+  cursor: pointer;
 }
 .chat-jl-label {
   color: var(--text-muted);
   font-size: var(--fs-2xs);
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-weight: 700;
+  letter-spacing: 0.04em;
   white-space: nowrap;
+  transition: color var(--dur) var(--ease);
 }
 .chat-jl-toggle:has(input:checked) .chat-jl-label {
-  color: var(--text);
+  color: var(--accent);
+}
+.chat-jl-toggle:has(input:focus-visible) {
+  outline: 2px solid var(--accent-line);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .chat-messages {
@@ -79,10 +85,7 @@
 }
 
 .chat-msg {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 0 3px;
+  display: block;
   padding: 5px var(--space-2);
   border-radius: var(--radius-xs);
   font-size: var(--fs-sm);
@@ -92,10 +95,7 @@
 .chat-msg:hover {
   background: var(--surface-3);
 }
-.chat-prefix {
-  color: var(--accent);
-  font-weight: 700;
-}
+.chat-prefix,
 .chat-msg .chat-prefix {
   color: var(--accent);
   font-weight: 700;
@@ -107,12 +107,8 @@
 .chat-msg .chat-author--web {
   color: var(--text);
 }
-.chat-msg .chat-colon {
-  color: var(--text);
-  font-weight: 700;
-}
 .chat-msg .chat-text {
-  color: var(--text-soft);
+  color: var(--text-muted);
 }
 
 .chat-msg-system {
@@ -151,52 +147,63 @@
 .chat-composer {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2);
   margin-top: var(--space-3);
 }
-.chat-composer .chat-input {
+.chat-input-wrap {
+  position: relative;
   flex: 1;
   min-width: 0;
 }
-.chat-composer-side {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  flex-shrink: 0;
+.chat-input-wrap .chat-input {
+  width: 100%;
+  /* room for the overlaid counter so it never eats into the typing area */
+  padding-right: 48px;
 }
 .chat-count {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
   font-family: var(--font-mono);
   font-size: var(--fs-2xs);
   color: var(--text-dim);
+  white-space: nowrap;
+}
+.chat-count--warn {
+  color: var(--danger);
+}
+.chat-send {
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background var(--dur) var(--ease), transform var(--dur-fast) var(--ease);
+}
+.chat-send:hover {
+  background: var(--accent-strong);
+}
+.chat-send:active {
+  transform: scale(0.94);
+}
+.chat-send:focus-visible {
+  outline: 2px solid var(--accent-line);
+  outline-offset: 2px;
 }
 
 .chat-format-hint {
   margin: var(--space-3) 0 0;
   color: var(--text-dim);
   font-size: var(--fs-2xs);
-}
-
-.chat-gate-inner {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-7) var(--space-4);
-  text-align: center;
-}
-.chat-gate-inner > i {
-  font-size: 2rem;
-  color: var(--text-dim);
-}
-.chat-gate-inner h2 {
-  margin: var(--space-1) 0 0;
-}
-.chat-gate-inner p {
-  margin: 0;
-  color: var(--text-muted);
-}
-.chat-gate-inner .btn {
-  margin-top: var(--space-2);
 }
 
 /* ---------- online players ---------- */
@@ -271,44 +278,209 @@
   color: var(--accent);
 }
 
-/* mobile: stack the panels */
+/* mobile: the room pins itself to the viewport - zero page scroll. The header
+   stays visible, a compact online strip sits on top, the message archive owns
+   the leftover height with its own internal scroll, and the composer is pinned
+   above the bottom tab bar. Android keyboards just compress the flex chain
+   (dvh reflows); iOS overlay keyboards are handled by chat.js pushing
+   .page-kb-open to hold the card's height so the composer never slides under
+   the keys. */
 @media (max-width: 900px) {
+  body[data-page="chat"] .app-shell {
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+  }
+  body[data-page="chat"] .page-main {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  body[data-page="chat"] .page-container {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    max-width: none;
+    display: flex;
+    flex-direction: column;
+    padding: var(--space-3) var(--space-4) calc(var(--space-2) + var(--bottom-nav-h) + var(--safe-b));
+  }
+  body[data-page="chat"] .page-head {
+    flex-shrink: 0;
+    margin-bottom: var(--space-3);
+  }
+  body[data-page="chat"] .page-head p {
+    display: none;
+  }
+  /* the server status pill floats top-right, next to the "Chat" title */
+  body[data-page="chat"] #chatStatusPill {
+    position: absolute;
+    top: var(--space-3);
+    right: var(--space-4);
+    z-index: 1;
+  }
   .chat-layout {
-    grid-template-columns: 1fr;
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
   }
   .chat-side {
-    order: 2;
+    order: -1;
+    flex: 0 0 auto;
   }
-  .online-list {
-    max-height: none;
+  .chat-main {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
   }
 }
 
-/* mobile: give the chat room to breathe */
 @media (max-width: 780px) {
-  .chat-top {
-    flex-wrap: wrap;
-  }
-  .chat-messages {
-    height: 56svh;
-    max-height: none;
-  }
-  .chat-composer {
-    flex-wrap: wrap;
-  }
-  .chat-composer .chat-input {
-    flex-basis: 100%;
-  }
-  .chat-composer-side {
-    margin-left: auto;
-  }
-
-  /* on-screen keyboard: converter-like pinning. chat.js sizes #chatCard to the
-     leftover visual-viewport height and toggles .page-kb-open on <body>, so the
-     composer sits above the keys instead of being pushed off by an auto-scroll. */
-  body.page-kb-open .chat-card {
+  .chat-card {
+    flex: 1 1 auto;
+    min-height: 0;
     display: flex;
     flex-direction: column;
+    /* flat, edge-to-edge: no blob box on phones */
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    box-shadow: none;
+  }
+  .chat-top {
+    flex-wrap: nowrap;
+    margin-bottom: var(--space-2);
+  }
+  .chat-top h2 {
+    display: none;
+  }
+  /* The archive has its own scroll between the online strip and the composer:
+     the page itself never scrolls, only this box scrolls. */
+  .chat-messages {
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    padding: var(--space-1) 0;
+  }
+  .chat-msg:hover {
+    background: transparent;
+  }
+  .chat-composer {
+    margin-top: var(--space-2);
+    flex-shrink: 0;
+  }
+  .chat-format-hint {
+    display: none;
+  }
+
+  /* The online strip collapses to ONE horizontal line: a small count label on
+     the left and avatar chips that scroll sideways on the right. Names are
+     hidden; tapping a chip still opens that profile. */
+  .online-card {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-3);
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    padding: var(--space-2) 0;
+  }
+  .online-card > .chat-top {
+    flex: none;
+    margin: 0;
+    justify-content: flex-start;
+    gap: 0;
+  }
+  .online-card .section-title {
+    display: none;
+  }
+  .online-card .players-online-count {
+    font-size: var(--fs-2xs);
+    white-space: nowrap;
+  }
+  .online-list {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-2);
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    max-height: none;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+  .online-list::-webkit-scrollbar {
+    display: none;
+  }
+  .online-card .players-row {
+    flex: 0 0 auto;
+    gap: 0;
+    padding: 0;
+    border-radius: var(--radius-sm);
+  }
+  .online-card .players-avatar {
+    display: block;
+    width: 30px;
+    height: 30px;
+    border-radius: var(--radius-sm);
+  }
+  .online-card .players-username {
+    display: none;
+  }
+  .online-list .sk-row {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 0;
+    padding: 0;
+    background: none;
+    border: none;
+    border-radius: 0;
+  }
+  .online-list .sk-row .skeleton.sk-line {
+    display: none;
+  }
+  .online-list .sk-avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: var(--radius-sm);
+  }
+  .online-list .chat-empty {
+    flex-direction: row;
+    gap: var(--space-2);
+    padding: 0;
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
+  .online-list .chat-empty i {
+    font-size: 1rem;
+    opacity: 0.7;
+  }
+  .online-list .chat-empty span {
+    font-size: var(--fs-2xs);
+  }
+
+  /* overlay keyboard (iOS-style): chat.js pins #chatCard to the leftover
+     visual-viewport height and hides the online strip so the composer stays
+     above the keys and the message list keeps the freed-up space. */
+  body.page-kb-open .chat-side {
+    display: none;
+  }
+  body.page-kb-open .chat-card {
+    flex: 0 0 auto;
   }
   body.page-kb-open .chat-messages {
     flex: 1 1 auto;
@@ -318,9 +490,6 @@
   }
   body.page-kb-open .chat-composer {
     flex-shrink: 0;
-  }
-  body.page-kb-open .chat-format-hint {
-    display: none;
   }
 }
 

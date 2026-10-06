@@ -34,21 +34,12 @@
 
           <div class="chat-layout">
             <div class="chat-main">
-              <section class="card chat-gate" id="chatGate" hidden>
-                <div class="chat-gate-inner">
-                  <i class="fa-solid fa-message" aria-hidden="true"></i>
-                  <h2>Sign in to chat</h2>
-                  <p>Live chat is available to logged-in users.</p>
-                  <button class="btn btn-primary" type="button" id="chatSignInBtn">Sign in</button>
-                </div>
-              </section>
-
-              <section class="card chat-card" id="chatCard" hidden>
+              <section class="card chat-card" id="chatCard">
                 <div class="chat-top">
                   <h2 class="section-title" style="margin:0">Chat</h2>
                   <div class="chat-top-side">
-                    <label class="chat-jl-toggle" for="chatJoinLeaveToggle" title="Show or hide player join and leave messages">
-                      <span class="chat-jl-label">Show join/leave</span>
+                    <label class="chat-jl-toggle" for="chatJoinLeaveToggle" title="Show or hide system messages - join/leave notices and server online/offline alerts">
+                      <span class="chat-jl-label">Show system messages</span>
                       <span class="switch"><input type="checkbox" id="chatJoinLeaveToggle" /><span class="switch-track"><span class="switch-thumb"></span></span></span>
                     </label>
                     <span class="badge" id="chatStatusPill" hidden></span>
@@ -70,20 +61,23 @@
                 </div>
 
                 <form class="chat-composer" id="chatComposer">
-                  <input
-                    type="text"
-                    class="chat-input"
-                    id="chatInput"
-                    placeholder="Say something to the server..."
-                    aria-label="Chat message"
-                    maxlength="300"
-                    autocomplete="off"
-                    disabled
-                  />
-                  <div class="chat-composer-side">
+                  <span class="chat-input-wrap">
+                    <input
+                      type="text"
+                      class="chat-input"
+                      id="chatInput"
+                      placeholder="Say something to the server..."
+                      aria-label="Chat message"
+                      inputmode="text"
+                      enterkeyhint="send"
+                      maxlength="300"
+                      autocomplete="off"
+                    />
                     <span class="chat-count" id="chatCount">0/300</span>
-                    <button class="btn btn-primary" id="chatSend" type="submit" disabled>Send</button>
-                  </div>
+                  </span>
+                  <button class="chat-send" id="chatSend" type="submit" aria-label="Send message">
+                    <i class="fa-solid fa-paper-plane" aria-hidden="true"></i>
+                  </button>
                 </form>
                 <p class="chat-format-hint">
                   Your messages show as <span class="chat-prefix">[web]</span> on the website and in game; server messages show normally.
@@ -91,7 +85,7 @@
               </section>
             </div>
 
-            <aside class="chat-side" id="chatSide" hidden>
+            <aside class="chat-side" id="chatSide">
               <section class="card online-card">
                 <div class="chat-top">
                   <h2 class="section-title" style="margin:0">Online</h2>

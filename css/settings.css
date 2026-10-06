@@ -52,6 +52,18 @@
 /* phones: rows with wide controls get their own row so nothing squeezes or
    overflows; plain toggle rows stay compact side-by-side */
 @media (max-width: 640px) {
+  /* drop the blob-container chrome: the two cards become flat sections
+     separated by a hairline, matching the other mobile pages */
+  .settings-container .card {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    padding: var(--space-3) 0 var(--space-5);
+    margin-bottom: 0;
+  }
+  .settings-container .card + .card {
+    border-top: 1px solid var(--border);
+  }
   .setting-row {
     gap: var(--space-3);
   }

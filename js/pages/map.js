@@ -4,7 +4,7 @@ import { listWaypoints, createWaypoint, updateWaypoint, deleteWaypoint, listCate
 import { listLivePositions, subscribeLivePositions, subscribePlayers, getServerStatus, subscribeServerStatus, createStatusStaleChecker } from "../lib/live.js";
 import { supabase } from "../lib/supabaseClient.js";
 import { settings, saveSettings, formatCoordsForCopy, formatCoordsForDisplay } from "../lib/settings.js";
-import { toast, confirmAction, closeOnBackdropClick, copyTextToClipboard, escapeHtml, sanitizeColor, debounce } from "../lib/ui.js";
+import { toast, confirmAction, closeOnBackdropClick, copyTextToClipboard, escapeHtml, sanitizeColor, debounce, dismissOverlay } from "../lib/ui.js";
 import { buildWaypointCard, buildCategoryFilter, buildUserFilter, categoryBadgeHtml, visibilityBadgeHtml, galleryTileHtml } from "../lib/waypoint-ui.js";
 import { openGalleryViewer, openSingleImage } from "../lib/gallery-viewer.js";
 import { initNav, openAuthModal } from "../lib/nav.js";
@@ -701,8 +701,7 @@ function openWaypointDetail(wp) {
   coordsEl.appendChild(coordsSpan);
   const copyBtn = document.createElement("button");
   copyBtn.type = "button";
-  copyBtn.className = "icon-btn";
-  copyBtn.style.cssText = "width:22px;height:22px;font-size:10px";
+  copyBtn.className = "icon-btn icon-btn--xs";
   copyBtn.title = "Copy coordinates";
   copyBtn.setAttribute("aria-label", "Copy coordinates");
   copyBtn.innerHTML = '<i class="fa-solid fa-copy" aria-hidden="true"></i>';
@@ -721,7 +720,7 @@ function openWaypointDetail(wp) {
 }
 
 function closeWaypointDetail() {
-  waypointDetailModal.hidden = true;
+  dismissOverlay(waypointDetailModal);
   detailWaypoint = null;
   galleryImages = [];
   detailCollabs = [];
@@ -1204,6 +1203,13 @@ function toggleSidebarDrawer() {
 sidebarToggleBtn.addEventListener("click", toggleSidebarDrawer);
 sidebarCloseBtn.addEventListener("click", closeSidebarDrawer);
 sidebarScrim.addEventListener("click", closeSidebarDrawer);
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && sidebarEl.dataset.open === "true") {
+    e.stopPropagation();
+    closeSidebarDrawer();
+    sidebarToggleBtn.focus();
+  }
+});
 
 // ---------- waypoint form ----------
 
@@ -1252,12 +1258,15 @@ function openWaypointForm(seed) {
   document.querySelector(".visibility-picker-field").hidden = editingWaypoint ? !Auth.canManageWaypoint(editingWaypoint) : false;
   $("#wpDeleteBtn").hidden = !editingWaypoint || !Auth.canDeleteWaypoint(editingWaypoint);
   updateNetherPreview();
+  waypointModal.classList.remove("is-closing");
   waypointModal.hidden = false;
   $("#wpName").focus();
 }
 
 function closeWaypointForm() {
-  waypointModal.hidden = true;
+  dismissOverlay(waypointModal);
+  // keep the draft in the form while it animates out; clear it once hidden so
+  // the next open starts from the seed
   editingWaypoint = null;
   closeCategoryPickerMenu();
 }

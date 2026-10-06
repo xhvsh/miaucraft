@@ -527,8 +527,13 @@ async function refreshConsole() {
   $("#consoleEmpty").hidden = rows.length > 0;
   out.hidden = rows.length === 0;
   if (rows.length) {
+    // Measure before replacing: the innerHTML swap resets scrollTop, so decide
+    // whether the reader was already at the tail *before* rebuilding.
+    const wasBottom = out.scrollHeight - out.scrollTop - out.clientHeight < 96;
     out.innerHTML = buildConsoleHtml(rows);
-    out.scrollTop = out.scrollHeight;
+    // Follow the output only when the reader was already at the bottom - never
+    // yank the view away from older lines while more logs stream in.
+    if (wasBottom) out.scrollTop = out.scrollHeight;
   }
 }
 

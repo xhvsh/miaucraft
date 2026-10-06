@@ -4,7 +4,7 @@
 // every page, instead of duplicating nav across HTML files.
 
 import * as Auth from "./auth.js";
-import { closeOnBackdropClick, toast, escapeHtml, trapFocus } from "./ui.js";
+import { closeOnBackdropClick, toast, escapeHtml, trapFocus, dismissOverlay } from "./ui.js";
 
 const PAGES = [
   { id: "map", href: "/", label: "Map", icon: "fa-map" },
@@ -144,6 +144,13 @@ function wireMoreMenu(pageId) {
   document.addEventListener("click", (e) => {
     if (!menu.hidden && !menu.contains(e.target) && e.target !== btn) close();
   });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !menu.hidden) {
+      e.stopPropagation();
+      close();
+      btn.focus();
+    }
+  });
   menu.addEventListener("click", (e) => {
     const actionBtn = e.target.closest("[data-nav-action]");
     if (actionBtn) handleNavAction(actionBtn.dataset.navAction);
@@ -158,8 +165,12 @@ function openSheet(pageId) {
   const sheet = document.createElement("div");
   sheet.className = "sheet";
   sheet.innerHTML = `<div class="sheet-grabber"><div class="sheet-handle"></div></div>${itemsHtml(items, "sheet")}`;
+  let releaseFocus = null;
 
   function close(exitAnimation = true) {
+    document.removeEventListener("keydown", onEscape);
+    releaseFocus?.();
+    releaseFocus = null;
     if (exitAnimation) {
       sheet.style.transform = "translateY(100%)";
       backdrop.classList.add("sheet-backdrop--hiding");
@@ -177,6 +188,13 @@ function openSheet(pageId) {
     close(true);
   }
 
+  function onEscape(e) {
+    if (e.defaultPrevented) return;
+    e.preventDefault();
+    e.stopPropagation();
+    dismiss();
+  }
+
   backdrop.addEventListener("click", dismiss);
   sheet.addEventListener("click", (e) => {
     const actionBtn = e.target.closest("[data-nav-action]");
@@ -189,6 +207,9 @@ function openSheet(pageId) {
   });
 
   document.body.append(backdrop, sheet);
+
+  document.addEventListener("keydown", onEscape);
+  releaseFocus = trapFocus(sheet);
 
   // Trigger enter animation
   requestAnimationFrame(() => {
@@ -364,6 +385,12 @@ function ensureAuthModal() {
   document.body.appendChild(modal);
   closeOnBackdropClick(modal, closeAuthModal);
   modal.querySelector("#authModalClose").addEventListener("click", closeAuthModal);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !modal.hidden && !e.defaultPrevented) {
+      e.preventDefault();
+      closeAuthModal();
+    }
+  });
 
   modal.querySelectorAll("[data-authtab]").forEach((btn) => {
     btn.addEventListener("click", () => setAuthTab(btn.dataset.authtab));
@@ -444,6 +471,7 @@ export function openAuthModal(tab = "login") {
   ensureAuthModal();
   setAuthTab(tab);
   const modal = document.getElementById("authModal");
+  modal.classList.remove("is-closing");
   modal.hidden = false;
   authModalFocusRelease?.();
   authModalFocusRelease = trapFocus(modal);
@@ -456,11 +484,11 @@ export function openAuthModal(tab = "login") {
 
 export function closeAuthModal() {
   const modal = document.getElementById("authModal");
-  if (modal) modal.hidden = true;
   authModalFocusRelease?.();
   authModalFocusRelease = null;
   authModalRestoreFocus?.();
   authModalRestoreFocus = null;
+  if (modal) dismissOverlay(modal);
 }
 
 Auth.onAuthError?.((message) => toast(message, "error"));

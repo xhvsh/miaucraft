@@ -131,6 +131,19 @@
 .icon-btn:active {
   transform: scale(0.94);
 }
+/* tiny inline icon buttons (copy/share on waypoint cards): desktop keeps a
+   compact 22-24px, coarse pointers grow it via the min-rule in base.css */
+.icon-btn--xs {
+  width: 22px;
+  height: 22px;
+  font-size: 10px;
+  border-radius: 5px;
+}
+.waypoint-card-share.icon-btn--xs {
+  width: 28px;
+  height: 28px;
+  font-size: 13px;
+}
 .icon-btn.icon-btn--danger:hover {
   color: var(--danger);
   border-color: rgba(226, 104, 95, 0.35);
@@ -672,11 +685,32 @@ input.no-spinner {
   justify-content: center;
   z-index: var(--z-modal);
   padding: var(--space-4);
+  overscroll-behavior: contain;
   animation: fade-in var(--dur) var(--ease);
 }
 @keyframes fade-in {
   from {
     opacity: 0;
+  }
+}
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+/* Shared exit state: dismissOverlay() adds .is-closing, waits for the
+   animation, then flips `hidden`. Keeps entrances and exits symmetric. */
+.modal-backdrop.is-closing {
+  animation: fade-out 180ms var(--ease) forwards;
+}
+.modal-backdrop.is-closing .modal,
+.image-lightbox-backdrop.is-closing {
+  animation: modal-out 160ms var(--ease-out) forwards;
+}
+@keyframes modal-out {
+  to {
+    opacity: 0;
+    transform: translateY(6px) scale(0.985);
   }
 }
 .modal {
@@ -688,6 +722,7 @@ input.no-spinner {
   max-width: 420px;
   max-height: min(88dvh, 720px);
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: var(--space-6) var(--space-5);
   animation: modal-in var(--dur-slow) var(--ease-out);
   position: relative;
@@ -1047,6 +1082,12 @@ mark {
   margin: 0;
   flex-shrink: 0;
 }
+.waypoint-card--row .waypoint-card-meta--right {
+  margin-left: auto;
+}
+.waypoint-card--jumpable {
+  cursor: pointer;
+}
 .waypoint-card--row .waypoint-card-coords--row {
   display: inline-flex;
   align-items: center;
@@ -1071,6 +1112,16 @@ mark {
   text-overflow: ellipsis;
 }
 @media (max-width: 700px) {
+  /* flagships (500px+): the profile waypoint list breaks its "blob" cards and
+     reads as a plain tappable settings list - flat rows split by hairlines */
+  .waypoint-card--row {
+    background: none;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    padding: var(--space-3) var(--space-1);
+    border-bottom: 1px solid var(--border-hairline);
+  }
   .waypoint-card--row .waypoint-card-desc--row {
     display: none;
   }
@@ -1282,6 +1333,16 @@ mark {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   gap: var(--space-3);
+}
+/* 3 inputs across overflows a 320-375px modal (input min-content > column);
+   drop to 2 columns with Z full width. :has() keeps 2-field rows untouched. */
+@media (max-width: 560px) {
+  .coord-row:has(> :nth-child(3)) {
+    grid-template-columns: 1fr 1fr;
+  }
+  .coord-row:has(> :nth-child(3)) > :nth-child(3) {
+    grid-column: 1 / -1;
+  }
 }
 
 .skeleton-list {
@@ -1563,6 +1624,12 @@ mark {
 .waypoint-gallery-tile:hover .waypoint-gallery-caption-edit,
 .waypoint-gallery-caption-edit:focus-visible {
   opacity: 1;
+}
+/* :hover needs a real hover - on touch the pencil would never appear */
+@media (hover: none), (pointer: coarse) {
+  .waypoint-gallery-caption-edit {
+    opacity: 1;
+  }
 }
 
 .waypoint-gallery-star {

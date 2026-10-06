@@ -216,7 +216,10 @@
   transition: max-height var(--dur-slow) var(--ease);
 }
 .log-entry-details.is-open {
-  max-height: 400px;
+  max-height: min(400px, 60svh);
+  /* the 400px cap used to clip long diffs on phones with overflow:hidden */
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .log-entry-details-inner {
   padding-top: 8px;
@@ -306,4 +309,33 @@
   height: 32px;
   text-align: center;
   padding: 0;
+}
+
+/* mobile: flat activity feed - the wrapping card and per-entry blobs drop away,
+   entries become hairlined list rows */
+@media (max-width: 700px) {
+  .logs-card,
+  #logsList,
+  .log-entry,
+  #logsLoading .sk-row {
+    background: none;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .logs-card {
+    padding: var(--space-2) 0;
+  }
+  #logsList {
+    gap: 0;
+    padding: 0;
+  }
+  .log-entry,
+  #logsLoading .sk-row {
+    padding: var(--space-4) 0;
+    border-bottom: 1px solid var(--border-hairline);
+  }
+  .log-entry:last-child {
+    border-bottom: none;
+  }
 }
