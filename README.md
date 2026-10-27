@@ -51,8 +51,8 @@ Edge function secrets: `BOT_URL` and `BOT_INTERNAL_SECRET` (optional Discord bot
 ### Dashboard settings that cannot be set from code
 
 - **Auth → Providers → Discord / sign-ups:** if "Allow new users to sign up" is on, anyone can create an auth user through Discord OAuth. The migration stops such users from getting a profile and from reading chat/logs/server info, but turning sign-ups off for OAuth is the cleaner fix if Discord is only used to *link* existing accounts.
-- **Auth → Password protection:** enable leaked-password protection.
-- **Extensions:** move `pg_net` out of the `public` schema.
+- **Auth → Password protection:** leaked-password protection needs a paid Supabase plan; not available on the free plan.
+- ~~Extensions: `pg_net` in `public`~~ — done (moved to `extensions`, migration `move_pg_net_to_extensions_schema`).
 
 ## Security model in one paragraph
 

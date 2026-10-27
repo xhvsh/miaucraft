@@ -32,7 +32,7 @@ Status legend: **Fixed (repo)** = changed and tested here, not live until rolled
 | O2 | Low | `enforce_waypoint_min_distance` is `SECURITY DEFINER` and checks *all* waypoints, so its error message reveals whether a private waypoint exists within 50 blocks of a probe. | trigger | **Open** (behaviour change; needs a product decision). |
 | O3 | Low | `wp_can_view/edit`, `wp_is_*` accept an arbitrary `p_user`; callable by anyone (RLS needs them). Needs a waypoint UUID to be useful. | functions | **Open**. |
 | O4 | Info | A `test` schema in production holds copies of `players`, `live_positions`, `whitelist` with `anon SELECT`. Harmless unless PostgREST exposes it; probably a leftover. | database | **Open**: drop it if unused. |
-| O5 | Info | Dashboard-only: leaked-password protection disabled; `pg_net` in `public`. | Supabase | **Open** (see README). |
+| O5 | Info | Leaked-password protection is disabled (paid-plan feature). `pg_net` was in `public`. | Supabase | `pg_net` moved to `extensions` (applied). Leaked-password protection: not available on the free plan. |
 | A1 | Accepted | The per-username sign-in lockout (10 failures/h) lets a stranger lock a *known* username out for an hour. The ceiling is deliberately higher than the per-IP one (5/h). | `signin` | Accepted. |
 | A2 | Accepted | `auth.js` keeps a second copy of the session in `localStorage` to survive transient refresh failures (≤ 7 days). Same exposure class as supabase-js's own storage; the strict CSP is the mitigation. | `auth.js` | Accepted. |
 | A3 | Accepted | Edge functions answer `Access-Control-Allow-Origin: *`. They use bearer tokens/body credentials, never cookies. | functions | Accepted. |
@@ -77,7 +77,7 @@ The existing interface already has a coherent system (tokens, dark theme, nav + 
 2. Deploy the three edge functions (after step 1).
 3. Release plugin 2.7.0 with `publish-release.ps1` (signs the manifest) and mirror `bridge/` into this repo (`-SiteRepo`). Servers on ≤ 2.6.1 ignore the new `signature` field and keep updating.
 4. Deploy the site.
-5. Dashboard: disable OAuth sign-ups (or Discord sign-ups), enable leaked-password protection.
+5. Dashboard: disable OAuth sign-ups (or Discord sign-ups). Leaked-password protection needs a paid plan.
 
 ## Recommended next steps
 
