@@ -195,9 +195,12 @@ textarea::placeholder {
 input:focus,
 select:focus,
 textarea:focus {
-  border-color: var(--accent-line);
+  border-color: var(--accent);
   background: var(--surface-3);
-  outline: none;
+  /* a visible ring (the old 40%-alpha border alone was under 3:1 contrast);
+     the transparent outline keeps a ring in forced-colors / high-contrast mode */
+  box-shadow: 0 0 0 3px var(--accent-soft-2);
+  outline: 2px solid transparent;
 }
 input.no-spinner::-webkit-outer-spin-button,
 input.no-spinner::-webkit-inner-spin-button {

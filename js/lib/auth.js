@@ -171,11 +171,6 @@ export function canEditWaypoint(waypoint) {
   return false;
 }
 
-export function isWaypointOwner(waypoint) {
-  const uid = state.session?.user?.id;
-  return Boolean(uid && waypoint?.owner_id === uid);
-}
-
 // Mirrors the database `wp_delete_owner` policy: only the waypoint
 // owner/creator can delete it; site owner/admin roles can additionally delete
 // other people's waypoints - but ONLY when they are public.
@@ -403,7 +398,8 @@ export async function searchProfilesByUsername(prefix, limit = 50) {
   const max = Number.isFinite(Number(limit)) && limit > 0 ? limit : 50;
   let query = supabase.from("profiles").select("id, username");
   if (clean) {
-    query = query.ilike("username", `${clean}%`);
+    // escape LIKE wildcards so "_" / "%" in a search match literally
+    query = query.ilike("username", `${clean.replace(/[\\%_]/g, "\\$&")}%`);
   }
   const { data, error } = await query.order("username", { ascending: true }).limit(max);
   if (error) throw new Error(friendlyError(error, "Couldn't search users."));

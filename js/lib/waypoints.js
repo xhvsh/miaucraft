@@ -69,6 +69,8 @@ export async function listWaypointsByUsername(username, userId) {
   return rows.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 }
 
+const WORLD_BORDER = 30_000_000;
+
 export function validateWaypointInput(waypoint) {
   const name = String(waypoint?.name ?? "").trim();
   if (!name) return "Name is required.";
@@ -77,6 +79,9 @@ export function validateWaypointInput(waypoint) {
   if (description.length > 160) return "Description is too long (160 characters max).";
   if (waypoint?.x !== undefined && waypoint?.x !== null && !Number.isFinite(Number(waypoint.x))) return "X coordinate is invalid.";
   if (waypoint?.z !== undefined && waypoint?.z !== null && !Number.isFinite(Number(waypoint.z))) return "Z coordinate is invalid.";
+  // The database enforces the same world-border limit (waypoints_xz_range).
+  if (Math.abs(Number(waypoint?.x ?? 0)) > WORLD_BORDER) return "X coordinate is outside the world (30,000,000 max).";
+  if (Math.abs(Number(waypoint?.z ?? 0)) > WORLD_BORDER) return "Z coordinate is outside the world (30,000,000 max).";
   if (waypoint?.y !== undefined && waypoint?.y !== null && waypoint.y !== "" && !Number.isFinite(Number(waypoint.y))) return "Y coordinate is invalid.";
   return null;
 }
@@ -161,12 +166,6 @@ export async function addCollaborator({ waypointId, userId, username, role, adde
   return data;
 }
 
-export async function updateCollaboratorRole(waypointId, userId, role) {
-  const { data, error } = await supabase.from("waypoint_collaborators").update({ role }).eq("waypoint_id", waypointId).eq("user_id", userId).select().single();
-  if (error) throw error;
-  return data;
-}
-
 export async function removeCollaborator(waypointId, userId) {
   const { data, error } = await supabase.from("waypoint_collaborators").delete().eq("waypoint_id", waypointId).eq("user_id", userId).select("id");
   if (error) throw error;
@@ -227,15 +226,6 @@ export function publicImageUrl(imageUrl) {
   const match = String(imageUrl).match(/\/object\/public\/waypoint-gallery\/(.+)$/);
   if (match) return supabase.storage.from(WAYPOINT_GALLERY_BUCKET).getPublicUrl(decodeURIComponent(match[1])).data.publicUrl;
   return imageUrl;
-}
-
-export async function reorderGalleryImages(orderedIds) {
-  const promises = orderedIds.map((id, index) =>
-    supabase.from("waypoint_gallery").update({ position: index }).eq("id", id),
-  );
-  const results = await Promise.all(promises);
-  const firstError = results.find((r) => r.error)?.error;
-  if (firstError) throw firstError;
 }
 
 function randomId() {
@@ -336,7 +326,3 @@ export async function getServerInfo() {
   return map;
 }
 
-export async function setServerInfo(key, value) {
-  const { error } = await supabase.from("server_info").upsert({ key, value });
-  if (error) throw error;
-}

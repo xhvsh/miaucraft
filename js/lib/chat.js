@@ -63,8 +63,3 @@ export async function sendWebMessage({ userId, username, message }) {
   return data;
 }
 
-export async function insertSystemChatMessage(message) {
-  const { data, error } = await db().insert({ kind: "system", username: null, message }).select().single();
-  if (error) throw error;
-  return data;
-}

@@ -211,7 +211,7 @@ function getSortArrow(key) {
 function statIconHtml(statKey) {
   const url = statIconUrl(statKey);
   if (!url) return "";
-  return `<img class="stat-icon" src="${url}" alt="" width="26" height="26" loading="lazy" onerror="this.remove()" />`;
+  return `<img class="stat-icon" src="${url}" alt="" width="26" height="26" loading="lazy" data-img-fallback="remove" />`;
 }
 
 // The item/mob tables group rows by their bare suffix (e.g. redstone_torch),
@@ -464,7 +464,7 @@ function applyTopCategoriesFilter() {
       item.dataset.rank = rank;
       const iconUrl = statIconUrl(key);
       item.innerHTML = `
-        <span class="profile-top-item-icon">${iconUrl ? `<img class="stat-icon stat-icon--lg" src="${iconUrl}" alt="" width="26" height="26" loading="lazy" onerror="this.replaceWith(document.createRange().createContextualFragment('<i class=&quot;fa-solid ${RANK_ICONS[rank]}&quot; aria-hidden=&quot;true&quot;></i>'))" />` : `<i class="fa-solid ${RANK_ICONS[rank]}" aria-hidden="true"></i>`}</span>
+        <span class="profile-top-item-icon">${iconUrl ? `<img class="stat-icon stat-icon--lg" src="${iconUrl}" alt="" width="26" height="26" loading="lazy" data-img-fallback="icon" data-fallback-icon="${RANK_ICONS[rank]}" />` : `<i class="fa-solid ${RANK_ICONS[rank]}" aria-hidden="true"></i>`}</span>
         <span class="profile-top-item-body">
           <span class="profile-top-item-title">${escapeHtml(getStatDisplayName(key))}</span>
           <span class="profile-top-item-link">View leaderboard <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></span>

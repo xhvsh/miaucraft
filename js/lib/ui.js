@@ -13,6 +13,31 @@ export function escapeHtml(value) {
   return String(value ?? "").replace(ESC_RE, (ch) => ESC_MAP[ch]);
 }
 
+/**
+ * Image fallbacks. Inline `onerror="..."` attributes are blocked by the site's
+ * Content-Security-Policy (script-src 'self'), so images opt in with
+ * data-img-fallback instead: "remove" drops the broken image, "icon" swaps it
+ * for the Font Awesome icon named in data-fallback-icon. `error` does not
+ * bubble, hence the capture-phase listener on the document.
+ */
+const FALLBACK_ICON_RE = /^fa-[a-z0-9-]+$/;
+document.addEventListener(
+  "error",
+  (e) => {
+    const img = e.target;
+    if (!(img instanceof HTMLImageElement) || !img.dataset.imgFallback) return;
+    if (img.dataset.imgFallback === "icon" && FALLBACK_ICON_RE.test(img.dataset.fallbackIcon || "")) {
+      const icon = document.createElement("i");
+      icon.className = `fa-solid ${img.dataset.fallbackIcon}`;
+      icon.setAttribute("aria-hidden", "true");
+      img.replaceWith(icon);
+    } else {
+      img.remove();
+    }
+  },
+  true
+);
+
 let toastContainer = null;
 
 /**

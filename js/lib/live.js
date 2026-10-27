@@ -15,12 +15,6 @@ export function subscribePlayers(onChange) {
   return () => supabase.removeChannel(channel);
 }
 
-export async function listAccountUsernamesLower() {
-  const { data, error } = await supabase.rpc("list_account_usernames");
-  if (error) throw error;
-  return new Set(data.map((username) => username.toLowerCase()));
-}
-
 export async function listPlayerStats(statKeys, limit = 10) {
   const keys = Array.isArray(statKeys) ? statKeys : [statKeys];
   for (const key of keys) {
@@ -54,13 +48,6 @@ export async function listDistanceLeaderboard(limit = 10) {
   const { data, error } = await query;
   if (error) throw error;
   return (data ?? []).map((row) => ({ stat_value: row.stat_value, players: { username: row.username } }));
-}
-
-export async function getTop1Summary() {
-  const query = SCHEMA === "public" ? supabase.rpc("get_top1_summary") : supabase.schema(SCHEMA).rpc("get_top1_summary");
-  const { data, error } = await query;
-  if (error) throw error;
-  return data ?? [];
 }
 
 export async function getTop3Summary() {
@@ -115,12 +102,6 @@ export async function getAllPlayerStats(playerId) {
   }
 
   return allRows;
-}
-
-export async function getLiveTrackingEnabled(playerId) {
-  const { data, error } = await db("players").select("live_tracking_enabled").eq("id", playerId).single();
-  if (error) throw error;
-  return data.live_tracking_enabled;
 }
 
 // achievements
